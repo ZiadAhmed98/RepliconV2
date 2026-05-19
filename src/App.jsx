@@ -7,6 +7,9 @@ import Navbar from './components/Navbar';
 import LoginModal from './components/LoginModal';
 import LoadingOverlay from './components/LoadingOverlay';
 
+// Import the new Dashboard Module
+import Dashboard from './pages/Dashboard';
+
 export default function App() {
   const { 
     loading, 
@@ -18,29 +21,22 @@ export default function App() {
     setSessionUser 
   } = useRepliconData();
 
-  // If there is no active session, lock the screen and force login
   if (!sessionUser) {
-    return <LoginModal onSuccess={(user) => {
-      setSessionUser(user);
-      syncMatrixData(false);
-    }} />;
+    return <LoginModal onSuccess={(user) => { setSessionUser(user); syncMatrixData(false); }} />;
   }
 
-  // The main layout composition
   return (
     <Router>
       {loading && <LoadingOverlay text="Orchestrating Matrix" subtext={statusText} />}
       
-      <Ribbon 
-        sessionUser={sessionUser} 
-        onLogout={logoutSession} 
-        onSync={syncMatrixData} 
-      />
+      <Ribbon sessionUser={sessionUser} onLogout={logoutSession} onSync={syncMatrixData} />
       <Navbar />
 
       <main className="dashboard-container">
         <Routes>
-          <Route path="/" element={<div style={{ textAlign: 'center', marginTop: '50px' }}><h2>Executive Dashboard Module pending...</h2></div>} />
+          {/* Mount the Dashboard and pass the data matrix down */}
+          <Route path="/" element={<Dashboard dataMatrix={dataMatrix} />} />
+          
           <Route path="/employee" element={<div style={{ textAlign: 'center', marginTop: '50px' }}><h2>Employee Analytics Module pending...</h2></div>} />
           <Route path="/projects" element={<div style={{ textAlign: 'center', marginTop: '50px' }}><h2>Project Deep Dive Module pending...</h2></div>} />
           <Route path="/capacity" element={<div style={{ textAlign: 'center', marginTop: '50px' }}><h2>Capacity Hub Module pending...</h2></div>} />
