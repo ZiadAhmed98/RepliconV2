@@ -28,3 +28,18 @@
 .locVal { color: var(--text-muted); font-size: 0.75rem; }
 .progress { height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden; }
 .progressBar { height: 100%; background: linear-gradient(90deg, var(--accent-blue), #60a5fa); border-radius: 2px; }
+
+/* Compliance Controls */
+.complianceCard { cursor: pointer; border-color: rgba(244, 63, 94, 0.3); transition: 0.2s; position: relative; }
+.complianceCard:hover { border-color: var(--accent-coral); transform: translateY(-2px); }
+.compControls { display: flex; gap: 4px; position: absolute; top: 20px; right: 20px; z-index: 10; }
+.compControls i { background: rgba(255,255,255,0.05); padding: 4px; border-radius: 4px; color: var(--text-muted); cursor: pointer; transition: 0.2s; font-size: 0.9rem;} 
+.compControls i:hover { background: var(--text-main); color: var(--bg-main);}
+.sparklineContainer { margin-top: 12px; height: 35px; width: 100%; position: relative; z-index: 1; pointer-events: none; }
+
+/* Premium Table for Rolloffs */
+.premiumTable { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.85rem; }
+.premiumTable th { text-align: left; padding: 14px 16px; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 0.7rem; border-bottom: 1px solid var(--border-color); background: rgba(255,255,255,0.02); }
+.premiumTable td { padding: 14px 16px; color: var(--text-main); border-bottom: 1px solid rgba(255,255,255,0.03); }
+.teamTags { display: flex; gap: 6px; flex-wrap: wrap; }
+.teamTags span { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text-muted); padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 500; }

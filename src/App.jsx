@@ -6,7 +6,7 @@ import Ribbon from './components/Ribbon';
 import Navbar from './components/Navbar';
 import LoginModal from './components/LoginModal';
 import LoadingOverlay from './components/LoadingOverlay';
-
+import SessionManager from './components/SessionManager'; // ADD THIS
 // Import the new Dashboard Module
 import Dashboard from './pages/Dashboard';
 
@@ -27,7 +27,8 @@ export default function App() {
 
   return (
     <Router>
-      {loading && <LoadingOverlay text="Orchestrating Matrix" subtext={statusText} />}
+      {loading && <LoadingOverlay />}
+      <SessionManager onLogout={logoutSession} />
       
       <Ribbon sessionUser={sessionUser} onLogout={logoutSession} onSync={syncMatrixData} />
       <Navbar />
