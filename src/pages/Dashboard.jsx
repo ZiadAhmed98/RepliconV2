@@ -1,23 +1,22 @@
 import React, { useMemo } from 'react';
 import Chart from 'react-apexcharts';
+import styles from './Dashboard.module.css';
 
 export default function Dashboard({ dataMatrix }) {
-  // 1. Engine: Calculate KPIs instantly using React's memory cache
+  // 1. Engine: Calculate KPIs instantly
   const metrics = useMemo(() => {
     let tAct = 0, tEst = 0, tQuoted = 0;
     let activeStatus = 0, compStatus = 0;
     let overburnData = [];
     let billableHrs = 0, overheadHrs = 0;
 
-    const { factTable, dimensionTable, topClients } = dataMatrix;
+    const { factTable = [], dimensionTable = {}, topClients = [], compliance = {} } = dataMatrix || {};
 
-    // Process Facts for Billable/Overhead
     factTable.forEach(row => {
       if (row.program.toLowerCase().includes("internal")) overheadHrs += row.act;
       else billableHrs += row.act;
     });
 
-    // Process Dimensions for Projects & Overburn
     Object.keys(dimensionTable).forEach(pName => {
       const pData = dimensionTable[pName];
       const periodActual = factTable.filter(r => r.project === pName).reduce((s, r) => s + r.act, 0);
@@ -42,7 +41,7 @@ export default function Dashboard({ dataMatrix }) {
     });
 
     const sortedOverburn = overburnData.sort((a, b) => b.overburn - a.overburn).slice(0, 10);
-    const maxBf = Math.ceil(Math.max(0, ...sortedOverburn.map(p => Math.max(p.act, p.est))) * 1.1);
+    const maxBf = Math.ceil(Math.max(0, ...sortedOverburn.map(p => Math.max(p.act, p.est))) * 1.1) || 10;
 
     return {
       totalProjects: Object.keys(dimensionTable).length,
@@ -55,29 +54,26 @@ export default function Dashboard({ dataMatrix }) {
       overhead: Math.round(overheadHrs),
       overburn: sortedOverburn,
       bfMax: maxBf,
-      topClients
+      topClients,
+      dailyDeficits: compliance.dailyDeficits || 0
     };
   }, [dataMatrix]);
 
-  // 2. Formatting Helpers
   const fmtInt = (num) => Math.round(num || 0).toLocaleString('en-US');
   const chartDefaults = { background: 'transparent', foreColor: '#a1a1aa', toolbar: { show: false } };
 
-  // 3. View Composition
-  // ... [Keep your useMemo and formatting helpers at the top of Dashboard.jsx] ...
-
   return (
     <div>
-      <div className="section-header">
-        <div className="title-area">
-          <h2 className="section-title">Analytics Overview</h2>
+      <div className={styles.sectionHeader}>
+        <div className={styles.titleArea}>
+          <h2 className={styles.sectionTitle}>Analytics Overview</h2>
           <div className="badges-container">
             <span className="badge-base period-badge">All Time</span>
           </div>
         </div>
       </div>
 
-      <div className="kpi-grid">
+      <div className={styles.kpiGrid}>
         <div className="kpi-card"><div><p>Active Clients</p><h3>{metrics.topClients.length}</h3></div><div className="trend"><i className='bx bx-briefcase'></i> <span>Portfolio</span></div></div>
         <div className="kpi-card"><div><p>Total Projects</p><h3>{metrics.totalProjects}</h3></div><div className="trend"><i className='bx bx-folder'></i> <span>Baseline</span></div></div>
         <div className="kpi-card"><div><p>In Progress</p><h3 style={{ color: 'var(--accent-blue)' }}>{metrics.activeProjects}</h3></div><div className="trend"><i className='bx bx-pulse'></i> <span>Current</span></div></div>
@@ -87,19 +83,18 @@ export default function Dashboard({ dataMatrix }) {
         <div className="kpi-card"><div><p>Estimated Hours</p><h3>{fmtInt(metrics.estimated)}</h3></div><div className="trend"><i className='bx bx-target-lock'></i> <span>Baseline</span></div></div>
         <div className="kpi-card"><div><p>Quoted Value</p><h3>{fmtInt(metrics.quoted)}</h3></div><div className="trend"><i className='bx bx-file'></i> <span>Contracted</span></div></div>
         
-        <div className="kpi-card compliance-card">
+        <div className="kpi-card" style={{ cursor: 'pointer', borderColor: 'rgba(244, 63, 94, 0.3)' }}>
           <div>
             <p>Daily Deficits</p>
-            <h3 style={{ color: 'var(--accent-coral)' }}>{dataMatrix.compliance.dailyDeficits}</h3>
+            <h3 style={{ color: 'var(--accent-coral)' }}>{metrics.dailyDeficits}</h3>
           </div>
         </div>
       </div>
 
-      <div className="chart-row-half">
+      <div className={styles.chartRowHalf}>
         <div className="chart-card">
           <h4><i className='bx bx-doughnut-chart' style={{ color: 'var(--accent-blue)' }}></i> Billable vs Non-Billable</h4>
-          {/* FIX: Wrapper div with flexGrow and strict width passed to Chart */}
-          <div style={{ flexGrow: 1, width: '100%', height: '100%' }}>
+          <div className={styles.chartWrapper}>
             <Chart 
               type="donut" 
               width="100%"
@@ -120,7 +115,7 @@ export default function Dashboard({ dataMatrix }) {
         
         <div className="chart-card">
           <h4><i className='bx bx-error-circle' style={{ color: 'var(--accent-red)' }}></i> Revenue Leakage (Overburn)</h4>
-          <div style={{ flexGrow: 1, width: '100%', height: '100%' }}>
+          <div className={styles.chartWrapper}>
             <Chart 
               type="bar" 
               width="100%"
@@ -138,7 +133,9 @@ export default function Dashboard({ dataMatrix }) {
                   categories: metrics.overburn.map(p => p.name),
                   min: -metrics.bfMax, 
                   max: metrics.bfMax,
-                  labels: { style: { colors: '#a1a1aa' }, formatter: (v) => Math.abs(Math.round(v)) }
+                  labels: { style: { colors: '#a1a1aa' }, formatter: (v) => Math.abs(Math.round(v)) },
+                  axisBorder: { show: false }, 
+                  axisTicks: { show: false }
                 },
                 yaxis: { labels: { style: { colors: '#a1a1aa' }, maxWidth: 150 } },
                 grid: { borderColor: '#27272a', strokeDashArray: 4 },
