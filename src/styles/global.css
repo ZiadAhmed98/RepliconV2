@@ -124,3 +124,11 @@ body {
   font-family: 'Inter', sans-serif !important;
   font-size: 0.85rem !important;
 }
+
+/* =========================================================================
+   CUSTOM DARK SCROLLBARS
+   ========================================================================= */
+::-webkit-scrollbar { height: 8px; width: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #3f3f46; }

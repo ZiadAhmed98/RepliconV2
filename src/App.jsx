@@ -27,7 +27,7 @@ export default function App() {
 
   return (
     <Router>
-      {loading && <LoadingOverlay />}
+      {loading && <LoadingOverlay text="Fetching Data..." subtext={statusText} />}
       <SessionManager onLogout={logoutSession} />
       
       <Ribbon sessionUser={sessionUser} onLogout={logoutSession} onSync={syncMatrixData} />
