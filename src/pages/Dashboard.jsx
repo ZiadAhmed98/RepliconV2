@@ -64,6 +64,8 @@ export default function Dashboard({ dataMatrix }) {
   const chartDefaults = { background: 'transparent', foreColor: '#a1a1aa', toolbar: { show: false } };
 
   // 3. View Composition
+  // ... [Keep your useMemo and formatting helpers at the top of Dashboard.jsx] ...
+
   return (
     <div>
       <div className="section-header">
@@ -96,45 +98,56 @@ export default function Dashboard({ dataMatrix }) {
       <div className="chart-row-half">
         <div className="chart-card">
           <h4><i className='bx bx-doughnut-chart' style={{ color: 'var(--accent-blue)' }}></i> Billable vs Non-Billable</h4>
-          <Chart 
-            type="donut" 
-            height={320}
-            series={[metrics.billable, metrics.overhead]} 
-            options={{
-              ...chartDefaults,
-              labels: ['Billable', 'Non-Billable'],
-              colors: ['#10b981', 'rgba(255,255,255,0.1)'],
-              stroke: { width: 0 },
-              dataLabels: { enabled: false },
-              legend: { position: 'bottom', labels: { colors: '#a1a1aa' } }
-            }} 
-          />
+          {/* FIX: Wrapper div with flexGrow and strict width passed to Chart */}
+          <div style={{ flexGrow: 1, width: '100%', height: '100%' }}>
+            <Chart 
+              type="donut" 
+              width="100%"
+              height={320}
+              series={[metrics.billable, metrics.overhead]} 
+              options={{
+                ...chartDefaults,
+                labels: ['Billable', 'Non-Billable'],
+                colors: ['#10b981', 'rgba(255,255,255,0.1)'],
+                stroke: { width: 0 },
+                plotOptions: { pie: { donut: { size: '75%' } } },
+                dataLabels: { enabled: false },
+                legend: { position: 'bottom', labels: { colors: '#a1a1aa' } }
+              }} 
+            />
+          </div>
         </div>
         
         <div className="chart-card">
           <h4><i className='bx bx-error-circle' style={{ color: 'var(--accent-red)' }}></i> Revenue Leakage (Overburn)</h4>
-          <Chart 
-            type="bar" 
-            height={320}
-            series={[
-              { name: 'Estimated Budget', data: metrics.overburn.map(p => -p.est) },
-              { name: 'Actual Burn', data: metrics.overburn.map(p => p.act) }
-            ]} 
-            options={{
-              ...chartDefaults,
-              chart: { stacked: true },
-              colors: ['#a1a1aa', '#ef4444'],
-              plotOptions: { bar: { horizontal: true } },
-              xaxis: { 
-                categories: metrics.overburn.map(p => p.name),
-                min: -metrics.bfMax, 
-                max: metrics.bfMax,
-                labels: { formatter: (v) => Math.abs(Math.round(v)) }
-              },
-              dataLabels: { formatter: (v) => Math.abs(Math.round(v)) + "h" },
-              tooltip: { y: { formatter: (v) => Math.abs(Math.round(v)) + " hrs" } }
-            }} 
-          />
+          <div style={{ flexGrow: 1, width: '100%', height: '100%' }}>
+            <Chart 
+              type="bar" 
+              width="100%"
+              height={320}
+              series={[
+                { name: 'Estimated Budget', data: metrics.overburn.map(p => -p.est) },
+                { name: 'Actual Burn', data: metrics.overburn.map(p => p.act) }
+              ]} 
+              options={{
+                ...chartDefaults,
+                chart: { stacked: true },
+                colors: ['#a1a1aa', '#ef4444'],
+                plotOptions: { bar: { horizontal: true, borderRadius: 0 } },
+                xaxis: { 
+                  categories: metrics.overburn.map(p => p.name),
+                  min: -metrics.bfMax, 
+                  max: metrics.bfMax,
+                  labels: { style: { colors: '#a1a1aa' }, formatter: (v) => Math.abs(Math.round(v)) }
+                },
+                yaxis: { labels: { style: { colors: '#a1a1aa' }, maxWidth: 150 } },
+                grid: { borderColor: '#27272a', strokeDashArray: 4 },
+                dataLabels: { enabled: true, formatter: (v) => Math.abs(Math.round(v)) + "h" },
+                tooltip: { theme: 'dark', y: { formatter: (v) => Math.abs(Math.round(v)) + " hrs" } },
+                legend: { position: 'top', labels: { colors: '#a1a1aa' } }
+              }} 
+            />
+          </div>
         </div>
       </div>
     </div>
