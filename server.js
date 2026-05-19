@@ -1,13 +1,18 @@
-require('dotenv').config();
-const express = require('express');
-const axios = require('axios');
-const path = require('path');
+import 'dotenv/config';
+import express from 'express';
+import axios from 'axios';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// ES Module fix for __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json()); 
 
 // ---------------------------------------------------------------------------
-// 1. REPLICON API ENDPOINTS (100% Preserved from your old code)
+// 1. REPLICON API ENDPOINTS
 // ---------------------------------------------------------------------------
 
 app.post('/api/login', async (req, res) => {
@@ -187,16 +192,12 @@ app.post('/api/projects/new', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// 2. STATIC FILE SERVING FOR REACT (CRITICAL UPDATE)
+// 2. STATIC FILE SERVING FOR REACT 
 // ---------------------------------------------------------------------------
 
-// Vite builds the React app into the "dist" folder, not "public"
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// The "Catch-All" route. If a user navigates to /projects or /employee directly,
-// the server hands them the React index.html, and React handles the routing.
 app.get('*', (req, res) => {
-    // Don't intercept API calls that fail
     if (req.path.startsWith('/api')) {
         return res.status(404).json({ error: "API route not found" });
     }
