@@ -69,3 +69,58 @@ body {
 
 /* ApexCharts Globals */
 .apexcharts-canvas { margin: 0 auto; }
+
+/* =========================================================================
+   APEXCHARTS DARK THEME OVERRIDES
+   Forces the export menus and tooltips to match our custom UI palette.
+   ========================================================================= */
+
+/* The Export Dropdown Menu */
+.apexcharts-menu {
+  background-color: var(--bg-card) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-main) !important;
+  box-shadow: var(--shadow-card) !important;
+  border-radius: 8px !important;
+  padding: 8px 0 !important;
+}
+
+/* Force override of their default light theme class */
+.apexcharts-theme-light .apexcharts-menu {
+  background: var(--bg-card) !important;
+  color: var(--text-main) !important;
+}
+
+/* The hover state for menu items */
+.apexcharts-menu-item {
+  padding: 8px 16px !important;
+  font-size: 0.85rem !important;
+  transition: 0.2s !important;
+}
+
+.apexcharts-menu-item:hover {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: var(--accent-blue) !important;
+}
+
+/* Fix Tooltips (Hover boxes) to match the premium dark theme perfectly */
+.apexcharts-tooltip {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-main) !important;
+  box-shadow: var(--shadow-card) !important;
+  border-radius: 8px !important;
+}
+
+.apexcharts-tooltip-title {
+  background: rgba(0, 0, 0, 0.2) !important;
+  border-bottom: 1px solid var(--border-color) !important;
+  font-family: 'Inter', sans-serif !important;
+  font-weight: 600 !important;
+  padding: 8px 12px !important;
+}
+
+.apexcharts-tooltip-text {
+  font-family: 'Inter', sans-serif !important;
+  font-size: 0.85rem !important;
+}
