@@ -41,6 +41,18 @@ async function loadCache() {
     } catch (e) { return null; }
 }
 
+// Add this right below the loadCache() function in useRepliconData.js
+async function clearCache() {
+    try {
+        var db = await initDB();
+        return new Promise((res) => {
+            var tx = db.transaction([STORE_NAME], "readwrite");
+            tx.objectStore(STORE_NAME).clear();
+            tx.oncomplete = () => res(true);
+        });
+    } catch (e) { return false; }
+}
+
 export function useRepliconData() {
     var [loading, setLoading] = useState(true);
     var [statusText, setStatusText] = useState('Initializing Core Engine...');
