@@ -1,0 +1,86 @@
+/* =========================================================================
+   RIBBON STYLES
+   Controls the top navigation bar, sync button, and user profile dropdown.
+   ========================================================================= */
+
+.topRibbon {
+  background: rgba(9, 9, 11, 0.8);
+  backdrop-filter: blur(12px);
+  color: var(--text-main);
+  padding: 16px 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky; /* Keeps it at the top when scrolling */
+  top: 0;
+  z-index: 1000;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.brand {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.userControls {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  position: relative; /* Crucial for absolute positioning of the dropdown */
+}
+
+.userProfile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: 0.2s;
+}
+
+.userProfile:hover {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+}
+
+/* Dropdown Menu Container 
+  Hidden by default in React state, this defines how it looks when active 
+*/
+.dropdownMenu {
+  position: absolute;
+  top: 55px;
+  right: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--shadow-card);
+  width: 180px;
+  overflow: hidden;
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Dropdown Links 
+  Notice: text-decoration: none removes the ugly underlines!
+*/
+.dropdownMenu a {
+  display: flex;
+  align-items: center;
+  padding: 12px 20px;
+  color: var(--text-muted);
+  text-decoration: none; /* Removes the underline */
+  font-size: 0.85rem;
+  transition: 0.2s;
+  font-weight: 500;
+}
+
+.dropdownMenu a i { margin-right: 12px; font-size: 1.1rem; }
+.dropdownMenu a:hover { background: rgba(255, 255, 255, 0.03); color: var(--text-main); }
+.dropdownDivider { height: 1px; background: var(--border-color); margin: 0; }

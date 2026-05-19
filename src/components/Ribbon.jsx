@@ -1,17 +1,27 @@
 import React, { useState, useEffect, useRef } from 'react';
+import styles from './Ribbon.module.css'; // Import the specific CSS for the ribbon
 
 export default function Ribbon({ sessionUser, onLogout, onSync }) {
+  // state controls whether the dropdown is open (true) or closed (false)
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  
+  // useRef creates a "hook" to the physical HTML element so we can detect clicks outside of it
   const dropdownRef = useRef(null);
 
-  // Close dropdown if clicked outside
+  // =========================================================================
+  // CLICK-AWAY LISTENER
+  // This effect runs once when the component loads. It listens for mouse clicks.
+  // If a click happens OUTSIDE the dropdownRef, it forces the dropdown closed.
+  // =========================================================================
   useEffect(() => {
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setDropdownOpen(false);
       }
     }
+    // Attach listener to the whole document
     document.addEventListener("mousedown", handleClickOutside);
+    // Cleanup function: removes listener when component is destroyed (Best Practice)
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
@@ -19,36 +29,36 @@ export default function Ribbon({ sessionUser, onLogout, onSync }) {
   const userInitial = userName.charAt(0).toUpperCase();
 
   return (
-    <header className="top-ribbon">
-      <h1>
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--text-main)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
-          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-          <line x1="12" y1="22.08" x2="12" y2="12"></line>
-        </svg>
+    <header className={styles.topRibbon}>
+      <h1 className={styles.brand}>
+        <i className='bx bx-hive' style={{ color: 'var(--accent-blue)' }}></i>
         MDS Premium
       </h1>
       
-      <div className="user-controls">
-        <button className="btn-ghost" onClick={() => onSync(true)} title="Force a fresh data pull from Replicon">
-          <i className='bx bx-cloud-download' style={{ fontSize: '1.2rem' }}></i> Sync Data
+      <div className={styles.userControls}>
+        <button className="btn-ghost" onClick={() => onSync(true)}>
+          <i className='bx bx-cloud-download'></i> Sync Data
         </button>
         
-        <div style={{ width: '1px', height: '24px', background: 'var(--border-color)', margin: '0 5px' }}></div>
+        <div style={{ width: '1px', height: '24px', background: 'var(--border-color)' }}></div>
         
-        <div className="user-profile" ref={dropdownRef} onClick={() => setDropdownOpen(!dropdownOpen)}>
-          <div className="user-avatar">{userInitial}</div>
-          <div className="user-info">
-            <span className="user-name">{userName}</span>
-            <span className="user-role">Executive</span>
+        {/* The User Profile box. Clicking it toggles the dropdownOpen state */}
+        <div className={styles.userProfile} ref={dropdownRef} onClick={() => setDropdownOpen(!dropdownOpen)}>
+          <div className="user-avatar" style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold' }}>
+            {userInitial}
           </div>
-          <i className='bx bx-chevron-down' style={{ color: 'var(--text-muted)', fontSize: '1.1rem', marginLeft: '4px' }}></i>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>{userName}</span>
+            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Executive</span>
+          </div>
+          <i className='bx bx-chevron-down'></i>
           
+          {/* If dropdownOpen is TRUE, render this block */}
           {dropdownOpen && (
-            <div className="dropdown-menu" style={{ display: 'block' }}>
+            <div className={styles.dropdownMenu}>
               <a href="#profile" onClick={(e) => e.preventDefault()}><i className='bx bx-user'></i> Profile</a>
-              <div className="dropdown-divider"></div>
-              <a href="#logout" className="text-danger" onClick={(e) => { e.preventDefault(); onLogout(); }}>
+              <div className={styles.dropdownDivider}></div>
+              <a href="#logout" onClick={(e) => { e.preventDefault(); onLogout(); }} style={{ color: 'var(--accent-red)' }}>
                 <i className='bx bx-power-off'></i> Logout
               </a>
             </div>
