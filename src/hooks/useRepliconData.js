@@ -195,19 +195,30 @@ export function useRepliconData() {
     var syncMatrixData = useCallback(async (force = false) => {
         setLoading(true);
         var cached = null;
+        
         if (!force) {
-            setStatusText('Accessing Matrix Cache...');
+            // REAL STATE: Checking IndexedDB
+            setStatusText('Accessing Local Matrix Cache...');
             cached = await loadCache();
         }
 
         if (cached) {
+            // REAL STATE: Processing existing data
+            setStatusText('Compiling UI from Cache...');
             processStarSchema(cached);
             setLoading(false);
         } else {
             try {
-                setStatusText('Connecting to Replicon...');
+                // REAL STATE: Awaiting the massive dashboard payload from Express
+                setStatusText('Connecting to Replicon API...');
                 var result = await repliconApi.getDashboardData();
+                
+                // REAL STATE: Writing to IndexedDB
+                setStatusText('Saving Matrix to Local Database...');
                 await saveCache(result);
+                
+                // REAL STATE: Crunching the numbers in processStarSchema
+                setStatusText('Processing Engine Star Schema...');
                 processStarSchema(result);
             } catch (err) {
                 setStatusText('Sync drop detected. Check gateway endpoint connection.');

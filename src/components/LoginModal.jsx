@@ -41,8 +41,11 @@ export default function LoginModal({ onSuccess }) {
   };
 
   return (
-    <div id="loading-overlay" style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.8)' }}>
-      <div className="modal-content" style={{ width: '420px', textAlign: 'center', backgroundColor: 'var(--bg-card)', padding: '40px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-card)' }}>
+    /* FIX: position: 'fixed', inset: 0, zIndex: 3000, display: 'flex', 
+      justifyContent: 'center', alignItems: 'center' forces absolute centering 
+    */
+    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 3000, display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}>
+      <div className="modal-content" style={{ width: '420px', textAlign: 'center', backgroundColor: 'var(--bg-card)', padding: '40px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.7)' }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
@@ -50,13 +53,13 @@ export default function LoginModal({ onSuccess }) {
             <line x1="12" y1="22.08" x2="12" y2="12"></line>
           </svg>
         </div>
-        <h2 style={{ marginTop: 0, color: 'var(--text-main)' }}>MDS Premium</h2>
+        <h2 style={{ marginTop: 0, color: 'var(--text-main)', fontSize: '1.5rem', fontWeight: 600, letterSpacing: '-0.02em' }}>MDS Premium</h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '5px', marginBottom: '25px' }}>Enter your analytics credentials.</p>
         
         <input type="text" placeholder="Username" value={username} onChange={e => setUsername(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleLogin()} autoComplete="off" style={{ width: '100%', padding: '12px 16px', marginBottom: '16px', border: '1px solid var(--border-color)', borderRadius: '8px', fontFamily: 'inherit', fontSize: '0.95rem', background: 'rgba(0,0,0,0.2)', color: 'var(--text-main)', outline: 'none' }} />
         <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleLogin()} style={{ width: '100%', padding: '12px 16px', marginBottom: '16px', border: '1px solid var(--border-color)', borderRadius: '8px', fontFamily: 'inherit', fontSize: '0.95rem', background: 'rgba(0,0,0,0.2)', color: 'var(--text-main)', outline: 'none' }} />
         
-        <button className="btn-primary" onClick={handleLogin} disabled={isAuthenticating} style={{ width: '100%', justifyContent: 'center', padding: '12px' }}>
+        <button className="btn-primary" onClick={handleLogin} disabled={isAuthenticating} style={{ width: '100%', justifyContent: 'center', padding: '12px', marginTop: '10px' }}>
           {isAuthenticating ? 'Authenticating...' : 'Secure Login'}
         </button>
         
