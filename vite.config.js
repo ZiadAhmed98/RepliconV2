@@ -4,8 +4,13 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
+    // This tells Vite: "If a request starts with /api, send it to the Express server"
     proxy: {
-      '/api': 'http://localhost:3000'
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        secure: false,
+      }
     }
   }
 })
