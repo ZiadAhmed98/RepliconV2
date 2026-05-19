@@ -6,7 +6,8 @@ import Ribbon from './components/Ribbon';
 import Navbar from './components/Navbar';
 import LoginModal from './components/LoginModal';
 import LoadingOverlay from './components/LoadingOverlay';
-import SessionManager from './components/SessionManager'; // ADD THIS
+import SessionManager from './components/SessionManager';
+import SmartInitiator from './pages/SmartInitiator';
 // Import the new Dashboard Module
 import Dashboard from './pages/Dashboard';
 
@@ -42,7 +43,7 @@ export default function App() {
           <Route path="/projects" element={<div style={{ textAlign: 'center', marginTop: '50px' }}><h2>Project Deep Dive Module pending...</h2></div>} />
           <Route path="/capacity" element={<div style={{ textAlign: 'center', marginTop: '50px' }}><h2>Capacity Hub Module pending...</h2></div>} />
           <Route path="/timesheets" element={<div style={{ textAlign: 'center', marginTop: '50px' }}><h2>Timesheet Ops Module pending...</h2></div>} />
-          <Route path="/new-project" element={<div style={{ textAlign: 'center', marginTop: '50px' }}><h2>Smart Initiator Module pending...</h2></div>} />
+          <Route path="/new-project" element={<SmartInitiator dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} />} />
         </Routes>
       </main>
     </Router>
