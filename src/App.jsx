@@ -12,6 +12,8 @@ import SessionManager from './components/SessionManager';
 import SmartInitiator from './pages/SmartInitiator';
 import Dashboard from './pages/Dashboard';
 import Employee from './pages/Employee';
+import ProjectDeepDive from './pages/ProjectDeepDive';
+import TimesheetOps from './pages/TimesheetOps';
 
 export default function App() {
   const { 
@@ -42,9 +44,9 @@ export default function App() {
           <Route path="/" element={<Dashboard dataMatrix={dataMatrix} />} />
           
           <Route path="/employee" element={<Employee dataMatrix={dataMatrix} sessionUser={sessionUser} />} />
-          <Route path="/projects" element={<div style={{ textAlign: 'center', marginTop: '50px' }}><h2>Project Deep Dive Module pending...</h2></div>} />
+          <Route path="/projects" element={<ProjectDeepDive dataMatrix={dataMatrix} />} />
           <Route path="/capacity" element={<div style={{ textAlign: 'center', marginTop: '50px' }}><h2>Capacity Hub Module pending...</h2></div>} />
-          <Route path="/timesheets" element={<div style={{ textAlign: 'center', marginTop: '50px' }}><h2>Timesheet Ops Module pending...</h2></div>} />
+          <Route path="/timesheets" element={<TimesheetOps dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} />} />
           <Route path="/new-project" element={<SmartInitiator dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} />} />
         </Routes>
       </main>
