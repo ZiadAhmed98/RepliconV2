@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 
 // Global UI Components
-import Navbar from './components/navbar';
+import Navbar from './components/Navbar';
 import LoadingOverlay from './components/LoadingOverlay';
-import LoginModal from './components/loginmodal';
+import LoginModal from './components/LoginModal';
 
 // Pages
 import Dashboard from './pages/Dashboard';
