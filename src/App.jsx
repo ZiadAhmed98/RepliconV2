@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 
 // Global UI Components
-import UniversalHeader from './components/UniversalHeader';
-import UniversalNav from './components/UniversalNav';
+import Navbar from './components/navbar';
 import LoadingOverlay from './components/LoadingOverlay';
 import Login from './components/Login';
 
@@ -51,8 +50,8 @@ export default function App() {
       {loading && <LoadingOverlay text="Fetching Data..." subtext={statusText} />}
 
       {/* Global Navigation & Header */}
-      <UniversalHeader sessionUser={sessionUser} forceSync={() => syncMatrixData(true)} />
-      <UniversalNav />
+      <Navbar sessionUser={sessionUser} forceSync={() => syncMatrixData(true)} />
+      <Navbar />
 
       {/* Page Routing */}
       <main className="dashboard-container" style={{ display: 'block', padding: '40px', maxWidth: '1800px', margin: '0 auto' }}>
