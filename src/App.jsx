@@ -14,8 +14,7 @@ import TimesheetOps from './pages/TimesheetOps';
 import SmartInitiator from './pages/SmartInitiator';
 
 // Data Engine
-import useRepliconData from './hooks/useRepliconData';
-
+import { useRepliconData } from './hooks/useRepliconData';
 
 export default function App() {
   // 1. Session State
