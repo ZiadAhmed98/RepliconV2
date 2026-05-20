@@ -2,23 +2,21 @@ import React, { useState, useMemo } from 'react';
 import styles from './TimesheetOps.module.css';
 
 export default function TimesheetOps({ dataMatrix, syncMatrixData }) {
-  // =========================================================================
-  // 1. COMPONENT STATE
-  // =========================================================================
-  const [activeTab, setActiveTab] = useState('pending'); // pending, approved, notsubmitted, drafts
+  const [activeTab, setActiveTab] = useState('pending'); 
   const [selectedPeriod, setSelectedPeriod] = useState('ALL');
   const [selectedEmp, setSelectedEmp] = useState('ALL');
   
-  const [selectedURIs, setSelectedURIs] = useState(new Set()); // For bulk actions
+  const [selectedURIs, setSelectedURIs] = useState(new Set()); 
   const [isProcessing, setIsProcessing] = useState(false);
-  const [modalDetails, setModalDetails] = useState(null); // Holds data for the detail pop-up
+  const [modalDetails, setModalDetails] = useState(null); 
 
-  // =========================================================================
-  // 2. HELPER FUNCTIONS
-  // =========================================================================
   const fmtInt = (num) => Math.round(num || 0).toLocaleString('en-US');
 
-  // Calculates the timestamp for the most recent Sunday
+  // Relaxes string comparisons to handle hidden spaces or case mismatches safely
+  const namesMatch = (name1, name2) => {
+    return (name1 || "").trim().toLowerCase() === (name2 || "").trim().toLowerCase();
+  };
+
   const getLastSunday = () => {
     let d = new Date();
     let day = d.getDay();
@@ -28,15 +26,11 @@ export default function TimesheetOps({ dataMatrix, syncMatrixData }) {
     return d.getTime();
   };
 
-  // =========================================================================
-  // 3. DATA PREPARATION (Dropdowns)
-  // =========================================================================
   const dropdowns = useMemo(() => {
     if (!dataMatrix) return { periods: [], engineers: [] };
     const { timesheets = [], roster = [] } = dataMatrix;
     const lastSundayTs = getLastSunday();
 
-    // Valid Periods <= Last Sunday
     let uniquePeriods = [...new Set(timesheets.map(t => t.period).filter(p => p))];
     let validPeriods = uniquePeriods.filter(p => {
       if (p && p.includes('-')) {
@@ -46,44 +40,40 @@ export default function TimesheetOps({ dataMatrix, syncMatrixData }) {
       return false;
     }).sort((a, b) => new Date(b.split('-')[0].trim()).getTime() - new Date(a.split('-')[0].trim()).getTime());
 
-    // Active Roster
     let engineers = roster.filter(e => e.status === "Enabled").sort((a, b) => a.name.localeCompare(b.name));
 
     return { periods: validPeriods, engineers };
   }, [dataMatrix]);
 
-  // =========================================================================
-  // 4. MAIN TABLE FILTER ENGINE
-  // =========================================================================
   const tableData = useMemo(() => {
     if (!dataMatrix) return [];
-    const { drafts = [], timesheets = [], tsDetails = [], roster = [], dimensionTable = {} } = dataMatrix;
+    const { drafts = [], timesheets = [], tsDetails = [], roster = [], factTable = [], dimensionTable = {} } = dataMatrix;
     
     const lastSundayTs = getLastSunday();
-    const activeRosterNames = roster.filter(r => r.status === "Enabled").map(r => r.name);
+    const activeRosterNames = roster.filter(r => r.status === "Enabled").map(r => r.name.trim().toLowerCase());
     let displayData = [];
 
-    // --- VIEW: DRAFTS ---
     if (activeTab === 'drafts') {
       let groupedDrafts = {};
       drafts.forEach(d => {
-        if (!activeRosterNames.includes(d.user)) return; 
-        if (selectedEmp !== "ALL" && d.user !== selectedEmp) return;
-        if (d.date > lastSundayTs) return; // Ignore future drafts
+        const cleanUser = (d.user || "").trim();
+        if (!activeRosterNames.includes(cleanUser.toLowerCase())) return; 
+        if (selectedEmp !== "ALL" && !namesMatch(d.user, selectedEmp)) return;
+        if (d.date > lastSundayTs) return; 
 
-        let key = `draft_${d.user}_${d.date}`;
+        let key = `draft_${cleanUser}_${d.date}`;
         if (!groupedDrafts[key]) {
           groupedDrafts[key] = { id: key, user: d.user, periodStr: new Date(d.date).toLocaleDateString(), hours: 0, proj: 'N/A (Draft)', uri: 'draft', entries: [], ts: d.date, isDraft: true };
         }
         groupedDrafts[key].hours += d.act;
-        groupedDrafts[key].entries.push({ dateStr: new Date(d.date).toLocaleDateString(), client: '-', project: 'Unsubmitted Draft', task: '-', comments: '-', hours: d.act });
+        groupedDrafts[key].entries.push({ dateStr: new Date(d.date).toLocaleDateString(), client: '-', project: 'Unsubmitted Draft', task: '-', comments: 'Draft mode hours', hours: d.act });
       });
       displayData = Object.values(groupedDrafts);
     } 
-    // --- VIEW: TIMESHEETS (Pending, Approved, Not Submitted) ---
     else {
       let validTimesheets = timesheets.filter(t => {
-        if (!activeRosterNames.includes(t.user)) return false; 
+        const cleanUser = (t.user || "").trim();
+        if (!activeRosterNames.includes(cleanUser.toLowerCase())) return false; 
 
         let s = (t.status || "").toLowerCase();
         if (activeTab === 'pending' && !s.includes('waiting')) return false;
@@ -94,19 +84,29 @@ export default function TimesheetOps({ dataMatrix, syncMatrixData }) {
       });
       
       validTimesheets.forEach(t => {
-        if (selectedEmp !== "ALL" && t.user !== selectedEmp) return;
+        if (selectedEmp !== "ALL" && !namesMatch(t.user, selectedEmp)) return;
         if (selectedPeriod !== "ALL" && t.period !== selectedPeriod) return;
 
-        let startTs = 0;
+        let startTs = 0, endTs = Infinity;
         if (t.period && t.period.includes('-')) {
-          let d1 = new Date(t.period.split('-')[0].trim());
-          if (!isNaN(d1.getTime())) startTs = d1.getTime();
+          let parts = t.period.split('-');
+          let d1 = new Date(parts[0].trim()), d2 = new Date(parts[1].trim());
+          if (!isNaN(d1.getTime())) startTs = d1.setHours(0,0,0,0);
+          if (!isNaN(d2.getTime())) endTs = d2.setHours(23,59,59,999);
         }
         if (startTs > lastSundayTs) return;
 
-        let matchedEntries = tsDetails.filter(d => d.user === t.user && d.period === t.period);
+        // Smart Fallback Math
+        let matchedEntries = tsDetails.filter(d => namesMatch(d.user, t.user) && d.period === t.period);
+        if (matchedEntries.length === 0 && factTable.length > 0) {
+          const rawCubeMatches = factTable.filter(f => namesMatch(f.user, t.user) && f.date >= startTs && f.date <= endTs);
+          matchedEntries = rawCubeMatches.map(f => ({
+            dateStr: f.dateStr || new Date(f.date).toLocaleDateString(),
+            client: f.client || "-", project: f.project, task: f.program || "General Task",
+            comments: "Logged via Data Cube Baseline", hours: f.act
+          }));
+        }
         
-        // Find Primary Project (Most Hours)
         let primaryProj = "Standard Entry";
         if (matchedEntries.length > 0) {
           let projMap = {};
@@ -115,9 +115,9 @@ export default function TimesheetOps({ dataMatrix, syncMatrixData }) {
         }
 
         displayData.push({
-          id: t.uri, user: t.user, ts: startTs, periodStr: t.period, hours: t.hours, proj: primaryProj, uri: t.uri, isDraft: false,
+          id: `${t.uri}_${startTs}`, user: t.user, ts: startTs, periodStr: t.period, hours: t.hours, proj: primaryProj, uri: t.uri, isDraft: false,
           entries: matchedEntries.map(e => ({
-            dateStr: e.dateStr, client: dimensionTable[e.project]?.client || "-", project: e.project, task: e.task, comments: e.comments, hours: e.hours
+            dateStr: e.dateStr, client: dimensionTable[e.project]?.client || e.client || "-", project: e.project, task: e.task, comments: e.comments, hours: e.hours
           }))
         });
       });
@@ -127,32 +127,20 @@ export default function TimesheetOps({ dataMatrix, syncMatrixData }) {
   }, [dataMatrix, activeTab, selectedPeriod, selectedEmp]);
 
 
-  // =========================================================================
-  // 5. EVENT HANDLERS
-  // =========================================================================
-  const handleTabChange = (tab) => {
-    setActiveTab(tab);
-    setSelectedURIs(new Set()); // Clear selections on tab switch
-  };
+  const handleTabChange = (tab) => { setActiveTab(tab); setSelectedURIs(new Set()); };
 
   const handleCheckboxToggle = (e, uri) => {
     e.stopPropagation();
     const newSet = new Set(selectedURIs);
-    if (newSet.has(uri)) newSet.delete(uri);
-    else newSet.add(uri);
+    if (newSet.has(uri)) newSet.delete(uri); else newSet.add(uri);
     setSelectedURIs(newSet);
   };
 
   const handleSelectAll = (e) => {
-    if (e.target.checked) {
-      const allURIs = new Set(tableData.filter(r => !r.isDraft && r.uri !== 'draft').map(r => r.uri));
-      setSelectedURIs(allURIs);
-    } else {
-      setSelectedURIs(new Set());
-    }
+    if (e.target.checked) setSelectedURIs(new Set(tableData.filter(r => !r.isDraft && r.uri !== 'draft').map(r => r.uri)));
+    else setSelectedURIs(new Set());
   };
 
-  // The Action fetcher to your Node.js server
   const handleBulkAction = async (action) => {
     if (selectedURIs.size === 0) return alert("Please select at least one timesheet.");
     const uris = Array.from(selectedURIs);
@@ -160,66 +148,55 @@ export default function TimesheetOps({ dataMatrix, syncMatrixData }) {
     setIsProcessing(true);
     try {
       const response = await fetch('/api/timesheets/action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, uris })
       });
-      
       const result = await response.json();
       if (response.ok) {
         alert(`SUCCESS: ${result.message}`);
         setSelectedURIs(new Set());
-        // Force the parent to wipe the cache and fetch fresh data so the table updates!
-        if(syncMatrixData) syncMatrixData(true); 
-      } else {
-        alert(`ERROR: ${result.error}`);
-      }
-    } catch (e) {
-      alert("Network error communicating with the backend.");
-    } finally {
-      setIsProcessing(false);
-    }
+        if (syncMatrixData) syncMatrixData(true); 
+      } else alert(`ERROR: ${result.error}`);
+    } catch (e) { alert("Network error communicating with the backend."); } 
+    finally { setIsProcessing(false); }
   };
 
-  // =========================================================================
-  // 6. UI RENDER
-  // =========================================================================
   return (
     <div>
       <div className={styles.headerArea}>
         <div className={styles.titleArea}>
           <h2>Timesheet Operations</h2>
-          <p>Review, audit, and batch process engineer submissions.</p>
+          <p>Review, audit, and approve historical hour logs.</p>
         </div>
       </div>
 
       <div className={styles.opsRibbon}>
         <div className={styles.tabContainer}>
-          <button className={`${styles.tab} ${activeTab === 'pending' ? styles.active : ''}`} onClick={() => handleTabChange('pending')}>Pending Approval</button>
+          <button className={`${styles.tab} ${activeTab === 'pending' ? styles.active : ''}`} onClick={() => handleTabChange('pending')}>Pending Approvals</button>
           <button className={`${styles.tab} ${activeTab === 'notsubmitted' ? styles.active : ''}`} onClick={() => handleTabChange('notsubmitted')}>Not Submitted</button>
-          <button className={`${styles.tab} ${activeTab === 'drafts' ? styles.active : ''}`} onClick={() => handleTabChange('drafts')}>Unsubmitted Drafts</button>
-          <button className={`${styles.tab} ${activeTab === 'approved' ? styles.active : ''}`} onClick={() => handleTabChange('approved')}>Historically Approved</button>
+          <button className={`${styles.tab} ${activeTab === 'drafts' ? styles.active : ''}`} onClick={() => handleTabChange('drafts')}>Daily Drafts</button>
+          <button className={`${styles.tab} ${activeTab === 'approved' ? styles.active : ''}`} onClick={() => handleTabChange('approved')}>Approved</button>
         </div>
 
         <div className={styles.filterRow}>
           <div className={styles.filters}>
-            <select className={styles.filterSelect} value={selectedPeriod} onChange={(e) => setSelectedPeriod(e.target.value)}>
-              <option value="ALL">All Valid Periods (Up to Last Sunday)</option>
-              {dropdowns.periods.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
             <select className={styles.filterSelect} value={selectedEmp} onChange={(e) => setSelectedEmp(e.target.value)}>
               <option value="ALL">All Engineers</option>
               {dropdowns.engineers.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
+            </select>
+            <select className={styles.filterSelect} value={selectedPeriod} onChange={(e) => setSelectedPeriod(e.target.value)}>
+              <option value="ALL">All Valid Periods (Up to Last Sunday)</option>
+              {dropdowns.periods.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
 
           {activeTab === 'pending' && (
             <div className={styles.actionButtons}>
-              <button className="btn-ghost" style={{ color: 'var(--accent-red)', borderColor: 'rgba(244,63,94,0.3)' }} disabled={isProcessing || selectedURIs.size === 0} onClick={() => handleBulkAction('reject')}>
-                <i className='bx bx-x-circle'></i> Reject
+              <button className={styles.btnDanger} disabled={isProcessing || selectedURIs.size === 0} onClick={() => handleBulkAction('reject')}>
+                <i className='bx bx-x-circle'></i> Reject Selected
               </button>
-              <button className="btn-primary" style={{ background: 'var(--accent-green)', color: '#fff' }} disabled={isProcessing || selectedURIs.size === 0} onClick={() => handleBulkAction('approve')}>
-                {isProcessing ? <><i className='bx bx-loader-alt bx-spin'></i> Processing...</> : <><i className='bx bx-check-double'></i> Batch Approve</>}
+              <button className={styles.btnPrimary} disabled={isProcessing || selectedURIs.size === 0} onClick={() => handleBulkAction('approve')}>
+                {isProcessing ? <><i className='bx bx-loader-alt bx-spin'></i> Processing...</> : <><i className='bx bx-check-circle'></i> Approve Selected</>}
               </button>
             </div>
           )}
@@ -232,11 +209,10 @@ export default function TimesheetOps({ dataMatrix, syncMatrixData }) {
             <tr>
               <th style={{ width: '40px' }}>
                 <input type="checkbox" className={styles.chkBox} disabled={activeTab !== 'pending'} 
-                       checked={tableData.length > 0 && selectedURIs.size === tableData.length && activeTab === 'pending'} 
-                       onChange={handleSelectAll} title="Select All" />
+                       checked={tableData.length > 0 && selectedURIs.size === tableData.length && activeTab === 'pending'} onChange={handleSelectAll} />
               </th>
-              <th>Engineer Name</th>
-              <th>Timesheet Period</th>
+              <th>Engineer</th>
+              <th>Period</th>
               <th>Total Hours</th>
               <th>Status</th>
               <th>Primary Project Focus</th>
@@ -251,13 +227,10 @@ export default function TimesheetOps({ dataMatrix, syncMatrixData }) {
                 if (activeTab === 'drafts') { badgeClass = styles.bgDraft; badgeText = "Unsubmitted Draft"; }
                 if (activeTab === 'approved') { badgeClass = styles.bgApproved; badgeText = "Approved"; }
                 if (activeTab === 'notsubmitted') { badgeClass = styles.bgNotSubmitted; badgeText = "Not Submitted"; }
-
-                const isChecked = selectedURIs.has(row.uri);
-
                 return (
                   <tr key={row.id} onClick={() => setModalDetails(row)}>
                     <td onClick={(e) => e.stopPropagation()}>
-                      <input type="checkbox" className={styles.chkBox} value={row.uri} checked={isChecked} onChange={(e) => handleCheckboxToggle(e, row.uri)} disabled={activeTab !== 'pending'} />
+                      <input type="checkbox" className={styles.chkBox} checked={selectedURIs.has(row.uri)} onChange={(e) => handleCheckboxToggle(e, row.uri)} disabled={activeTab !== 'pending'} />
                     </td>
                     <td><div className={styles.userCell}><div className={styles.avatarSm}>{row.user.charAt(0)}</div>{row.user}</div></td>
                     <td>{row.periodStr}</td>
@@ -272,22 +245,24 @@ export default function TimesheetOps({ dataMatrix, syncMatrixData }) {
         </table>
       </div>
 
-      {/* --- DETAIL MODAL --- */}
       {modalDetails && (
         <div className={styles.modalOverlay} onClick={() => setModalDetails(null)}>
           <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
               <h3>
-                <div className={styles.avatarSm}>{modalDetails.user.charAt(0)}</div>
-                {modalDetails.user} <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 400 }}>| {modalDetails.periodStr}</span>
+                <div className={styles.avatarSm} style={{ width: '40px', height: '40px', fontSize: '1.2rem', background: 'var(--accent-blue)' }}>{modalDetails.user.charAt(0)}</div>
+                <div>
+                  <div style={{ color: 'var(--text-main)', fontSize: '1.2rem', fontWeight: 600 }}>{modalDetails.user}</div>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 400 }}>{modalDetails.periodStr}</span>
+                </div>
               </h3>
               <i className='bx bx-x' style={{ fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-muted)' }} onClick={() => setModalDetails(null)}></i>
             </div>
-            
             <div className={styles.modalBody}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--accent-blue)', textTransform: 'uppercase', padding: '15px 25px 8px 25px', borderBottom: '1px solid var(--border-color)' }}>Time Entry Details</div>
               <table className={styles.detailTable}>
                 <thead>
-                  <tr><th>Date</th><th>Client</th><th>Project / Task</th><th>Comments</th><th style={{textAlign: 'right'}}>Hours</th></tr>
+                  <tr><th>Date</th><th>Client</th><th>Project &gt; Task</th><th>Comments</th><th style={{textAlign: 'right'}}>Hours</th></tr>
                 </thead>
                 <tbody>
                   {modalDetails.entries.length === 0 ? (
@@ -306,17 +281,15 @@ export default function TimesheetOps({ dataMatrix, syncMatrixData }) {
                 </tbody>
               </table>
             </div>
-
             <div className={styles.modalFooter}>
-              <div style={{ marginRight: 'auto', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                Total Period Effort: <span style={{ color: '#fff', fontWeight: 600, marginLeft: '5px' }}>{fmtInt(modalDetails.hours)} hrs</span>
+              <div style={{ marginRight: 'auto', color: 'var(--text-muted)', fontSize: '0.95rem', fontWeight: 500 }}>
+                Total: <span style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>{fmtInt(modalDetails.hours)}</span> hrs
               </div>
-              <button className="btn-ghost" onClick={() => setModalDetails(null)}>Close View</button>
+              <button className={styles.btnGhost} onClick={() => setModalDetails(null)}>Close View</button>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }

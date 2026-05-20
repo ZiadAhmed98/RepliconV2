@@ -16,18 +16,24 @@ import ProjectDeepDive from './pages/ProjectDeepDive';
 import TimesheetOps from './pages/TimesheetOps';
 
 export default function App() {
-  const { 
-    loading, 
-    statusText, 
-    sessionUser, 
-    dataMatrix, 
-    syncMatrixData, 
-    logoutSession, 
-    setSessionUser 
-  } = useRepliconData();
+  const [sessionUser, setSessionUser] = useState(null);
 
+  // Check session on load
+  useEffect(() => {
+    const session = localStorage.getItem('mds_dashboard_session');
+    if (session) {
+      try {
+        const parsed = JSON.parse(session);
+        if (new Date().getTime() < parsed.expiresAt) {
+          setSessionUser(parsed.user);
+        }
+      } catch (e) { localStorage.removeItem('mds_dashboard_session'); }
+    }
+  }, []);
+
+  // If NOT logged in, show the full-screen Login component
   if (!sessionUser) {
-    return <LoginModal onSuccess={(user) => { setSessionUser(user); syncMatrixData(false); }} />;
+    return <Login onLoginSuccess={(user) => setSessionUser(user)} />;
   }
 
   return (

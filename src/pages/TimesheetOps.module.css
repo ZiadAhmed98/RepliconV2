@@ -20,6 +20,18 @@
 
 .actionButtons { display: flex; gap: 10px; }
 
+/* Fixed Action Buttons */
+.btnPrimary { background: var(--accent-green); color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 6px; }
+.btnPrimary:hover { opacity: 0.9; }
+.btnPrimary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btnDanger { background: rgba(244, 63, 94, 0.1); color: var(--accent-coral); border: 1px solid rgba(244, 63, 94, 0.2); padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 6px; }
+.btnDanger:hover { background: rgba(244, 63, 94, 0.2); }
+.btnDanger:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btnGhost { background: transparent; color: var(--text-main); border: 1px solid var(--border-color); padding: 8px 16px; border-radius: 8px; font-weight: 500; font-size: 0.85rem; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 6px; }
+.btnGhost:hover { background: rgba(255,255,255,0.05); }
+
 /* Table & Status Badges */
 .tableWrapper { background: var(--bg-card); border-radius: var(--radius-md); border: 1px solid var(--border-color); overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
 .premiumTable { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.85rem; }
@@ -37,7 +49,6 @@
 .bgDraft { background: rgba(139, 92, 246, 0.1); color: var(--accent-purple); border: 1px solid rgba(139, 92, 246, 0.2); }
 .bgNotSubmitted { background: rgba(244, 63, 94, 0.1); color: var(--accent-red); border: 1px solid rgba(244, 63, 94, 0.2); }
 
-/* Checkboxes */
 .chkBox { width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent-blue); }
 .chkBox:disabled { cursor: not-allowed; opacity: 0.5; }
 
@@ -45,9 +56,9 @@
 .modalOverlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); z-index: 3000; display: flex; justify-content: center; align-items: center; }
 .modalContent { background: var(--bg-card); width: 800px; max-height: 85vh; border-radius: var(--radius-lg); border: 1px solid var(--border-color); display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7); overflow: hidden; }
 .modalHeader { padding: 20px 25px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); }
-.modalHeader h3 { margin: 0; display: flex; align-items: center; gap: 12px; font-size: 1.2rem; }
+.modalHeader h3 { margin: 0; display: flex; align-items: center; gap: 12px; font-size: 1.2rem; color: var(--text-main); }
 .modalBody { padding: 0; overflow-y: auto; flex-grow: 1; }
-.modalFooter { padding: 15px 25px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; background: rgba(255,255,255,0.01); }
+.modalFooter { padding: 15px 25px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; align-items: center; background: rgba(255,255,255,0.01); }
 
 .detailTable { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 .detailTable th { text-align: left; padding: 12px 25px; color: var(--text-muted); font-weight: 500; font-size: 0.7rem; text-transform: uppercase; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border-color); }
