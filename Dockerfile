@@ -1,24 +1,22 @@
 # Stage 1: Build the frontend
 FROM node:18-alpine AS builder
 WORKDIR /app
-# Copy everything from the root of your repo
-COPY . .
-# Install dependencies and build
+COPY package*.json ./
 RUN npm install
-RUN npm run build
+COPY . .
+# This creates the /app/dist folder
+RUN npm run build 
 
 # Stage 2: Serve with the backend
 FROM node:18-alpine
 WORKDIR /app
-# Copy package files for the backend
 COPY package*.json ./
-# Install only production dependencies
+# Install production dependencies only
 RUN npm install --only=production
-# Copy the built frontend from Stage 1
+# Copy ONLY the built frontend from the builder stage
 COPY --from=builder /app/dist ./dist
-# Copy the server file from the root
+# Copy the server and env files
 COPY server.js .
-# Copy environment file
 COPY .env .
 
 EXPOSE 3000

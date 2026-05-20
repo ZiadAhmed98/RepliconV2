@@ -3,8 +3,12 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  // 1. Move 'build' to the top level
+  build: {
+    outDir: 'dist',
+  },
+  // 2. Keep 'server' at the top level
   server: {
-    // This tells Vite: "If a request starts with /api, send it to the Express server"
     proxy: {
       '/api': {
         target: 'http://localhost:3000',
