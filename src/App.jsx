@@ -2,10 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 
 // Global UI Components
-import UniversalHeader from './components/UniversalHeader';
 import Navbar from './components/navbar';
 import LoadingOverlay from './components/LoadingOverlay';
-import LoginModal from './components/loginmodal'; // Linked to your exact file
+import LoginModal from './components/loginmodal';
 
 // Pages
 import Dashboard from './pages/Dashboard';
@@ -39,19 +38,18 @@ export default function App() {
   // 2. The Data Engine (Only fires if we actually have a logged-in user)
   const { dataMatrix, loading, statusText, syncMatrixData } = useRepliconData(sessionUser);
 
-  // 3. The Route Guard: Uses your exact LoginModal and onSuccess prop
+  // 3. The Route Guard: Uses your exact LoginModal
   if (!sessionUser) {
     return <LoginModal onSuccess={(user) => setSessionUser(user)} />;
   }
 
-  // 4. Main Application Render (Only seen if authenticated)
+  // 4. Main Application Render
   return (
     <div>
       {/* Absolute Loading Overlay */}
       {loading && <LoadingOverlay text="Fetching Data..." subtext={statusText} />}
 
-      {/* Global Navigation & Header */}
-      <UniversalHeader sessionUser={sessionUser} forceSync={() => syncMatrixData(true)} />
+      {/* Global Navigation (Just your Navbar!) */}
       <Navbar />
 
       {/* Page Routing */}
