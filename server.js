@@ -9,10 +9,10 @@ import cors from 'cors';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const cors = require('cors');
-
 const app = express();
 
+
+app.use(cors());
 // This is the permission slip allowing your frontend to connect
 app.use(cors({
     origin: ['http://51.170.86.2', 'http://localhost'],
