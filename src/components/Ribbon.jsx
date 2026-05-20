@@ -32,7 +32,7 @@ export default function Ribbon({ sessionUser, onLogout, onSync }) {
     <header className={styles.topRibbon}>
       <h1 className={styles.brand}>
         <i className='bx bx-hive' style={{ color: 'var(--accent-blue)' }}></i>
-        MDS Premium
+        Liveroute Replicon Analytics V2.0
       </h1>
       
       <div className={styles.userControls}>
