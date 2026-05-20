@@ -24,4 +24,4 @@ services:
     env_file:
       - .env
     # This installs your backend dependencies and starts the server
-    command: sh -c "npm install cors express && node server.js""
+    command: sh -c "npm install cors express && node server.js"
