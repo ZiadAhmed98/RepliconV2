@@ -38,30 +38,26 @@ export default function App() {
   // 2. The Data Engine (Only fires if we actually have a logged-in user)
   const { dataMatrix, loading, statusText, syncMatrixData } = useRepliconData(sessionUser);
 
-  // 3. The Route Guard: Uses your exact LoginModal
-  if (!sessionUser) {
-    return <LoginModal onSuccess={(user) => setSessionUser(user)} />;
-  }
-
   // 4. Main Application Render
   return (
-    <div>
-      {/* Absolute Loading Overlay */}
-      {loading && <LoadingOverlay text="Fetching Data..." subtext={statusText} />}
-
-      {/* Global Navigation (Just your Navbar!) */}
-      <Navbar />
-
-      {/* Page Routing */}
-      <main className="dashboard-container" style={{ display: 'block', padding: '40px', maxWidth: '1800px', margin: '0 auto' }}>
-        <Routes>
-          <Route path="/" element={<Dashboard dataMatrix={dataMatrix} />} />
-          <Route path="/employee" element={<Employee dataMatrix={dataMatrix} sessionUser={sessionUser} />} />
-          <Route path="/projects" element={<ProjectDeepDive dataMatrix={dataMatrix} />} />
-          <Route path="/timesheets" element={<TimesheetOps dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} />} />
-          <Route path="/new-project" element={<SmartInitiator dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} />} />
-        </Routes>
-      </main>
-    </div>
-  );
-}
+      <div>
+        {!sessionUser ? (
+          <LoginModal onSuccess={(user) => setSessionUser(user)} />
+        ) : (
+          <>
+            {loading && <LoadingOverlay text={statusText} />}
+            <Navbar />
+            <main className="dashboard-container">
+              <Routes>
+                <Route path="/" element={<Dashboard dataMatrix={dataMatrix} />} />
+                <Route path="/employee" element={<Employee dataMatrix={dataMatrix} sessionUser={sessionUser} />} />
+                <Route path="/projects" element={<ProjectDeepDive dataMatrix={dataMatrix} />} />
+                <Route path="/timesheets" element={<TimesheetOps dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} />} />
+                <Route path="/new-project" element={<SmartInitiator dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} />} />
+              </Routes>
+            </main>
+          </>
+        )}
+      </div>
+    );
+  }
