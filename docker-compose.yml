@@ -1,0 +1,9 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: replicon_web
+    restart: always
+    ports:
+      - "80:80"
