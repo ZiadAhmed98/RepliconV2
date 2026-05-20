@@ -1,9 +1,27 @@
 version: '3.8'
 
 services:
+  # 1. Your React Frontend
   web:
     build: .
     container_name: replicon_web
     restart: always
     ports:
       - "80:80"
+    depends_on:
+      - api
+
+  # 2. Your Node.js Backend
+  api:
+    image: node:18-alpine
+    container_name: replicon_api
+    restart: always
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    # This installs your backend dependencies and starts the server
+    command: sh -c "npm install && node server.js"
