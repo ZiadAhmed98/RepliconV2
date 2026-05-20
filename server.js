@@ -3,6 +3,7 @@ import express from 'express';
 import axios from 'axios';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import cors from 'cors';
 
 // ES Module fix for __dirname
 const __filename = fileURLToPath(import.meta.url);
