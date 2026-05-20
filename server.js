@@ -11,8 +11,6 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-
-app.use(cors());
 // This is the permission slip allowing your frontend to connect
 app.use(cors({
     origin: ['http://51.170.86.2', 'http://localhost'],
@@ -233,5 +231,10 @@ app.get('*', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.get('/api/health', (req, res) => res.send('Backend is alive!'));
+
+console.log("--- CONFIG CHECK ---");
+console.log("Token exists:", !!process.env.REPLICON_TOKEN);
+console.log("Company exists:", !!process.env.REPLICON_COMPANY);
+console.log("--------------------");
 // We add '0.0.0.0' so the container accepts outside traffic
 app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
