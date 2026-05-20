@@ -206,37 +206,46 @@ export function useRepliconData() {
 
     var syncMatrixData = useCallback(async (force = false) => {
         setLoading(true);
-        var cached = null;
+        console.log("--------- FRONTEND DEBUG START ---------");
         
-        if (!force) {
-            // REAL STATE: Checking IndexedDB
-            setStatusText('Accessing Local Matrix Cache...');
-            cached = await loadCache();
-        }
+        try {
+            if (force) {
+                console.log("[DEBUG] Force Sync requested. Wiping local IndexedDB cache...");
+                setStatusText('Clearing local cache...');
+                await clearCache(); // Wipe the slate clean
+            } else {
+                console.log("[DEBUG] Normal load. Checking cache...");
+            }
 
-        if (cached) {
-            // REAL STATE: Processing existing data
-            setStatusText('Compiling UI from Cache...');
-            processStarSchema(cached);
-            setLoading(false);
-        } else {
-            try {
-                // REAL STATE: Awaiting the massive dashboard payload from Express
-                setStatusText('Connecting to Replicon API...');
-                var result = await repliconApi.getDashboardData();
+            var cached = force ? null : await loadCache();
+
+            if (cached) {
+                console.log("[DEBUG] Loaded existing data from local cache.");
+                setStatusText('Compiling UI from Cache...');
+                processStarSchema(cached);
+            } else {
+                console.log("[DEBUG] No cache found (or force wiped). Asking Server for live data...");
+                setStatusText('Downloading Live Replicon Data...');
                 
-                // REAL STATE: Writing to IndexedDB
-                setStatusText('Saving Matrix to Local Database...');
+                // Add a random string to the URL to absolutely guarantee the browser doesn't cache the network request
+                var result = await repliconApi.getDashboardData(`?nocache=${new Date().getTime()}`);
+                
+                console.log(`[DEBUG] Received Live Data from Server!`);
+                console.log(`[DEBUG] Roster count: ${result.roster?.length}`);
+                console.log(`[DEBUG] Drafts count (Deficits): ${result.drafts?.length}`);
+                
+                setStatusText('Saving to Local Database...');
                 await saveCache(result);
                 
-                // REAL STATE: Crunching the numbers in processStarSchema
-                setStatusText('Processing Engine Star Schema...');
+                setStatusText('Crunching Matrix...');
                 processStarSchema(result);
-            } catch (err) {
-                setStatusText('Sync drop detected. Check gateway endpoint connection.');
-            } finally {
-                setLoading(false);
             }
+        } catch (err) {
+            console.error("[DEBUG] Frontend Sync Error:", err);
+            setStatusText('Sync drop detected. Check gateway endpoint connection.');
+        } finally {
+            setLoading(false);
+            console.log("--------- FRONTEND DEBUG END ---------");
         }
     }, [processStarSchema]);
 

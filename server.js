@@ -90,17 +90,27 @@ app.get('/api/dashboard', async (req, res) => {
         } catch(e) { console.error("Roster Fetch Error"); }
 
         // Fetch Drafts
+        // --- Fetch Drafts (Daily Deficit Data) ---
         try {
+            console.log("--------- DEBUG: STARTING DRAFTS FETCH ---------");
             const payloadDrafts = { reportUri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:report:523be039-0435-402a-b1ba-fc7fc5810bb1", filterValues: [], outputFormatUri: "urn:replicon:report-output-format-option:csv" };
+            
             let resDrafts = await axios.post(reportEndpoint, payloadDrafts, { headers });
             let csvDrafts = resDrafts.data.d?.payload || resDrafts.data.payload || "";
+            
+            console.log(`[DEBUG] Replicon returned ${csvDrafts.length} bytes of Drafts CSV data.`);
+
             if (csvDrafts) {
                 let lines = csvDrafts.split(/\r?\n/);
                 let headerIdx = lines.findIndex(line => line.toLowerCase().includes('user name') && line.toLowerCase().includes('date'));
+                
                 if (headerIdx !== -1) {
                     let headerCols = parseCSVLine(lines[headerIdx]);
+                    console.log(`[DEBUG] Found Headers:`, headerCols); // Tells us if Replicon changed column names!
+                    
                     const getIdx = (str) => headerCols.findIndex(h => h.toLowerCase().includes(str.toLowerCase()));
                     const idxName = getIdx('User Name'), idxDate = getIdx('Date'), idxHours = Math.max(getIdx('Actual Work Hours'), getIdx('Hours'));
+                    
                     for (let j = headerIdx + 1; j < lines.length; j++) {
                         const line = lines[j].trim();
                         if (!line || line.startsWith('Full Summary')) continue;
@@ -109,9 +119,15 @@ app.get('/api/dashboard', async (req, res) => {
                             rawDrafts.push({ user: cols[idxName], date: parseDateToTimestamp(cols[idxDate]), act: parseNumber(cols[idxHours]) });
                         }
                     }
+                    console.log(`[DEBUG] Successfully parsed ${rawDrafts.length} daily draft entries.`);
+                    if (rawDrafts.length > 0) console.log(`[DEBUG] Sample Draft Entry:`, rawDrafts[0]);
+                } else {
+                    console.log("[DEBUG] ERROR: Could not find 'User Name' and 'Date' headers in the CSV!");
                 }
             }
-        } catch(e) { console.error("Drafts Fetch Error"); }
+        } catch(e) { 
+            console.error("[DEBUG] FATAL ERROR fetching Drafts:", e.message); 
+        }
 
         // Fetch Data Cube
         try {
