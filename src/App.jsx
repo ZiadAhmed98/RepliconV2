@@ -40,24 +40,26 @@ export default function App() {
 
   // 4. Main Application Render
   return (
-      <div>
-        {!sessionUser ? (
-          <LoginModal onSuccess={(user) => setSessionUser(user)} />
-        ) : (
-          <>
-            {loading && <LoadingOverlay text={statusText} />}
-            <Navbar />
-            <main className="dashboard-container">
-              <Routes>
-                <Route path="/" element={<Dashboard dataMatrix={dataMatrix} />} />
-                <Route path="/employee" element={<Employee dataMatrix={dataMatrix} sessionUser={sessionUser} />} />
-                <Route path="/projects" element={<ProjectDeepDive dataMatrix={dataMatrix} />} />
-                <Route path="/timesheets" element={<TimesheetOps dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} />} />
-                <Route path="/new-project" element={<SmartInitiator dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} />} />
-              </Routes>
-            </main>
-          </>
-        )}
-      </div>
-    );
-  }
+    <div className="app-container">
+      {/* 1. If not logged in, show login - NO ROUTER HOOKS USED HERE */}
+      {!sessionUser && <LoginModal onSuccess={(user) => setSessionUser(user)} />}
+
+      {/* 2. Only render the Router block when logged in */}
+      {sessionUser && (
+        <>
+          {loading && <LoadingOverlay text={statusText} />}
+          <Navbar />
+          <main className="dashboard-container">
+            <Routes>
+              <Route path="/" element={<Dashboard dataMatrix={dataMatrix} />} />
+              <Route path="/employee" element={<Employee dataMatrix={dataMatrix} sessionUser={sessionUser} />} />
+              <Route path="/projects" element={<ProjectDeepDive dataMatrix={dataMatrix} />} />
+              <Route path="/timesheets" element={<TimesheetOps dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} />} />
+              <Route path="/new-project" element={<SmartInitiator dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} />} />
+            </Routes>
+          </main>
+        </>
+      )}
+    </div>
+  );
+}
