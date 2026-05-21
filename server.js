@@ -220,21 +220,16 @@ app.post('/api/projects/new', async (req, res) => {
 // 2. STATIC FILE SERVING FOR REACT 
 // ---------------------------------------------------------------------------
 
+// 1. Tell Express exactly where the compiled CSS/JS lives
+app.use('/assets', express.static(path.join(__dirname, 'dist/assets')));
+
+// 2. Serve the rest of the dist folder
 app.use(express.static(path.join(__dirname, 'dist')));
 
+// 3. The fallback for React Router
 app.get('*', (req, res) => {
     if (req.path.startsWith('/api')) {
         return res.status(404).json({ error: "API route not found" });
     }
     res.sendFile(path.join(__dirname, 'dist/index.html'));
 });
-
-const PORT = process.env.PORT || 3000;
-app.get('/api/health', (req, res) => res.send('Backend is alive!'));
-
-console.log("--- CONFIG CHECK ---");
-console.log("Token exists:", !!process.env.REPLICON_TOKEN);
-console.log("Company exists:", !!process.env.REPLICON_COMPANY);
-console.log("--------------------");
-// We add '0.0.0.0' so the container accepts outside traffic
-app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
