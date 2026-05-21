@@ -1,7 +1,8 @@
 import axios from 'axios';
 
-// This hardcodes the bridge so your static React files know exactly where to send traffic
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://51.170.86.2:3000';
+// Leave this completely empty. 
+// This forces Axios to use relative paths, letting the browser route traffic automatically.
+const API_BASE_URL = ''; 
 
 export const repliconApi = {
   login: async (username, password) => {
