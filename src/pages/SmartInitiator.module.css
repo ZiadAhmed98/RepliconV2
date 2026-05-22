@@ -30,7 +30,56 @@
   margin-bottom: 20px;
 }
 
-/* Forms */
+/* =========================================================================
+   BUTTONS
+   ========================================================================= */
+.btnPrimary {
+  background: var(--accent-blue);
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btnPrimary:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+}
+
+.btnPrimary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btnGhost {
+  background: transparent;
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.btnGhost:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--text-muted);
+}
+
+/* =========================================================================
+   FORMS & INPUTS
+   ========================================================================= */
 .formGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -70,6 +119,21 @@
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 
+/* Magic line for modern dark mode calendar */
+input[type="date"].formControl {
+  color-scheme: dark;
+}
+
+/* Fallback for white calendar icon */
+input[type="date"].formControl::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+  opacity: 0.7;
+}
+input[type="date"].formControl::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
 .fullSpan {
   grid-column: span 2;
 }
@@ -85,7 +149,46 @@
   border: 1px dashed rgba(59, 130, 246, 0.3);
 }
 
-/* Upload Zone */
+/* =========================================================================
+   CLIENT TOGGLE BUTTONS
+   ========================================================================= */
+.clientModeToggle {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.modeBtn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  border-radius: 8px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.modeBtn:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.modeBtn.active {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+
+/* =========================================================================
+   UPLOAD ZONE
+   ========================================================================= */
 .uploadZone {
   border: 2px dashed var(--border-color);
   background: rgba(255, 255, 255, 0.02);
@@ -120,7 +223,9 @@
   font-size: 0.9rem;
 }
 
-/* Tasks Preview UI */
+/* =========================================================================
+   TASKS PREVIEW UI & MILESTONES
+   ========================================================================= */
 .previewSection {
   display: flex;
   flex-grow: 1;
@@ -167,39 +272,23 @@
   margin-top: 4px;
 }
 
-/* =========================================================================
-   CLIENT TOGGLE BUTTONS
-   ========================================================================= */
-.clientModeToggle {
-  display: flex;
-  gap: 15px;
-  margin-bottom: 15px;
+/* Milestone Specific Styles */
+.milestoneRow td {
+  background: rgba(59, 130, 246, 0.03);
+  border-top: 1px solid rgba(59, 130, 246, 0.1) !important;
+  border-bottom: 1px solid rgba(59, 130, 246, 0.1) !important;
 }
 
-.modeBtn {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--border-color);
-  color: var(--text-muted);
-  border-radius: 8px;
-  font-family: 'Inter', sans-serif;
-  font-weight: 600;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.modeBtn:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.modeBtn.active {
+.milestoneBadge {
   background: rgba(59, 130, 246, 0.1);
-  border-color: var(--accent-blue);
   color: var(--accent-blue);
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }

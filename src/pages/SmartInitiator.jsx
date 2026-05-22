@@ -1,9 +1,9 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import styles from './SmartInitiator.module.css';
 
 export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   // =========================================================================
-  // 1. DATA EXTRACTION FOR DROPDOWNS
+  // 1. DATA EXTRACTION & FETCHING
   // =========================================================================
   const dropdowns = useMemo(() => {
     let clients = new Set();
@@ -26,6 +26,37 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
     };
   }, [dataMatrix]);
 
+  // State specifically for Account Managers fetched via URN
+  const [accountManagers, setAccountManagers] = useState([]);
+
+  useEffect(() => {
+    const fetchAccountManagers = async () => {
+      try {
+        // Adjust this URL to match your backend's actual report runner route
+        const response = await fetch('/api/replicon/report', { 
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reportUri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:report:b53c2b12-15a2-4da8-b97e-babb796f8aa5"
+          })
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          // Assuming Replicon returns an array of rows. Adjust mapping if your backend formats it differently.
+          const amNames = result.data.map(row => row.userName || row.name).filter(Boolean);
+          setAccountManagers([...new Set(amNames)].sort());
+        } else {
+          console.warn("Failed to fetch Account Managers from URN, falling back to Engineers list.");
+        }
+      } catch (error) {
+        console.error("Error fetching Account Managers:", error);
+      }
+    };
+
+    fetchAccountManagers();
+  }, []);
+
   // =========================================================================
   // 2. COMPONENT STATE
   // =========================================================================
@@ -33,8 +64,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bulkAssignValue, setBulkAssignValue] = useState('');
   
-  // New State for the Client Toggle Buttons
-  const [clientMode, setClientMode] = useState('existing'); // 'existing' or 'new'
+  const [clientMode, setClientMode] = useState('existing'); 
   
   const [formData, setFormData] = useState({
     name: '', code: '', client: '', newClientName: '',
@@ -71,21 +101,19 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
           const isSummary = t.getElementsByTagName('Summary')[0]?.textContent === "1";
           const nameNode = t.getElementsByTagName('Name')[0]?.textContent;
           
-          if (isSummary || !nameNode) continue;
+          if (!nameNode) continue; 
           
           const startStr = t.getElementsByTagName('Start')[0]?.textContent || '';
           const endStr = t.getElementsByTagName('Finish')[0]?.textContent || '';
           
-          // MS Project saves duration in format like: PT8H0M0S
           const durationNode = t.getElementsByTagName('Duration')[0]?.textContent || '';
           let hours = 0;
           
-          // Pull out the H (hours) and M (minutes) values using regex
           const hMatch = durationNode.match(/(\d+)H/);
           const mMatch = durationNode.match(/(\d+)M/);
           
           if (hMatch) hours += parseInt(hMatch[1], 10);
-          if (mMatch) hours += parseInt(mMatch[1], 10) / 60; // Convert mins to decimal hours
+          if (mMatch) hours += parseInt(mMatch[1], 10) / 60; 
           
           const formattedDuration = durationNode ? `${hours} hrs` : '-';
           
@@ -95,7 +123,8 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
             start: startStr.split('T')[0] || '-',
             end: endStr.split('T')[0] || '-',
             duration: formattedDuration,
-            assignees: ['']
+            isMilestone: isSummary, // Tag it so the UI knows it's a folder
+            assignees: isSummary ? [] : [''] // Milestones get no dropdowns
           });
         }
         
@@ -132,6 +161,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   const applyBulkAssign = () => {
     if (!bulkAssignValue) return;
     const newTasks = tasks.map(task => {
+      if (task.isMilestone) return task; // Skip milestones during bulk assign
       const updatedAssignees = [...task.assignees];
       updatedAssignees[0] = bulkAssignValue;
       return { ...task, assignees: updatedAssignees };
@@ -147,7 +177,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
     
     let finalClient = formData.client;
     
-    // Check validation based on which mode the user selected
     if (clientMode === 'new') {
       finalClient = formData.newClientName.trim();
       if (!finalClient) return alert("Please enter a name for the new client.");
@@ -201,6 +230,9 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   // =========================================================================
   // 6. RENDER UI
   // =========================================================================
+  // Fallback to engineers if the URN fetch failed or is still loading
+  const amListToRender = accountManagers.length > 0 ? accountManagers : dropdowns.engineers.map(e => e.name);
+
   return (
     <div>
       <div className={styles.headerArea}>
@@ -210,7 +242,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
         </div>
         <div>
           <button 
-            className="btn-primary" 
+            className={styles.btnPrimary} 
             disabled={tasks.length === 0 || isSubmitting} 
             onClick={submitProject}
             style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
@@ -230,7 +262,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
             <div className={styles.formGroup}><label>Project Name</label><input type="text" className={styles.formControl} placeholder="e.g., Azure Migration" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} /></div>
             <div className={styles.formGroup}><label>Project Code</label><input type="text" className={styles.formControl} placeholder="e.g., PRJ-2026-001" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} /></div>
             
-            {/* New Client Toggle Area */}
             <div className={`${styles.formGroup} ${styles.fullSpan}`}>
               <label>Client Selection</label>
               <div className={styles.clientModeToggle}>
@@ -248,7 +279,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
                 </button>
               </div>
 
-              {/* Dynamic rendering based on which button is clicked */}
               {clientMode === 'existing' ? (
                 <select className={styles.formControl} value={formData.client} onChange={e => setFormData({...formData, client: e.target.value})}>
                   <option value="">Select an existing Client...</option>
@@ -264,7 +294,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
                     <label>Account Manager</label>
                     <select className={styles.formControl} value={formData.accountManager} onChange={e => setFormData({...formData, accountManager: e.target.value})}>
                       <option value="">-- Unassigned --</option>
-                      {dropdowns.engineers.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
+                      {amListToRender.map(am => <option key={am} value={am}>{am}</option>)}
                     </select>
                   </div>
                 </div>
@@ -317,36 +347,45 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
                   <option value="">-- Unassigned --</option>
                   {dropdowns.engineers.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
                 </select>
-                <button className="btn-ghost" onClick={applyBulkAssign}><i className='bx bx-check-double'></i> Apply to All</button>
+                <button className={styles.btnGhost} onClick={applyBulkAssign}><i className='bx bx-check-double'></i> Apply to All</button>
               </div>
 
               <div className={styles.tasksTableWrapper}>
                 <table className="premium-table">
                   <thead>
-                    <tr><th style={{ width: '30%' }}>Task Name</th><th>Duration</th><th style={{ width: '50%' }}>Assigned Engineers</th></tr>
+                    <tr><th style={{ width: '40%' }}>Task Name</th><th>Duration</th><th style={{ width: '40%' }}>Assigned Engineers</th></tr>
                   </thead>
                   <tbody>
                     {tasks.map((task, tIndex) => (
-                      <tr key={tIndex}>
-                        <td style={{ fontWeight: 600, color: '#fff' }}>
+                      <tr key={tIndex} className={task.isMilestone ? styles.milestoneRow : ''}>
+                        <td style={{ 
+                          fontWeight: task.isMilestone ? 700 : 600, 
+                          color: task.isMilestone ? 'var(--accent-blue)' : '#fff',
+                          paddingLeft: task.isMilestone ? '15px' : '30px' // Indent subtasks slightly
+                        }}>
+                          {task.isMilestone && <i className='bx bx-layer' style={{ marginRight: '5px' }}></i>}
                           {task.name}
                           <div className={styles.taskDetail}>{task.start} <i className='bx bx-right-arrow-alt'></i> {task.end}</div>
                         </td>
                         <td style={{ color: 'var(--text-muted)' }}>{task.duration}</td>
                         <td>
-                          {task.assignees.map((assignee, aIndex) => (
-                            <div key={aIndex} className={styles.assigneeRow}>
-                              <select className={styles.formControl} style={{ padding: '8px', fontSize: '0.85rem' }} value={assignee} onChange={e => handleAssigneeChange(tIndex, aIndex, e.target.value)}>
-                                <option value="">-- Unassigned --</option>
-                                {dropdowns.engineers.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
-                              </select>
-                              {aIndex === 0 ? (
-                                <button className="btn-ghost" onClick={() => addAssignee(tIndex)} title="Add engineer"><i className='bx bx-plus'></i> Add</button>
-                              ) : (
-                                <button className="btn-ghost" onClick={() => removeAssignee(tIndex, aIndex)} title="Remove engineer" style={{ color: 'var(--accent-coral)', borderColor: 'rgba(244, 63, 94, 0.3)' }}><i className='bx bx-x'></i></button>
-                              )}
-                            </div>
-                          ))}
+                          {task.isMilestone ? (
+                            <span className={styles.milestoneBadge}><i className='bx bx-folder'></i> Phase / Milestone</span>
+                          ) : (
+                            task.assignees.map((assignee, aIndex) => (
+                              <div key={aIndex} className={styles.assigneeRow}>
+                                <select className={styles.formControl} style={{ padding: '8px', fontSize: '0.85rem' }} value={assignee} onChange={e => handleAssigneeChange(tIndex, aIndex, e.target.value)}>
+                                  <option value="">-- Unassigned --</option>
+                                  {dropdowns.engineers.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
+                                </select>
+                                {aIndex === 0 ? (
+                                  <button className={styles.btnGhost} onClick={() => addAssignee(tIndex)} title="Add engineer"><i className='bx bx-plus'></i> Add</button>
+                                ) : (
+                                  <button className={styles.btnGhost} onClick={() => removeAssignee(tIndex, aIndex)} title="Remove engineer" style={{ color: 'var(--accent-coral)', borderColor: 'rgba(244, 63, 94, 0.3)' }}><i className='bx bx-x'></i></button>
+                                )}
+                              </div>
+                            ))
+                          )}
                         </td>
                       </tr>
                     ))}
