@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 
 // Global UI Components
+import Ribbon from './components/Ribbon';
 import Navbar from './components/Navbar';
 import LoadingOverlay from './components/LoadingOverlay';
 import LoginModal from './components/LoginModal';
@@ -35,6 +36,11 @@ export default function App() {
     }
   }, []);
 
+  const handleLogout = () => {
+    localStorage.removeItem('mds_dashboard_session');
+    setSessionUser(null);
+  };
+
   // 2. The Data Engine (Only fires if we actually have a logged-in user)
   const { dataMatrix, loading, statusText, syncMatrixData } = useRepliconData(sessionUser);
 
@@ -48,7 +54,17 @@ export default function App() {
       {sessionUser && (
         <>
           {loading && <LoadingOverlay text={statusText} />}
-          <Navbar />
+          
+          {/* THE STICKY HEADER WRAPPER */}
+          <div className="sticky-header-group">
+            <Ribbon 
+              sessionUser={sessionUser} 
+              onLogout={handleLogout} 
+              onSync={() => syncMatrixData(true)} 
+            />
+            <Navbar />
+          </div>
+
           <main className="dashboard-container">
             <Routes>
               <Route path="/" element={<Dashboard dataMatrix={dataMatrix} />} />

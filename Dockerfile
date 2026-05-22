@@ -10,9 +10,14 @@ RUN npm run build
 # Stage 2: Serve with the backend
 FROM node:18-alpine
 WORKDIR /app
+
+# Add the Linux dictionary for MIME types
+RUN apk add --no-cache mailcap
+
 COPY package*.json ./
 # Install production dependencies only
 RUN npm install --only=production
+RUN npm install cors express axios dotenv
 # Copy ONLY the built frontend from the builder stage
 COPY --from=builder /app/dist ./dist
 # Copy the server and env files

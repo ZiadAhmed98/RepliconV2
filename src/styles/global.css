@@ -21,8 +21,11 @@ body {
 /* -------------------------------------
    UNIVERSAL APP SHELL (Nav & Header)
 -------------------------------------- */
-.top-ribbon { background: rgba(9, 9, 11, 0.8); backdrop-filter: blur(12px); color: var(--text-main); padding: 16px 40px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1000; border-bottom: 1px solid var(--border-color); }
-.top-ribbon h1 { margin: 0; font-size: 1.15rem; font-weight: 600; letter-spacing: 0.5px; display: flex; align-items: center; gap: 10px; }
+/* Update this line (Removed position: sticky, top, and z-index) */
+.top-ribbon { background: rgba(9, 9, 11, 0.8); backdrop-filter: blur(12px); color: var(--text-main); padding: 16px 40px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); }
+
+/* Add this brand new line underneath it */
+.sticky-header-group { position: sticky; top: 0; z-index: 1000; background: var(--bg-main); }
 
 .user-controls { display: flex; align-items: center; gap: 20px; font-size: 0.95rem; font-weight: 500; position: relative; }
 .user-profile { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 6px 12px; border-radius: 8px; border: 1px solid transparent; transition: 0.2s; }

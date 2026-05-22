@@ -99,7 +99,6 @@ app.get('/api/dashboard', async (req, res) => {
         } catch(e) { console.error("Roster Fetch Error"); }
 
         // Fetch Drafts
-        // --- Fetch Drafts (Daily Deficit Data) ---
         try {
             console.log("--------- DEBUG: STARTING DRAFTS FETCH ---------");
             const payloadDrafts = { reportUri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:report:523be039-0435-402a-b1ba-fc7fc5810bb1", filterValues: [], outputFormatUri: "urn:replicon:report-output-format-option:csv" };
@@ -115,7 +114,7 @@ app.get('/api/dashboard', async (req, res) => {
                 
                 if (headerIdx !== -1) {
                     let headerCols = parseCSVLine(lines[headerIdx]);
-                    console.log(`[DEBUG] Found Headers:`, headerCols); // Tells us if Replicon changed column names!
+                    console.log(`[DEBUG] Found Headers:`, headerCols); 
                     
                     const getIdx = (str) => headerCols.findIndex(h => h.toLowerCase().includes(str.toLowerCase()));
                     const idxName = getIdx('User Name'), idxDate = getIdx('Date'), idxHours = Math.max(getIdx('Actual Work Hours'), getIdx('Hours'));
@@ -129,7 +128,6 @@ app.get('/api/dashboard', async (req, res) => {
                         }
                     }
                     console.log(`[DEBUG] Successfully parsed ${rawDrafts.length} daily draft entries.`);
-                    if (rawDrafts.length > 0) console.log(`[DEBUG] Sample Draft Entry:`, rawDrafts[0]);
                 } else {
                     console.log("[DEBUG] ERROR: Could not find 'User Name' and 'Date' headers in the CSV!");
                 }
@@ -220,7 +218,16 @@ app.post('/api/projects/new', async (req, res) => {
 // 2. STATIC FILE SERVING FOR REACT 
 // ---------------------------------------------------------------------------
 
-app.use(express.static(path.join(__dirname, 'dist')));
+// FORCE the MIME type headers to beat the Linux block
+app.use(express.static(path.join(__dirname, 'dist'), {
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.css')) {
+            res.setHeader('Content-Type', 'text/css');
+        } else if (filePath.endsWith('.js')) {
+            res.setHeader('Content-Type', 'application/javascript');
+        }
+    }
+}));
 
 app.get('*', (req, res) => {
     if (req.path.startsWith('/api')) {
