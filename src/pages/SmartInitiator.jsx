@@ -245,7 +245,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
                   className={`${styles.modeBtn} ${clientMode === 'new' ? styles.active : ''}`} 
                   onClick={() => setClientMode('new')}
                 >
-                  <i className='bx bx-plus'></i> + New Client
+                  <i className='bx bx-plus'></i> New Client
                 </button>
               </div>
 
