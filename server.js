@@ -75,6 +75,7 @@ app.get('/api/dashboard', async (req, res) => {
 
     try {
         let rawDataCube = []; let rawRoster = []; let rawDrafts = []; let rawTimesheets = []; let rawTsDetails = [];
+        let rawAccountManagers = []; // <-- NEW: Array for Account Managers
 
         // Fetch Roster
         try {
@@ -189,7 +190,42 @@ app.get('/api/dashboard', async (req, res) => {
             }
         } catch(e) { console.error("Timesheet Fetch Error"); }
 
-        res.json({ cube: rawDataCube, roster: rawRoster, drafts: rawDrafts, timesheets: rawTimesheets, tsDetails: rawTsDetails });
+        // <-- NEW: Fetch Account Managers -->
+        try {
+            const payloadAM = { reportUri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:report:b53c2b12-15a2-4da8-b97e-babb796f8aa5", filterValues: [], outputFormatUri: "urn:replicon:report-output-format-option:csv" };
+            let resAM = await axios.post(reportEndpoint, payloadAM, { headers });
+            let csvAM = resAM.data.d?.payload || resAM.data.payload || "";
+            if (csvAM) {
+                let lines = csvAM.split(/\r?\n/);
+                // Look for common name headers
+                let headerIdx = lines.findIndex(line => line.toLowerCase().includes('user name') || line.toLowerCase().includes('name'));
+                if (headerIdx !== -1) {
+                    let headerCols = parseCSVLine(lines[headerIdx]);
+                    const idxName = headerCols.findIndex(h => h.toLowerCase().includes('user name') || h.toLowerCase().includes('name'));
+                    
+                    for (let j = headerIdx + 1; j < lines.length; j++) {
+                        const line = lines[j].trim();
+                        if (!line || line.startsWith('Full Summary')) continue;
+                        const cols = parseCSVLine(line);
+                        if (cols[idxName]) {
+                            rawAccountManagers.push(cols[idxName]);
+                        }
+                    }
+                    // Clean up: remove duplicates and alphabetize
+                    rawAccountManagers = [...new Set(rawAccountManagers)].sort();
+                }
+            }
+        } catch(e) { console.error("Account Managers Fetch Error"); }
+
+        // <-- NEW: Added accountManagers to the JSON response -->
+        res.json({ 
+            cube: rawDataCube, 
+            roster: rawRoster, 
+            drafts: rawDrafts, 
+            timesheets: rawTimesheets, 
+            tsDetails: rawTsDetails,
+            accountManagers: rawAccountManagers 
+        });
 
     } catch (error) { res.status(500).json({ error: "Failed to fetch live data." }); }
 });

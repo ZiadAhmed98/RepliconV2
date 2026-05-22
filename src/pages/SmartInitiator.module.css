@@ -256,6 +256,12 @@ input[type="date"].formControl::-webkit-calendar-picker-indicator:hover {
   overflow-y: auto;
   max-height: 400px;
   padding-right: 5px;
+  width: 100%;
+}
+
+.tasksTableWrapper table {
+  width: 100%;
+  border-collapse: collapse;
 }
 
 .assigneeRow {

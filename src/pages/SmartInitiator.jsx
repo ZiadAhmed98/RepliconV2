@@ -1,9 +1,9 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import styles from './SmartInitiator.module.css';
 
 export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   // =========================================================================
-  // 1. DATA EXTRACTION & FETCHING
+  // 1. DATA EXTRACTION
   // =========================================================================
   const dropdowns = useMemo(() => {
     let clients = new Set();
@@ -19,43 +19,16 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
     const roster = dataMatrix?.roster || [];
     const activeEngineers = roster.filter(e => e.status === "Enabled").sort((a,b) => a.name.localeCompare(b.name));
 
+    // Pull Account Managers from the server's matrix payload
+    const accountManagers = dataMatrix?.accountManagers || [];
+
     return {
       clients: Array.from(clients).sort(),
       programs: Array.from(programs).sort(),
-      engineers: activeEngineers
+      engineers: activeEngineers,
+      accountManagers: accountManagers
     };
   }, [dataMatrix]);
-
-  // State specifically for Account Managers fetched via URN
-  const [accountManagers, setAccountManagers] = useState([]);
-
-  useEffect(() => {
-    const fetchAccountManagers = async () => {
-      try {
-        // Adjust this URL to match your backend's actual report runner route
-        const response = await fetch('/api/replicon/report', { 
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            reportUri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:report:b53c2b12-15a2-4da8-b97e-babb796f8aa5"
-          })
-        });
-        
-        if (response.ok) {
-          const result = await response.json();
-          // Assuming Replicon returns an array of rows. Adjust mapping if your backend formats it differently.
-          const amNames = result.data.map(row => row.userName || row.name).filter(Boolean);
-          setAccountManagers([...new Set(amNames)].sort());
-        } else {
-          console.warn("Failed to fetch Account Managers from URN, falling back to Engineers list.");
-        }
-      } catch (error) {
-        console.error("Error fetching Account Managers:", error);
-      }
-    };
-
-    fetchAccountManagers();
-  }, []);
 
   // =========================================================================
   // 2. COMPONENT STATE
@@ -123,8 +96,8 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
             start: startStr.split('T')[0] || '-',
             end: endStr.split('T')[0] || '-',
             duration: formattedDuration,
-            isMilestone: isSummary, // Tag it so the UI knows it's a folder
-            assignees: isSummary ? [] : [''] // Milestones get no dropdowns
+            isMilestone: isSummary, 
+            assignees: isSummary ? [] : [''] 
           });
         }
         
@@ -161,7 +134,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   const applyBulkAssign = () => {
     if (!bulkAssignValue) return;
     const newTasks = tasks.map(task => {
-      if (task.isMilestone) return task; // Skip milestones during bulk assign
+      if (task.isMilestone) return task; 
       const updatedAssignees = [...task.assignees];
       updatedAssignees[0] = bulkAssignValue;
       return { ...task, assignees: updatedAssignees };
@@ -230,9 +203,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   // =========================================================================
   // 6. RENDER UI
   // =========================================================================
-  // Fallback to engineers if the URN fetch failed or is still loading
-  const amListToRender = accountManagers.length > 0 ? accountManagers : dropdowns.engineers.map(e => e.name);
-
   return (
     <div>
       <div className={styles.headerArea}>
@@ -294,7 +264,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
                     <label>Account Manager</label>
                     <select className={styles.formControl} value={formData.accountManager} onChange={e => setFormData({...formData, accountManager: e.target.value})}>
                       <option value="">-- Unassigned --</option>
-                      {amListToRender.map(am => <option key={am} value={am}>{am}</option>)}
+                      {dropdowns.accountManagers.map(am => <option key={am} value={am}>{am}</option>)}
                     </select>
                   </div>
                 </div>
@@ -361,7 +331,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
                         <td style={{ 
                           fontWeight: task.isMilestone ? 700 : 600, 
                           color: task.isMilestone ? 'var(--accent-blue)' : '#fff',
-                          paddingLeft: task.isMilestone ? '15px' : '30px' // Indent subtasks slightly
+                          paddingLeft: task.isMilestone ? '15px' : '30px' 
                         }}>
                           {task.isMilestone && <i className='bx bx-layer' style={{ marginRight: '5px' }}></i>}
                           {task.name}
