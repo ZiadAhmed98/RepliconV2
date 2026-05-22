@@ -24,9 +24,9 @@
 }
 
 .chartRow {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
   margin-bottom: 20px;
 }
 
@@ -79,10 +79,10 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
-  background: rgba(59, 130, 246, 0.05);
+  background: rgba(59, 130, 246, 0.03);
   padding: 20px;
   border-radius: 8px;
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  border: 1px dashed rgba(59, 130, 246, 0.3);
 }
 
 /* Upload Zone */
@@ -165,4 +165,41 @@
   color: var(--text-muted);
   font-weight: 400;
   margin-top: 4px;
+}
+
+/* =========================================================================
+   CLIENT TOGGLE BUTTONS
+   ========================================================================= */
+.clientModeToggle {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.modeBtn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  border-radius: 8px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.modeBtn:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.modeBtn.active {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
 }

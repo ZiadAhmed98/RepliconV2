@@ -4,7 +4,6 @@ import styles from './SmartInitiator.module.css';
 export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   // =========================================================================
   // 1. DATA EXTRACTION FOR DROPDOWNS
-  // Automatically parses the global matrix to find unique clients, programs, and engineers
   // =========================================================================
   const dropdowns = useMemo(() => {
     let clients = new Set();
@@ -29,20 +28,20 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
 
   // =========================================================================
   // 2. COMPONENT STATE
-  // React uses this state to instantly update the UI when data changes
   // =========================================================================
   const fileInputRef = useRef(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bulkAssignValue, setBulkAssignValue] = useState('');
   
-  // Form Data State
+  // New State for the Client Toggle Buttons
+  const [clientMode, setClientMode] = useState('existing'); // 'existing' or 'new'
+  
   const [formData, setFormData] = useState({
     name: '', code: '', client: '', newClientName: '',
     accountManager: '', start: '', end: '',
     status: 'In Progress', program: ''
   });
 
-  // XML Tasks State (Each task holds an array of string assignees)
   const [tasks, setTasks] = useState([]);
 
   // =========================================================================
@@ -69,7 +68,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
         for (let i = 0; i < taskNodes.length; i++) {
           const t = taskNodes[i];
           
-          // Skip MS Project Summary Tasks (Folders)
           const isSummary = t.getElementsByTagName('Summary')[0]?.textContent === "1";
           const nameNode = t.getElementsByTagName('Name')[0]?.textContent;
           
@@ -77,15 +75,27 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
           
           const startStr = t.getElementsByTagName('Start')[0]?.textContent || '';
           const endStr = t.getElementsByTagName('Finish')[0]?.textContent || '';
-          const durationStr = t.getElementsByTagName('DurationFormat')[0]?.textContent || 'Standard';
+          
+          // MS Project saves duration in format like: PT8H0M0S
+          const durationNode = t.getElementsByTagName('Duration')[0]?.textContent || '';
+          let hours = 0;
+          
+          // Pull out the H (hours) and M (minutes) values using regex
+          const hMatch = durationNode.match(/(\d+)H/);
+          const mMatch = durationNode.match(/(\d+)M/);
+          
+          if (hMatch) hours += parseInt(hMatch[1], 10);
+          if (mMatch) hours += parseInt(mMatch[1], 10) / 60; // Convert mins to decimal hours
+          
+          const formattedDuration = durationNode ? `${hours} hrs` : '-';
           
           parsedTasks.push({
             id: `task_${i}`,
             name: nameNode,
             start: startStr.split('T')[0] || '-',
             end: endStr.split('T')[0] || '-',
-            duration: durationStr,
-            assignees: [''] // Initialize with one empty dropdown
+            duration: formattedDuration,
+            assignees: ['']
           });
         }
         
@@ -101,34 +111,29 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   // =========================================================================
   // 4. TASK ASSIGNMENT MANAGERS
   // =========================================================================
-  
-  // Updates a specific dropdown for a specific task
   const handleAssigneeChange = (taskIndex, assigneeIndex, value) => {
     const newTasks = [...tasks];
     newTasks[taskIndex].assignees[assigneeIndex] = value;
     setTasks(newTasks);
   };
 
-  // Adds a new dropdown to a specific task
   const addAssignee = (taskIndex) => {
     const newTasks = [...tasks];
     newTasks[taskIndex].assignees.push('');
     setTasks(newTasks);
   };
 
-  // Removes a dropdown from a specific task
   const removeAssignee = (taskIndex, assigneeIndex) => {
     const newTasks = [...tasks];
     newTasks[taskIndex].assignees.splice(assigneeIndex, 1);
     setTasks(newTasks);
   };
 
-  // Applies the selected bulk engineer to the FIRST dropdown of every task
   const applyBulkAssign = () => {
     if (!bulkAssignValue) return;
     const newTasks = tasks.map(task => {
       const updatedAssignees = [...task.assignees];
-      updatedAssignees[0] = bulkAssignValue; // Set primary assignee
+      updatedAssignees[0] = bulkAssignValue;
       return { ...task, assignees: updatedAssignees };
     });
     setTasks(newTasks);
@@ -138,17 +143,18 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   // 5. FORM SUBMISSION
   // =========================================================================
   const submitProject = async () => {
-    // Validation
     if (!formData.name || !formData.code) return alert("Please fill in the Project Name and Code.");
-    if (!formData.client) return alert("Please select a client or create a new one.");
     
     let finalClient = formData.client;
-    if (formData.client === '__NEW_CLIENT__') {
+    
+    // Check validation based on which mode the user selected
+    if (clientMode === 'new') {
       finalClient = formData.newClientName.trim();
       if (!finalClient) return alert("Please enter a name for the new client.");
+    } else {
+      if (!finalClient) return alert("Please select an existing client.");
     }
 
-    // Clean up tasks: remove empty assignee fields
     const mappedTasks = tasks.map(t => ({
       ...t,
       assignees: t.assignees.filter(a => a !== "")
@@ -158,7 +164,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
       projectName: formData.name,
       projectCode: formData.code,
       client: finalClient,
-      accountManager: formData.client === '__NEW_CLIENT__' ? formData.accountManager : null,
+      accountManager: clientMode === 'new' ? formData.accountManager : null,
       startDate: formData.start,
       endDate: formData.end,
       status: formData.status,
@@ -169,7 +175,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
     setIsSubmitting(true);
 
     try {
-      // Assuming your backend routes stay exactly the same
       const response = await fetch('/api/projects/new', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -180,9 +185,9 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
       
       if(response.ok) {
         alert(`SUCCESS: ${result.message}`);
-        setTasks([]); // Clear the form on success
+        setTasks([]); 
         setFormData({ name: '', code: '', client: '', newClientName: '', accountManager: '', start: '', end: '', status: 'In Progress', program: '' });
-        syncMatrixData(true); // Force the entire engine to refresh and grab the new project
+        syncMatrixData(true); 
       } else {
         alert(`ERROR: ${result.error}`);
       }
@@ -217,7 +222,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
 
       <div className={styles.chartRow}>
         
-        {/* --- LEFT SIDE: CORE DETAILS FORM --- */}
+        {/* --- TOP SIDE: CORE DETAILS FORM --- */}
         <div className="chart-card">
           <h4><i className='bx bx-data' style={{ color: 'var(--accent-blue)' }}></i> Core Details</h4>
           
@@ -225,27 +230,46 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
             <div className={styles.formGroup}><label>Project Name</label><input type="text" className={styles.formControl} placeholder="e.g., Azure Migration" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} /></div>
             <div className={styles.formGroup}><label>Project Code</label><input type="text" className={styles.formControl} placeholder="e.g., PRJ-2026-001" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} /></div>
             
+            {/* New Client Toggle Area */}
             <div className={`${styles.formGroup} ${styles.fullSpan}`}>
               <label>Client Selection</label>
-              <select className={styles.formControl} value={formData.client} onChange={e => setFormData({...formData, client: e.target.value})}>
-                <option value="">Select a Client...</option>
-                {dropdowns.clients.map(c => <option key={c} value={c}>{c}</option>)}
-                <option value="__NEW_CLIENT__">+ Create New Client</option>
-              </select>
-            </div>
-
-            {formData.client === '__NEW_CLIENT__' && (
-              <div className={styles.newClientBox}>
-                <div className={styles.formGroup}><label>New Client Name</label><input type="text" className={styles.formControl} placeholder="e.g., Abu Dhabi Police" value={formData.newClientName} onChange={e => setFormData({...formData, newClientName: e.target.value})} /></div>
-                <div className={styles.formGroup}>
-                  <label>Account Manager</label>
-                  <select className={styles.formControl} value={formData.accountManager} onChange={e => setFormData({...formData, accountManager: e.target.value})}>
-                    <option value="">-- Unassigned --</option>
-                    {dropdowns.engineers.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
-                  </select>
-                </div>
+              <div className={styles.clientModeToggle}>
+                <button 
+                  className={`${styles.modeBtn} ${clientMode === 'existing' ? styles.active : ''}`} 
+                  onClick={() => setClientMode('existing')}
+                >
+                  <i className='bx bx-list-ul'></i> Existing Client
+                </button>
+                <button 
+                  className={`${styles.modeBtn} ${clientMode === 'new' ? styles.active : ''}`} 
+                  onClick={() => setClientMode('new')}
+                >
+                  <i className='bx bx-plus'></i> + New Client
+                </button>
               </div>
-            )}
+
+              {/* Dynamic rendering based on which button is clicked */}
+              {clientMode === 'existing' ? (
+                <select className={styles.formControl} value={formData.client} onChange={e => setFormData({...formData, client: e.target.value})}>
+                  <option value="">Select an existing Client...</option>
+                  {dropdowns.clients.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              ) : (
+                <div className={styles.newClientBox}>
+                  <div className={styles.formGroup}>
+                    <label>New Client Name</label>
+                    <input type="text" className={styles.formControl} placeholder="e.g., Abu Dhabi Police" value={formData.newClientName} onChange={e => setFormData({...formData, newClientName: e.target.value})} />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label>Account Manager</label>
+                    <select className={styles.formControl} value={formData.accountManager} onChange={e => setFormData({...formData, accountManager: e.target.value})}>
+                      <option value="">-- Unassigned --</option>
+                      {dropdowns.engineers.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className={styles.formGroup}><label>Start Date</label><input type="date" className={styles.formControl} value={formData.start} onChange={e => setFormData({...formData, start: e.target.value})} /></div>
             <div className={styles.formGroup}><label>End Date</label><input type="date" className={styles.formControl} value={formData.end} onChange={e => setFormData({...formData, end: e.target.value})} /></div>
@@ -269,7 +293,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
           </div>
         </div>
 
-        {/* --- RIGHT SIDE: XML TASK PARSER --- */}
+        {/* --- BOTTOM SIDE: XML TASK PARSER --- */}
         <div className="chart-card">
           <h4><i className='bx bx-code-block' style={{ color: 'var(--accent-purple)' }}></i> Task Import</h4>
           
