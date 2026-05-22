@@ -41,7 +41,6 @@ async function loadCache() {
     } catch (e) { return null; }
 }
 
-// Add this right below the loadCache() function in useRepliconData.js
 async function clearCache() {
     try {
         var db = await initDB();
@@ -53,10 +52,13 @@ async function clearCache() {
     } catch (e) { return false; }
 }
 
-export function useRepliconData() {
-    var [loading, setLoading] = useState(true);
+export function useRepliconData(externalSessionUser) {
+    // Start loading false so the login modal can show up initially
+    var [loading, setLoading] = useState(false); 
+    // THE MAGIC LOCK: Tracks if we actually have data yet
+    var [dataLoaded, setDataLoaded] = useState(false); 
     var [statusText, setStatusText] = useState('Initializing Core Engine...');
-    var [sessionUser, setSessionUser] = useState(null);
+    
     var [dataMatrix, setDataMatrix] = useState({
         factTable: [],
         dimensionTable: {},
@@ -212,7 +214,7 @@ export function useRepliconData() {
             if (force) {
                 console.log("[DEBUG] Force Sync requested. Wiping local IndexedDB cache...");
                 setStatusText('Clearing local cache...');
-                await clearCache(); // Wipe the slate clean
+                await clearCache(); 
             } else {
                 console.log("[DEBUG] Normal load. Checking cache...");
             }
@@ -224,15 +226,9 @@ export function useRepliconData() {
                 setStatusText('Compiling UI from Cache...');
                 processStarSchema(cached);
             } else {
-                console.log("[DEBUG] No cache found (or force wiped). Asking Server for live data...");
+                console.log("[DEBUG] No cache found. Asking Server for live data...");
                 setStatusText('Downloading Live Replicon Data...');
-                
-                // Add a random string to the URL to absolutely guarantee the browser doesn't cache the network request
                 var result = await repliconApi.getDashboardData(`?nocache=${new Date().getTime()}`);
-                
-                console.log(`[DEBUG] Received Live Data from Server!`);
-                console.log(`[DEBUG] Roster count: ${result.roster?.length}`);
-                console.log(`[DEBUG] Drafts count (Deficits): ${result.drafts?.length}`);
                 
                 setStatusText('Saving to Local Database...');
                 await saveCache(result);
@@ -245,30 +241,29 @@ export function useRepliconData() {
             setStatusText('Sync drop detected. Check gateway endpoint connection.');
         } finally {
             setLoading(false);
+            setDataLoaded(true); // UNLOCK THE SCREEN! Data is officially in the arrays.
             console.log("--------- FRONTEND DEBUG END ---------");
         }
     }, [processStarSchema]);
 
-    var logoutSession = useCallback(async () => {
-        localStorage.removeItem('mds_dashboard_session');
-        await clearCache();
-        setSessionUser(null);
-    }, []);
-
+    // THE ENGINE STARTER: Watches the user logging in from App.jsx and instantly fires the sync
     useEffect(() => {
-        var sessionData = localStorage.getItem('mds_dashboard_session');
-        if (sessionData) {
-            var session = JSON.parse(sessionData);
-            if (new Date().getTime() < session.expiresAt) {
-                setSessionUser(session.user);
-                syncMatrixData();
-            } else {
-                logoutSession();
-            }
-        } else {
-            setLoading(false);
+        if (externalSessionUser && !dataLoaded) {
+            syncMatrixData();
         }
-    }, [syncMatrixData, logoutSession]);
+        // If they log out, reset the lock for the next person
+        if (!externalSessionUser) {
+            setDataLoaded(false);
+        }
+    }, [externalSessionUser, dataLoaded, syncMatrixData]);
 
-    return { loading, statusText, sessionUser, dataMatrix, syncMatrixData, logoutSession, setSessionUser };
+    // THE RACE CONDITION KILLER: Forces the loading screen ON instantly before data populates
+    var isEffectivelyLoading = loading || (!!externalSessionUser && !dataLoaded);
+
+    return { 
+        loading: isEffectivelyLoading, 
+        statusText, 
+        dataMatrix, 
+        syncMatrixData 
+    };
 }
