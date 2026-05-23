@@ -8,7 +8,9 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   const dropdowns = useMemo(() => {
     let clients = new Set();
     let programs = new Set();
+    let locations = new Set();
     
+    // Extract from dimension table if it exists
     if (dataMatrix && dataMatrix.dimensionTable) {
       Object.values(dataMatrix.dimensionTable).forEach(p => {
         if (p.client && p.client !== "Unknown") clients.add(p.client);
@@ -16,39 +18,65 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
       });
     }
 
+    // Extract locations and fallback clients/programs from the raw cube
+    if (dataMatrix && dataMatrix.cube) {
+        dataMatrix.cube.forEach(row => {
+            if (row.client && row.client !== "Unknown") clients.add(row.client);
+            if (row.program && row.program !== "Unknown" && row.program !== "Unassigned") programs.add(row.program);
+            if (row.location && row.location !== "Unknown") locations.add(row.location);
+        });
+    }
+
     const roster = dataMatrix?.roster || [];
     const activeEngineers = roster.filter(e => e.status === "Enabled").sort((a,b) => a.name.localeCompare(b.name));
-
-    // Pull Account Managers from the server's matrix payload
     const accountManagers = dataMatrix?.accountManagers || [];
 
     return {
       clients: Array.from(clients).sort(),
       programs: Array.from(programs).sort(),
+      locations: Array.from(locations).sort(),
       engineers: activeEngineers,
       accountManagers: accountManagers
     };
   }, [dataMatrix]);
 
   // =========================================================================
-  // 2. COMPONENT STATE
+  // 2. COMPONENT STATE (Mapped to RIA Template)
   // =========================================================================
   const fileInputRef = useRef(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bulkAssignValue, setBulkAssignValue] = useState('');
   
-  const [clientMode, setClientMode] = useState('existing'); 
-  
   const [formData, setFormData] = useState({
-    name: '', code: '', client: '', newClientName: '',
-    accountManager: '', start: '', end: '',
-    status: 'In Progress', program: ''
+    // Core Details
+    projectName: '', 
+    projectCode: '', 
+    clientName: '', 
+    clientRepresentative: '',
+    programName: '',
+    projectManager: '',
+    department: '',
+    location: '',
+    startDate: '', 
+    endDate: '',
+    
+    // Billing & Configuration
+    status: 'In Progress', 
+    percentCompleted: '0',
+    billingType: 'Time & Materials',
+    allowTimeEntry: 'Yes',
+    clientBillingRateCopy: 'Keep Existing Billing Rates',
+    timeAndExpenseEntry: 'Billable & Non-Billable',
+    projectLeaderApprovalRequired: 'Yes',
+    quotedHours: '',
+    internalStatus: '',
+    internalRemarks: ''
   });
 
   const [tasks, setTasks] = useState([]);
 
   // =========================================================================
-  // 3. XML PARSER LOGIC
+  // 3. XML PARSER LOGIC (Unchanged)
   // =========================================================================
   const handleXMLUpload = (e) => {
     const file = e.target.files[0];
@@ -70,7 +98,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
 
         for (let i = 0; i < taskNodes.length; i++) {
           const t = taskNodes[i];
-          
           const isSummary = t.getElementsByTagName('Summary')[0]?.textContent === "1";
           const nameNode = t.getElementsByTagName('Name')[0]?.textContent;
           
@@ -110,9 +137,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
     reader.readAsText(file);
   };
 
-  // =========================================================================
-  // 4. TASK ASSIGNMENT MANAGERS
-  // =========================================================================
   const handleAssigneeChange = (taskIndex, assigneeIndex, value) => {
     const newTasks = [...tasks];
     newTasks[taskIndex].assignees[assigneeIndex] = value;
@@ -146,15 +170,11 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   // 5. FORM SUBMISSION
   // =========================================================================
   const submitProject = async () => {
-    if (!formData.name || !formData.code) return alert("Please fill in the Project Name and Code.");
-    
-    let finalClient = formData.client;
-    
-    if (clientMode === 'new') {
-      finalClient = formData.newClientName.trim();
-      if (!finalClient) return alert("Please enter a name for the new client.");
-    } else {
-      if (!finalClient) return alert("Please select an existing client.");
+    if (!formData.projectName || !formData.projectCode) {
+        return alert("Please fill in the Project Name and Code.");
+    }
+    if (!formData.clientName) {
+        return alert("Please select a Client.");
     }
 
     const mappedTasks = tasks.map(t => ({
@@ -162,15 +182,9 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
       assignees: t.assignees.filter(a => a !== "")
     }));
 
+    // The payload is now perfectly mapped to the RIA expectations
     const payload = {
-      projectName: formData.name,
-      projectCode: formData.code,
-      client: finalClient,
-      accountManager: clientMode === 'new' ? formData.accountManager : null,
-      startDate: formData.start,
-      endDate: formData.end,
-      status: formData.status,
-      program: formData.program,
+      ...formData,
       tasks: mappedTasks
     };
 
@@ -188,7 +202,15 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
       if(response.ok) {
         alert(`SUCCESS: ${result.message}`);
         setTasks([]); 
-        setFormData({ name: '', code: '', client: '', newClientName: '', accountManager: '', start: '', end: '', status: 'In Progress', program: '' });
+        // Reset form
+        setFormData({
+            projectName: '', projectCode: '', clientName: '', clientRepresentative: '', programName: '',
+            projectManager: '', department: '', location: '', startDate: '', endDate: '',
+            status: 'In Progress', percentCompleted: '0', billingType: 'Time & Materials',
+            allowTimeEntry: 'Yes', clientBillingRateCopy: 'Keep Existing Billing Rates',
+            timeAndExpenseEntry: 'Billable & Non-Billable', projectLeaderApprovalRequired: 'Yes',
+            quotedHours: '', internalStatus: '', internalRemarks: ''
+        });
         syncMatrixData(true); 
       } else {
         alert(`ERROR: ${result.error}`);
@@ -224,71 +246,128 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
 
       <div className={styles.chartRow}>
         
-        {/* --- TOP SIDE: CORE DETAILS FORM --- */}
+        {/* --- CORE DETAILS CARD --- */}
         <div className="chart-card">
           <h4><i className='bx bx-data' style={{ color: 'var(--accent-blue)' }}></i> Core Details</h4>
-          
           <div className={styles.formGrid}>
-            <div className={styles.formGroup}><label>Project Name</label><input type="text" className={styles.formControl} placeholder="e.g., Azure Migration" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} /></div>
-            <div className={styles.formGroup}><label>Project Code</label><input type="text" className={styles.formControl} placeholder="e.g., PRJ-2026-001" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} /></div>
+            <div className={styles.formGroup}><label>Project Name</label><input type="text" className={styles.formControl} value={formData.projectName} onChange={e => setFormData({...formData, projectName: e.target.value})} /></div>
+            <div className={styles.formGroup}><label>Project Code</label><input type="text" className={styles.formControl} value={formData.projectCode} onChange={e => setFormData({...formData, projectCode: e.target.value})} /></div>
             
-            <div className={`${styles.formGroup} ${styles.fullSpan}`}>
-              <label>Client Selection</label>
-              <div className={styles.clientModeToggle}>
-                <button 
-                  className={`${styles.modeBtn} ${clientMode === 'existing' ? styles.active : ''}`} 
-                  onClick={() => setClientMode('existing')}
-                >
-                  <i className='bx bx-list-ul'></i> Existing Client
-                </button>
-                <button 
-                  className={`${styles.modeBtn} ${clientMode === 'new' ? styles.active : ''}`} 
-                  onClick={() => setClientMode('new')}
-                >
-                  <i className='bx bx-plus'></i> New Client
-                </button>
-              </div>
-
-              {clientMode === 'existing' ? (
-                <select className={styles.formControl} value={formData.client} onChange={e => setFormData({...formData, client: e.target.value})}>
-                  <option value="">Select an existing Client...</option>
-                  {dropdowns.clients.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              ) : (
-                <div className={styles.newClientBox}>
-                  <div className={styles.formGroup}>
-                    <label>New Client Name</label>
-                    <input type="text" className={styles.formControl} placeholder="e.g., Abu Dhabi Police" value={formData.newClientName} onChange={e => setFormData({...formData, newClientName: e.target.value})} />
-                  </div>
-                  <div className={styles.formGroup}>
-                    <label>Account Manager</label>
-                    <select className={styles.formControl} value={formData.accountManager} onChange={e => setFormData({...formData, accountManager: e.target.value})}>
-                      <option value="">-- Unassigned --</option>
-                      {dropdowns.accountManagers.map(am => <option key={am} value={am}>{am}</option>)}
-                    </select>
-                  </div>
-                </div>
-              )}
+            <div className={styles.formGroup}>
+              <label>Client Name</label>
+              <select className={styles.formControl} value={formData.clientName} onChange={e => setFormData({...formData, clientName: e.target.value})}>
+                <option value="">Select a Client...</option>
+                {dropdowns.clients.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            
+            <div className={styles.formGroup}>
+              <label>Client Representative Name</label>
+              <select className={styles.formControl} value={formData.clientRepresentative} onChange={e => setFormData({...formData, clientRepresentative: e.target.value})}>
+                <option value="">-- Unassigned --</option>
+                {dropdowns.accountManagers.map(am => <option key={am} value={am}>{am}</option>)}
+              </select>
             </div>
 
-            <div className={styles.formGroup}><label>Start Date</label><input type="date" className={styles.formControl} value={formData.start} onChange={e => setFormData({...formData, start: e.target.value})} /></div>
-            <div className={styles.formGroup}><label>End Date</label><input type="date" className={styles.formControl} value={formData.end} onChange={e => setFormData({...formData, end: e.target.value})} /></div>
+            <div className={styles.formGroup}>
+              <label>Program Name</label>
+              <select className={styles.formControl} value={formData.programName} onChange={e => setFormData({...formData, programName: e.target.value})}>
+                <option value="">Select a Program...</option>
+                {dropdowns.programs.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+
+            <div className={styles.formGroup}>
+              <label>Project Manager</label>
+              <select className={styles.formControl} value={formData.projectManager} onChange={e => setFormData({...formData, projectManager: e.target.value})}>
+                <option value="">Select a Manager...</option>
+                {dropdowns.engineers.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
+              </select>
+            </div>
+
+            <div className={styles.formGroup}><label>Department</label><input type="text" className={styles.formControl} placeholder="e.g., Delivery" value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})} /></div>
             
+            <div className={styles.formGroup}>
+              <label>Location</label>
+              <select className={styles.formControl} value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})}>
+                <option value="">Select Location...</option>
+                {dropdowns.locations.map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
+            </div>
+
+            <div className={styles.formGroup}><label>Start Date</label><input type="date" className={styles.formControl} value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} /></div>
+            <div className={styles.formGroup}><label>End Date</label><input type="date" className={styles.formControl} value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} /></div>
+          </div>
+        </div>
+
+        {/* --- BILLING & CONFIGURATION CARD --- */}
+        <div className="chart-card">
+          <h4><i className='bx bx-cog' style={{ color: 'var(--accent-purple)' }}></i> Billing & Configuration</h4>
+          <div className={styles.formGrid}>
             <div className={styles.formGroup}>
               <label>Status</label>
               <select className={styles.formControl} value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
+                <option value="Planning">Planning</option>
+                <option value="Tentative">Tentative</option>
                 <option value="In Progress">In Progress</option>
                 <option value="Completed">Completed</option>
+                <option value="Deferred">Deferred</option>
+                <option value="Cancelled">Cancelled</option>
                 <option value="Archived">Archived</option>
               </select>
             </div>
             
+            <div className={styles.formGroup}><label>Percent Completed</label><input type="number" min="0" max="100" className={styles.formControl} value={formData.percentCompleted} onChange={e => setFormData({...formData, percentCompleted: e.target.value})} /></div>
+
             <div className={styles.formGroup}>
-              <label>Program</label>
-              <select className={styles.formControl} value={formData.program} onChange={e => setFormData({...formData, program: e.target.value})}>
-                <option value="">Select a Program...</option>
-                {dropdowns.programs.map(p => <option key={p} value={p}>{p}</option>)}
+              <label>Billing Type</label>
+              <select className={styles.formControl} value={formData.billingType} onChange={e => setFormData({...formData, billingType: e.target.value})}>
+                <option value="Time & Materials">Time & Materials</option>
+                <option value="Fixed Bid">Fixed Bid</option>
+                <option value="Non-Billable">Non-Billable</option>
               </select>
+            </div>
+
+            <div className={styles.formGroup}>
+              <label>Allow Time Entry</label>
+              <select className={styles.formControl} value={formData.allowTimeEntry} onChange={e => setFormData({...formData, allowTimeEntry: e.target.value})}>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+
+            <div className={styles.formGroup}>
+              <label>Time & Expense Entry</label>
+              <select className={styles.formControl} value={formData.timeAndExpenseEntry} onChange={e => setFormData({...formData, timeAndExpenseEntry: e.target.value})}>
+                <option value="Billable & Non-Billable">Billable & Non-Billable</option>
+                <option value="Billable Only">Billable Only</option>
+                <option value="Non-Billable">Non-Billable</option>
+              </select>
+            </div>
+
+            <div className={styles.formGroup}>
+              <label>Client Billing Rate Copy Option</label>
+              <select className={styles.formControl} value={formData.clientBillingRateCopy} onChange={e => setFormData({...formData, clientBillingRateCopy: e.target.value})}>
+                <option value="Keep Existing Billing Rates">Keep Existing Billing Rates</option>
+                <option value="Update Billing Rates">Update Billing Rates</option>
+              </select>
+            </div>
+
+            <div className={styles.formGroup}>
+              <label>Project Leader Approval Required</label>
+              <select className={styles.formControl} value={formData.projectLeaderApprovalRequired} onChange={e => setFormData({...formData, projectLeaderApprovalRequired: e.target.value})}>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+
+            <div className={styles.formGroup}><label>Custom Field : Quoted Hours</label><input type="number" className={styles.formControl} value={formData.quotedHours} onChange={e => setFormData({...formData, quotedHours: e.target.value})} /></div>
+            
+            <div className={styles.formGroup}><label>Internal: Status</label><input type="text" className={styles.formControl} value={formData.internalStatus} onChange={e => setFormData({...formData, internalStatus: e.target.value})} /></div>
+            
+            <div className={styles.formGroup} style={{ gridColumn: 'span 2' }}>
+                <label>Internal: Remarks</label>
+                <textarea className={styles.formControl} style={{ minHeight: '80px', resize: 'vertical' }} value={formData.internalRemarks} onChange={e => setFormData({...formData, internalRemarks: e.target.value})}></textarea>
             </div>
           </div>
         </div>

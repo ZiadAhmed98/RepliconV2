@@ -191,32 +191,30 @@ app.get('/api/dashboard', async (req, res) => {
         } catch(e) { console.error("Timesheet Fetch Error"); }
 
         // <-- NEW: Fetch Account Managers -->
+        // <-- UPDATED: Fetch Account Managers -->
         try {
             const payloadAM = { reportUri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:report:b53c2b12-15a2-4da8-b97e-babb796f8aa5", filterValues: [], outputFormatUri: "urn:replicon:report-output-format-option:csv" };
             let resAM = await axios.post(reportEndpoint, payloadAM, { headers });
             let csvAM = resAM.data.d?.payload || resAM.data.payload || "";
             if (csvAM) {
                 let lines = csvAM.split(/\r?\n/);
-                
-                // NEW: Looking specifically for 'account manager' 
-                let headerIdx = lines.findIndex(line => line.toLowerCase().includes('account manager'));
+                // Fuzzy search to catch anything containing 'manager'
+                let headerIdx = lines.findIndex(line => line.toLowerCase().includes('manager'));
                 
                 if (headerIdx !== -1) {
                     let headerCols = parseCSVLine(lines[headerIdx]);
-                    // Exact match for the column name Replicon provided
-                    const idxName = headerCols.findIndex(h => h.toLowerCase() === 'account manager');
+                    const idxName = headerCols.findIndex(h => h.toLowerCase().includes('manager'));
                     
                     for (let j = headerIdx + 1; j < lines.length; j++) {
                         const line = lines[j].trim();
                         if (!line || line.startsWith('Full Summary')) continue;
                         const cols = parseCSVLine(line);
                         
-                        // Check if we have a valid name and ignore 'N/A'
-                        if (cols[idxName] && cols[idxName] !== 'N/A') {
+                        // Ignore the 'N/A' and the 'error' lines from the CSV
+                        if (cols[idxName] && cols[idxName] !== 'N/A' && !cols[idxName].includes('error')) {
                             rawAccountManagers.push(cols[idxName]);
                         }
                     }
-                    // Clean up: remove duplicates and alphabetize
                     rawAccountManagers = [...new Set(rawAccountManagers)].sort();
                 }
             }
