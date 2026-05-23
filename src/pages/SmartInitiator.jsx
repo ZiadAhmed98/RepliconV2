@@ -57,7 +57,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   
   const [formData, setFormData] = useState({
     projectName: '', projectCode: '', clientName: '', programName: '', 
-    projectManager: '', department: 'LiveRoute|Service Delivery', location: '',
+    projectManager: '', department: 'Service Delivery', location: '', // <-- Updated Default
     startDate: '', endDate: '', status: 'Planning', percentCompleted: '0',
     billingType: 'Time & Materials', allowTimeEntry: 'Yes', 
     clientBillingRateCopy: 'Keep Existing Billing Rates', timeAndExpenseEntry: 'Billable & Non-Billable',
@@ -312,10 +312,10 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
         <div className={styles.formGroup}>
           <label>Department *</label>
           <select className={styles.formControl} value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})}>
-            <option value="LiveRoute|Management">LiveRoute|Management</option>
-            <option value="LiveRoute|Pre Sales">LiveRoute|Pre Sales</option>
-            <option value="LiveRoute|Sales">LiveRoute|Sales</option>
-            <option value="LiveRoute|Service Delivery">LiveRoute|Service Delivery</option>
+            <option value="LiveRoute">LiveRoute</option>
+            <option value="Management">Management</option>
+            <option value="Pre Sales">Pre Sales</option>
+            <option value="Service Delivery">Service Delivery</option>
           </select>
         </div>
 

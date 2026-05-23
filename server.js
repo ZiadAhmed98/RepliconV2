@@ -269,16 +269,16 @@ app.post('/api/projects/new', async (req, res) => {
         return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10), day: parseInt(parts[2], 10) };
     };
 
-    // Mapped EXACTLY to the ToApply schema with the correct singular Time And Material URN
+    // Mapped EXACTLY to the ToApply schema you pulled
     const projectShellPayload = {
         target: null, 
         modifications: {
             nameToApply: { value: payload.projectName },
             codeToApply: { value: payload.projectCode },
-            statusToApply: { name: payload.status },
-            isTimeEntryAllowed: payload.allowTimeEntry === 'Yes',
             
-            // THE FIX: Singular "time-and-material" to perfectly match your database URN
+            // STATUS REMOVED: Replicon will now auto-assign the default system status
+            
+            isTimeEntryAllowed: payload.allowTimeEntry === 'Yes',
             billingTypeToApply: { 
                 value: payload.billingType === 'Fixed Bid' 
                     ? 'urn:replicon:billing-type:fixed-bid' 
@@ -289,27 +289,16 @@ app.post('/api/projects/new', async (req, res) => {
     };
 
     // Safely inject optional fields to avoid passing explicit nulls
-    if (payload.internalRemarks) {
-        projectShellPayload.modifications.descriptionToApply = { value: payload.internalRemarks };
-    }
-    if (payload.startDate) {
-        projectShellPayload.modifications.startDateToApply = { date: parseDate(payload.startDate) };
-    }
-    if (payload.endDate) {
-        projectShellPayload.modifications.endDateToApply = { date: parseDate(payload.endDate) };
-    }
-    if (payload.programName) {
-        projectShellPayload.modifications.programToApply = { program: { name: payload.programName } };
-    }
-    if (mappedProjectLeaderUri) {
-        projectShellPayload.modifications.projectLeaderToApply = { user: { uri: mappedProjectLeaderUri } };
-    }
-    if (payload.location) {
-        projectShellPayload.modifications.locationToApply = { location: { name: payload.location } };
-    }
-    if (payload.department) {
-        projectShellPayload.modifications.departmentGroupToApply = { departmentGroup: { name: payload.department } };
-    }
+    if (payload.internalRemarks) projectShellPayload.modifications.descriptionToApply = { value: payload.internalRemarks };
+    if (payload.startDate) projectShellPayload.modifications.startDateToApply = { date: parseDate(payload.startDate) };
+    if (payload.endDate) projectShellPayload.modifications.endDateToApply = { date: parseDate(payload.endDate) };
+    if (payload.programName) projectShellPayload.modifications.programToApply = { program: { name: payload.programName } };
+    if (mappedProjectLeaderUri) projectShellPayload.modifications.projectLeaderToApply = { user: { uri: mappedProjectLeaderUri } };
+    if (payload.location) projectShellPayload.modifications.locationToApply = { location: { name: payload.location } };
+    
+    // Department added back since we now have the exact system strings
+    if (payload.department) projectShellPayload.modifications.departmentGroupToApply = { departmentGroup: { name: payload.department } };
+    
     if (payload.clientName) {
         projectShellPayload.modifications.clientAssignmentsSchedulesToApply = {
             clients: [{ client: { name: payload.clientName } }]
