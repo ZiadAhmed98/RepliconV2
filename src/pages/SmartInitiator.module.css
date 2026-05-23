@@ -1,5 +1,5 @@
 /* =========================================================================
-   SMART INITIATOR STYLES
+   SMART INITIATOR - UNIFIED WORKSPACE
    ========================================================================= */
 
 .headerArea {
@@ -23,11 +23,36 @@
   margin: 0;
 }
 
-.chartRow {
+/* --- THE NEW UNIFIED CONTAINER --- */
+.workspaceContainer {
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 35px 40px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.05);
+}
+
+.sectionHeader {
   display: flex;
-  flex-direction: column;
-  gap: 30px;
-  margin-bottom: 20px;
+  align-items: center;
+  gap: 12px;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-main);
+  margin: 40px 0 25px 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.sectionHeader:first-child {
+  margin-top: 0;
+}
+
+.sectionHeader i {
+  font-size: 1.4rem;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 8px;
+  border-radius: 8px;
 }
 
 /* =========================================================================
@@ -37,24 +62,27 @@
   background: var(--accent-blue);
   color: #fff;
   border: none;
-  padding: 10px 20px;
+  padding: 12px 24px;
   border-radius: 8px;
   font-family: 'Inter', sans-serif;
   font-weight: 600;
   font-size: 0.95rem;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
 .btnPrimary:hover {
   background: #2563eb;
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
 }
 
 .btnPrimary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
+  box-shadow: none;
 }
 
 .btnGhost {
@@ -78,12 +106,12 @@
 }
 
 /* =========================================================================
-   FORMS & INPUTS
+   FORMS & FLUID GRID
    ========================================================================= */
 .formGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
   margin-bottom: 10px;
 }
 
@@ -94,7 +122,7 @@
 }
 
 .formGroup label {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
   font-weight: 600;
   text-transform: uppercase;
@@ -102,29 +130,32 @@
 }
 
 .formControl {
-  background: var(--bg-main);
+  background: rgba(0, 0, 0, 0.2);
   color: var(--text-main);
-  border: 1px solid var(--border-color);
-  padding: 12px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 14px 16px;
   border-radius: 8px;
   font-family: 'Inter', sans-serif;
   font-size: 0.95rem;
   outline: none;
-  transition: 0.2s;
+  transition: all 0.2s ease;
   width: 100%;
+}
+
+.formControl:hover {
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .formControl:focus {
   border-color: var(--accent-blue);
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  background: rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
-/* Magic line for modern dark mode calendar */
+/* Calendar icon fixes */
 input[type="date"].formControl {
   color-scheme: dark;
 }
-
-/* Fallback for white calendar icon */
 input[type="date"].formControl::-webkit-calendar-picker-indicator {
   filter: invert(1);
   cursor: pointer;
@@ -135,84 +166,38 @@ input[type="date"].formControl::-webkit-calendar-picker-indicator:hover {
 }
 
 .fullSpan {
-  grid-column: span 2;
-}
-
-.newClientBox {
-  grid-column: span 2;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  background: rgba(59, 130, 246, 0.03);
-  padding: 20px;
-  border-radius: 8px;
-  border: 1px dashed rgba(59, 130, 246, 0.3);
-}
-
-/* =========================================================================
-   CLIENT TOGGLE BUTTONS
-   ========================================================================= */
-.clientModeToggle {
-  display: flex;
-  gap: 15px;
-  margin-bottom: 15px;
-}
-
-.modeBtn {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--border-color);
-  color: var(--text-muted);
-  border-radius: 8px;
-  font-family: 'Inter', sans-serif;
-  font-weight: 600;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.modeBtn:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.modeBtn.active {
-  background: rgba(59, 130, 246, 0.1);
-  border-color: var(--accent-blue);
-  color: var(--accent-blue);
+  grid-column: 1 / -1;
 }
 
 /* =========================================================================
    UPLOAD ZONE
    ========================================================================= */
 .uploadZone {
-  border: 2px dashed var(--border-color);
+  border: 2px dashed rgba(255, 255, 255, 0.15);
   background: rgba(255, 255, 255, 0.02);
-  border-radius: var(--radius-md);
+  border-radius: 12px;
   padding: 60px 40px;
   text-align: center;
   cursor: pointer;
-  transition: 0.2s;
+  transition: all 0.3s ease;
   margin-bottom: 20px;
 }
 
 .uploadZone:hover {
   border-color: var(--accent-blue);
   background: rgba(59, 130, 246, 0.05);
+  transform: translateY(-2px);
 }
 
 .uploadZone i {
-  font-size: 3rem;
+  font-size: 3.5rem;
   color: var(--accent-blue);
-  margin-bottom: 10px;
+  margin-bottom: 15px;
+  opacity: 0.8;
 }
 
 .uploadZone h3 {
-  margin: 0 0 5px 0;
+  margin: 0 0 8px 0;
   font-size: 1.2rem;
   color: var(--text-main);
 }
@@ -220,48 +205,79 @@ input[type="date"].formControl::-webkit-calendar-picker-indicator:hover {
 .uploadZone p {
   margin: 0;
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
 }
 
 /* =========================================================================
-   TASKS PREVIEW UI & MILESTONES
+   TASKS PREVIEW UI
    ========================================================================= */
 .previewSection {
   display: flex;
-  flex-grow: 1;
   flex-direction: column;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .successBar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 15px;
+  margin-bottom: 20px;
   padding-bottom: 15px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .bulkAssignBar {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 15px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 15px;
 }
 
 .tasksTableWrapper {
   overflow-y: auto;
-  max-height: 400px;
+  max-height: 500px;
   padding-right: 5px;
   width: 100%;
 }
 
 .tasksTableWrapper table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0 8px; /* Adds gap between rows */
+}
+
+.tasksTableWrapper th {
+  text-align: left;
+  padding: 0 15px 10px 15px;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tasksTableWrapper td {
+  background: rgba(255, 255, 255, 0.02);
+  padding: 12px 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.tasksTableWrapper td:first-child {
+  border-left: 1px solid rgba(255, 255, 255, 0.03);
+  border-radius: 8px 0 0 8px;
+}
+
+.tasksTableWrapper td:last-child {
+  border-right: 1px solid rgba(255, 255, 255, 0.03);
+  border-radius: 0 8px 8px 0;
 }
 
 .assigneeRow {
@@ -271,30 +287,33 @@ input[type="date"].formControl::-webkit-calendar-picker-indicator:hover {
   margin-bottom: 8px;
 }
 
-.taskDetail {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  font-weight: 400;
-  margin-top: 4px;
+.assigneeRow:last-child {
+  margin-bottom: 0;
 }
 
-/* Milestone Specific Styles */
+.taskDetail {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 400;
+  margin-top: 6px;
+}
+
+/* Milestone Styles */
 .milestoneRow td {
-  background: rgba(59, 130, 246, 0.03);
-  border-top: 1px solid rgba(59, 130, 246, 0.1) !important;
-  border-bottom: 1px solid rgba(59, 130, 246, 0.1) !important;
+  background: rgba(59, 130, 246, 0.05);
+  border-color: rgba(59, 130, 246, 0.15) !important;
 }
 
 .milestoneBadge {
-  background: rgba(59, 130, 246, 0.1);
+  background: rgba(59, 130, 246, 0.15);
   color: var(--accent-blue);
   padding: 6px 12px;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
 }
