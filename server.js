@@ -197,17 +197,22 @@ app.get('/api/dashboard', async (req, res) => {
             let csvAM = resAM.data.d?.payload || resAM.data.payload || "";
             if (csvAM) {
                 let lines = csvAM.split(/\r?\n/);
-                // Look for common name headers
-                let headerIdx = lines.findIndex(line => line.toLowerCase().includes('user name') || line.toLowerCase().includes('name'));
+                
+                // NEW: Looking specifically for 'account manager' 
+                let headerIdx = lines.findIndex(line => line.toLowerCase().includes('account manager'));
+                
                 if (headerIdx !== -1) {
                     let headerCols = parseCSVLine(lines[headerIdx]);
-                    const idxName = headerCols.findIndex(h => h.toLowerCase().includes('user name') || h.toLowerCase().includes('name'));
+                    // Exact match for the column name Replicon provided
+                    const idxName = headerCols.findIndex(h => h.toLowerCase() === 'account manager');
                     
                     for (let j = headerIdx + 1; j < lines.length; j++) {
                         const line = lines[j].trim();
                         if (!line || line.startsWith('Full Summary')) continue;
                         const cols = parseCSVLine(line);
-                        if (cols[idxName]) {
+                        
+                        // Check if we have a valid name and ignore 'N/A'
+                        if (cols[idxName] && cols[idxName] !== 'N/A') {
                             rawAccountManagers.push(cols[idxName]);
                         }
                     }
@@ -215,7 +220,7 @@ app.get('/api/dashboard', async (req, res) => {
                     rawAccountManagers = [...new Set(rawAccountManagers)].sort();
                 }
             }
-        } catch(e) { console.error("Account Managers Fetch Error"); }
+        } catch(e) { console.error("Account Managers Fetch Error", e.message); }
 
         // <-- NEW: Added accountManagers to the JSON response -->
         res.json({ 
@@ -237,16 +242,84 @@ app.post('/api/projects/new', async (req, res) => {
 
     if (!token || !company) return res.status(500).json({ error: "Server configuration error. Replicon tokens missing." });
 
+    const headers = {
+        'Authorization': `Bearer ${token}`,
+        'X-Replicon-Security-Context': 'User',
+        'Content-Type': 'application/json'
+    };
+
+    let finalClientUri = null;
+
+    // =========================================================================
+    // PIPELINE 1: CREATE NEW CLIENT
+    // =========================================================================
+    if (payload.accountManager) {
+        console.log(`\n[DEBUG] --- PIPELINE 1: CREATING CLIENT ---`);
+        const clientPayload = {
+            client: {
+                name: payload.client,
+                // If this crashes, Replicon likely requires loginName or uri instead of name
+                accountManager: { name: payload.accountManager } 
+            }
+        };
+        console.log(`[DEBUG] Client Payload being sent:`, JSON.stringify(clientPayload, null, 2));
+
+        try {
+            const clientResponse = await axios.post(
+                `https://ap1.replicon.com/${company}/services/ClientService1.svc/CreateClient`,
+                clientPayload,
+                { headers }
+            );
+            finalClientUri = clientResponse.data.d.uri;
+            console.log(`[DEBUG] Client created successfully! URI: ${finalClientUri}`);
+        } catch (error) {
+            console.error("❌ PIPELINE 1 (CLIENT) FAILED:", error.response?.data || error.message);
+            return res.status(500).json({ error: "Failed to create Client in Replicon. Check server logs." });
+        }
+    }
+
+    // =========================================================================
+    // PIPELINE 2: CREATE THE PROJECT
+    // =========================================================================
+    console.log(`\n[DEBUG] --- PIPELINE 2: CREATING PROJECT ---`);
+    const parseDate = (dateStr) => {
+        const parts = dateStr.split('-');
+        return { year: parseInt(parts[0]), month: parseInt(parts[1]), day: parseInt(parts[2]) };
+    };
+
+    const formattedTasks = payload.tasks.map(t => ({
+        name: t.name,
+        description: t.duration
+    }));
+
+    const projectPayload = {
+        project: {
+            name: payload.projectName,
+            code: payload.projectCode,
+            client: finalClientUri ? { uri: finalClientUri } : { name: payload.client },
+            program: payload.program ? { name: payload.program } : null,
+            startDate: parseDate(payload.startDate),
+            endDate: parseDate(payload.endDate),
+            tasks: formattedTasks
+        }
+    };
+    console.log(`[DEBUG] Project Payload being sent:`, JSON.stringify(projectPayload, null, 2));
+
     try {
-        if (!payload.projectName || !payload.projectCode || !payload.startDate || !payload.endDate) {
-            return res.status(400).json({ error: "Replicon Validation Failed: Missing core project fields." });
-        }
-        if (!payload.tasks || payload.tasks.length === 0) {
-            return res.status(400).json({ error: "Replicon Validation Failed: No tasks were found in the XML payload." });
-        }
-        res.status(200).json({ success: true, message: `Successfully pushed project ${payload.projectCode} to Replicon with ${payload.tasks.length} tasks and resources assigned.` });
+        const projectResponse = await axios.post(
+            `https://ap1.replicon.com/${company}/services/ProjectService1.svc/CreateProject`,
+            projectPayload,
+            { headers }
+        );
+
+        res.status(200).json({ 
+            success: true, 
+            message: `Successfully created project ${payload.projectCode} ${payload.accountManager ? 'and new client ' + payload.client : ''}!` 
+        });
+
     } catch (error) {
-        res.status(500).json({ error: "Replicon API error. Unable to establish connection to Project Service." }); 
+        console.error("❌ PIPELINE 2 (PROJECT) FAILED:", error.response?.data || error.message);
+        return res.status(500).json({ error: "Failed to create Project in Replicon. Check server logs." });
     }
 });
 
