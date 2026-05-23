@@ -269,20 +269,20 @@ app.post('/api/projects/new', async (req, res) => {
         return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10), day: parseInt(parts[2], 10) };
     };
 
-    // Mapped EXACTLY to the ToApply schema you pulled
+    // Mapped EXACTLY to the ToApply schema with the correct singular Time And Material URN
     const projectShellPayload = {
-        target: null, // CRITICAL FIX: Sent exactly as null, NOT an object containing nulls
+        target: null, 
         modifications: {
             nameToApply: { value: payload.projectName },
             codeToApply: { value: payload.projectCode },
             statusToApply: { name: payload.status },
             isTimeEntryAllowed: payload.allowTimeEntry === 'Yes',
             
-            // CRITICAL FIX: UriModificationParameter1 uses "value", not "uri"
+            // THE FIX: Singular "time-and-material" to perfectly match your database URN
             billingTypeToApply: { 
                 value: payload.billingType === 'Fixed Bid' 
                     ? 'urn:replicon:billing-type:fixed-bid' 
-                    : 'urn:replicon:billing-type:time-and-materials' 
+                    : 'urn:replicon:billing-type:time-and-material' 
             }
         },
         unitOfWorkId: `proj_shell_${Date.now()}`
@@ -293,7 +293,6 @@ app.post('/api/projects/new', async (req, res) => {
         projectShellPayload.modifications.descriptionToApply = { value: payload.internalRemarks };
     }
     if (payload.startDate) {
-        // CRITICAL FIX: ProjectDate1 schema requires the "date" wrapper object
         projectShellPayload.modifications.startDateToApply = { date: parseDate(payload.startDate) };
     }
     if (payload.endDate) {
