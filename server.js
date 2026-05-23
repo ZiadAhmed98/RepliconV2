@@ -271,24 +271,46 @@ app.post('/api/projects/new', async (req, res) => {
 
     // Mapped EXACTLY to the ToApply schema you pulled
     const projectShellPayload = {
-        target: { uri: null },
+        target: null, // CRITICAL FIX: Sent exactly as null, NOT an object containing nulls
         modifications: {
             nameToApply: { value: payload.projectName },
             codeToApply: { value: payload.projectCode },
             statusToApply: { name: payload.status },
             isTimeEntryAllowed: payload.allowTimeEntry === 'Yes',
-            billingTypeToApply: { uri: payload.billingType === 'Fixed Bid' ? 'urn:replicon:billing-type:fixed-bid' : 'urn:replicon:billing-type:time-and-materials' }
+            
+            // CRITICAL FIX: UriModificationParameter1 uses "value", not "uri"
+            billingTypeToApply: { 
+                value: payload.billingType === 'Fixed Bid' 
+                    ? 'urn:replicon:billing-type:fixed-bid' 
+                    : 'urn:replicon:billing-type:time-and-materials' 
+            }
         },
-        projectModificationOptionUri: null, 
         unitOfWorkId: `proj_shell_${Date.now()}`
     };
 
     // Safely inject optional fields to avoid passing explicit nulls
-    if (payload.internalRemarks) projectShellPayload.modifications.descriptionToApply = { value: payload.internalRemarks };
-    if (payload.startDate) projectShellPayload.modifications.startDateToApply = parseDate(payload.startDate);
-    if (payload.endDate) projectShellPayload.modifications.endDateToApply = parseDate(payload.endDate);
-    if (payload.programName) projectShellPayload.modifications.programToApply = { name: payload.programName };
-    if (mappedProjectLeaderUri) projectShellPayload.modifications.projectLeaderToApply = { user: { uri: mappedProjectLeaderUri } };
+    if (payload.internalRemarks) {
+        projectShellPayload.modifications.descriptionToApply = { value: payload.internalRemarks };
+    }
+    if (payload.startDate) {
+        // CRITICAL FIX: ProjectDate1 schema requires the "date" wrapper object
+        projectShellPayload.modifications.startDateToApply = { date: parseDate(payload.startDate) };
+    }
+    if (payload.endDate) {
+        projectShellPayload.modifications.endDateToApply = { date: parseDate(payload.endDate) };
+    }
+    if (payload.programName) {
+        projectShellPayload.modifications.programToApply = { program: { name: payload.programName } };
+    }
+    if (mappedProjectLeaderUri) {
+        projectShellPayload.modifications.projectLeaderToApply = { user: { uri: mappedProjectLeaderUri } };
+    }
+    if (payload.location) {
+        projectShellPayload.modifications.locationToApply = { location: { name: payload.location } };
+    }
+    if (payload.department) {
+        projectShellPayload.modifications.departmentGroupToApply = { departmentGroup: { name: payload.department } };
+    }
     if (payload.clientName) {
         projectShellPayload.modifications.clientAssignmentsSchedulesToApply = {
             clients: [{ client: { name: payload.clientName } }]
