@@ -207,13 +207,43 @@ app.get('/api/dashboard', async (req, res) => {
             }
         } catch(e) { console.error("Account Managers Fetch Error", e.message); }
 
+        // =========================================================================
+        // FETCH SYSTEM DICTIONARIES FOR DROPDOWNS
+        // =========================================================================
+        let dictionaries = { departments: [], locations: [], programs: [], clients: [] };
+        try {
+            console.log(`[DEBUG] Bootstrapping system dictionary URIs...`);
+            const [deptRes, locRes, progRes, clientRes] = await Promise.allSettled([
+                axios.post(`https://ap1.replicon.com/${company}/services/DepartmentService1.svc/BulkGetDepartments`, [], { headers }),
+                axios.post(`https://ap1.replicon.com/${company}/services/LocationService1.svc/BulkGetLocationDetails`, [], { headers }),
+                axios.post(`https://ap1.replicon.com/${company}/services/ProgramService1.svc/BulkGetProgramDetails`, [], { headers }),
+                axios.post(`https://ap1.replicon.com/${company}/services/ClientService1.svc/BulkGetClientDetails`, [], { headers })
+            ]);
+
+            if (deptRes.status === 'fulfilled') dictionaries.departments = (deptRes.value.data.d || deptRes.value.data || []).map(x => ({ name: x.name, uri: x.uri }));
+            if (locRes.status === 'fulfilled') dictionaries.locations = (locRes.value.data.d || locRes.value.data || []).map(x => ({ name: x.name, uri: x.uri }));
+            if (progRes.status === 'fulfilled') dictionaries.programs = (progRes.value.data.d || progRes.value.data || []).map(x => ({ name: x.name, uri: x.uri }));
+            if (clientRes.status === 'fulfilled') dictionaries.clients = (clientRes.value.data.d || clientRes.value.data || []).map(x => ({ name: x.name, uri: x.uri }));
+            
+            // Sort alphabetically for clean UI
+            dictionaries.departments.sort((a,b) => a.name.localeCompare(b.name));
+            dictionaries.locations.sort((a,b) => a.name.localeCompare(b.name));
+            dictionaries.programs.sort((a,b) => a.name.localeCompare(b.name));
+            dictionaries.clients.sort((a,b) => a.name.localeCompare(b.name));
+            
+            console.log(`[DEBUG] Dictionaries loaded successfully.`);
+        } catch (e) { 
+            console.warn(`[DEBUG WARNING] Dictionary extraction failed:`, e.message); 
+        }
+
         res.json({ 
             cube: rawDataCube, 
             roster: rawRoster, 
             drafts: rawDrafts, 
             timesheets: rawTimesheets, 
             tsDetails: rawTsDetails,
-            accountManagers: rawAccountManagers 
+            accountManagers: rawAccountManagers,
+            dictionaries: dictionaries 
         });
 
     } catch (error) { res.status(500).json({ error: "Failed to fetch live data." }); }
@@ -237,42 +267,28 @@ app.post('/api/projects/new', async (req, res) => {
     // =========================================================================
     // PIPELINE 1: CREATE NEW CLIENT (If Selected)
     // =========================================================================
-    if (payload.clientMode === 'new') {
-        console.log(`[DEBUG] Step 1: Creating new client: ${payload.clientName}`);
+    let activeClientUri = payload.clientUri;
+
+    if (payload.clientMode === 'new' && payload.clientName) {
+        console.log(`[DEBUG] Step 1: Creating new client framework: ${payload.clientName}`);
         try {
-            await axios.post(
+            const clientRes = await axios.post(
                 `https://ap1.replicon.com/${company}/services/ClientService1.svc/PutClient`,
                 { client: { target: { uri: null }, name: payload.clientName } },
                 { headers }
             );
-            console.log(`[DEBUG] Client created successfully!`);
+            activeClientUri = clientRes.data.d.uri || clientRes.data.uri;
+            console.log(`[DEBUG] Client created successfully with URI: ${activeClientUri}`);
         } catch (error) {
             console.error("❌ PIPELINE 1 FAILED:", error.response?.data || error.message);
-            return res.status(500).json({ error: "Failed to create new Client." });
+            return res.status(500).json({ error: "Failed to create new Client framework." });
         }
     }
 
     // =========================================================================
-    // PIPELINE 2: CREATE PROJECT SHELL
+    // PIPELINE 2: CREATE PROJECT SHELL (100% Dynamic URI Driven)
     // =========================================================================
-    console.log(`[DEBUG] Step 2: Creating Project Shell for ${payload.projectCode}`);
-
-    const pmUriMap = {
-        "Ziad Shafik": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user:50",
-        "Irfan Najmi": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user:2"
-    };
-    
-    // Mapping the exact URIs you pulled from the system
-    const deptUriMap = {
-        "LiveRoute": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:department-group:db56271f-8c9c-490a-9389-6c35348a0a5e",
-        "Management": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:department-group:599c77c0-259d-4f49-b807-abcf89212c17",
-        "Pre Sales": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:department-group:30074dcf-e5d7-4fe6-81ec-08fc67e5f2aa",
-        "Sales": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:department-group:873cc7dd-5021-4d07-9ef3-52b3c953b4a6",
-        "Service Delivery": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:department-group:e5075151-ac60-48a3-9d1b-acd72e4683ad"
-    };
-
-    const mappedProjectLeaderUri = payload.projectManager ? pmUriMap[payload.projectManager] : undefined;
-    const mappedDeptUri = payload.department ? deptUriMap[payload.department] : undefined;
+    console.log(`[DEBUG] Step 2: Formulating Project Shell Payload for ${payload.projectCode}`);
 
     const parseDate = (dateStr) => {
         if (!dateStr) return undefined;
@@ -280,9 +296,15 @@ app.post('/api/projects/new', async (req, res) => {
         return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10), day: parseInt(parts[2], 10) };
     };
 
-    // Mapped EXACTLY to the ToApply schema you pulled
+    // Temporary map for PMs until a user dictionary is built
+    const pmUriMap = {
+        "Ziad Shafik": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user:50",
+        "Irfan Najmi": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user:2"
+    };
+    const mappedProjectLeaderUri = payload.projectManager ? pmUriMap[payload.projectManager] : undefined;
+
     const projectShellPayload = {
-        target: null, 
+        target: undefined, 
         modifications: {
             nameToApply: { value: payload.projectName },
             codeToApply: { value: payload.projectCode },
@@ -296,38 +318,24 @@ app.post('/api/projects/new', async (req, res) => {
         unitOfWorkId: `proj_shell_${Date.now()}`
     };
 
-    // Safely inject optional fields to avoid passing explicit nulls
-    if (payload.internalRemarks) {
-        projectShellPayload.modifications.descriptionToApply = { value: payload.internalRemarks };
-    }
-    if (payload.startDate) {
-        projectShellPayload.modifications.startDateToApply = { date: parseDate(payload.startDate) };
-    }
-    if (payload.endDate) {
-        projectShellPayload.modifications.endDateToApply = { date: parseDate(payload.endDate) };
-    }
-    if (payload.programName) {
-        projectShellPayload.modifications.programToApply = { program: { name: payload.programName } };
-    }
-    if (mappedProjectLeaderUri) {
-        projectShellPayload.modifications.projectLeaderToApply = { user: { uri: mappedProjectLeaderUri } };
-    }
-    if (payload.location) {
-        projectShellPayload.modifications.locationToApply = { location: { name: payload.location } };
-    }
+    if (payload.internalRemarks) projectShellPayload.modifications.descriptionToApply = { value: payload.internalRemarks };
+    if (payload.startDate) projectShellPayload.modifications.startDateToApply = { date: parseDate(payload.startDate) };
+    if (payload.endDate) projectShellPayload.modifications.endDateToApply = { date: parseDate(payload.endDate) };
+    if (mappedProjectLeaderUri) projectShellPayload.modifications.projectLeaderToApply = { user: { uri: mappedProjectLeaderUri } };
     
-    // Applying the mapped Department URI
-    if (mappedDeptUri) {
-        projectShellPayload.modifications.departmentGroupToApply = { departmentGroup: { uri: mappedDeptUri } };
-    }
+    // Wire up the exact URIs from React
+    if (payload.programUri) projectShellPayload.modifications.programToApply = { program: { uri: payload.programUri } };
+    if (payload.departmentUri) projectShellPayload.modifications.departmentGroupToApply = { departmentGroup: { uri: payload.departmentUri } };
+    if (payload.locationUri) projectShellPayload.modifications.locationToApply = { location: { uri: payload.locationUri } };
     
-    if (payload.clientName) {
+    // Assign Client safely using either the newly created URI or the selected URI
+    if (activeClientUri) {
         projectShellPayload.modifications.clientAssignmentsSchedulesToApply = {
-            clients: [{ client: { name: payload.clientName } }]
+            clients: [{ client: { uri: activeClientUri } }],
+            effectiveDate: parseDate(payload.startDate || new Date().toISOString().split('T')[0])
         };
     }
 
-    // Strip any undefined keys so WCF doesn't crash
     const safeProjectPayload = JSON.parse(JSON.stringify(projectShellPayload));
     let finalProjectUri = null;
 
@@ -338,11 +346,11 @@ app.post('/api/projects/new', async (req, res) => {
             { headers }
         );
         finalProjectUri = shellResponse.data.d.uri;
-        console.log(`[DEBUG] Project Shell Created! URI: ${finalProjectUri}`);
+        console.log(`[DEBUG] Project Shell Created! URI Target Reference: ${finalProjectUri}`);
     } catch (error) {
         console.error("❌ PIPELINE 2 FAILED:", JSON.stringify(error.response?.data || error.message, null, 2));
         const friendlyError = error.response?.data?.error?.details?.displayText || "Check terminal logs.";
-        return res.status(500).json({ error: `Project Shell Rejection: ${friendlyError}` });
+        return res.status(500).json({ error: `Project Shell structural compilation dropped: ${friendlyError}` });
     }
 
     // =========================================================================
@@ -354,7 +362,6 @@ app.post('/api/projects/new', async (req, res) => {
     for (let i = 0; i < payload.tasks.length; i++) {
         const t = payload.tasks[i];
         
-        // Mapped EXACTLY to the AddTask schema you pulled
         const taskPayload = {
             project: { uri: finalProjectUri },
             task: {
@@ -376,18 +383,9 @@ app.post('/api/projects/new', async (req, res) => {
             console.log(`[DEBUG] Added Task ${i + 1}/${payload.tasks.length}`);
         } catch (error) {
             console.error(`❌ FAILED TO ADD TASK ${i + 1}:`, JSON.stringify(error.response?.data || error.message));
-            // We log the error but let the loop continue so one bad task doesn't kill the batch
         }
     }
 
-    // =========================================================================
-    // PIPELINE 4: ASSIGN RESOURCES
-    // =========================================================================
-    console.log(`[DEBUG] Step 4: Resource Assignment (Pending URI Mapping)`);
-    // Note: You correctly identified AssignResourceToProject(projectUri, resourceUri, resourceToReplaceUri).
-    // Because we only have the engineers' display names from the frontend right now, 
-    // we need to get their URIs (like we did for you and Irfan) before this step can fire.
-    
     console.log(`[DEBUG] Provisioning Pipeline Complete!`);
     res.status(200).json({ 
         success: true, 
