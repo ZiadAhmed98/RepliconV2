@@ -261,7 +261,18 @@ app.post('/api/projects/new', async (req, res) => {
         "Ziad Shafik": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user:50",
         "Irfan Najmi": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user:2"
     };
+    
+    // Mapping the exact URIs you pulled from the system
+    const deptUriMap = {
+        "LiveRoute": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:department-group:db56271f-8c9c-490a-9389-6c35348a0a5e",
+        "Management": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:department-group:599c77c0-259d-4f49-b807-abcf89212c17",
+        "Pre Sales": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:department-group:30074dcf-e5d7-4fe6-81ec-08fc67e5f2aa",
+        "Sales": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:department-group:873cc7dd-5021-4d07-9ef3-52b3c953b4a6",
+        "Service Delivery": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:department-group:e5075151-ac60-48a3-9d1b-acd72e4683ad"
+    };
+
     const mappedProjectLeaderUri = payload.projectManager ? pmUriMap[payload.projectManager] : undefined;
+    const mappedDeptUri = payload.department ? deptUriMap[payload.department] : undefined;
 
     const parseDate = (dateStr) => {
         if (!dateStr) return undefined;
@@ -275,9 +286,6 @@ app.post('/api/projects/new', async (req, res) => {
         modifications: {
             nameToApply: { value: payload.projectName },
             codeToApply: { value: payload.projectCode },
-            
-            // STATUS REMOVED: Replicon will now auto-assign the default system status
-            
             isTimeEntryAllowed: payload.allowTimeEntry === 'Yes',
             billingTypeToApply: { 
                 value: payload.billingType === 'Fixed Bid' 
@@ -289,15 +297,29 @@ app.post('/api/projects/new', async (req, res) => {
     };
 
     // Safely inject optional fields to avoid passing explicit nulls
-    if (payload.internalRemarks) projectShellPayload.modifications.descriptionToApply = { value: payload.internalRemarks };
-    if (payload.startDate) projectShellPayload.modifications.startDateToApply = { date: parseDate(payload.startDate) };
-    if (payload.endDate) projectShellPayload.modifications.endDateToApply = { date: parseDate(payload.endDate) };
-    if (payload.programName) projectShellPayload.modifications.programToApply = { program: { name: payload.programName } };
-    if (mappedProjectLeaderUri) projectShellPayload.modifications.projectLeaderToApply = { user: { uri: mappedProjectLeaderUri } };
-    if (payload.location) projectShellPayload.modifications.locationToApply = { location: { name: payload.location } };
+    if (payload.internalRemarks) {
+        projectShellPayload.modifications.descriptionToApply = { value: payload.internalRemarks };
+    }
+    if (payload.startDate) {
+        projectShellPayload.modifications.startDateToApply = { date: parseDate(payload.startDate) };
+    }
+    if (payload.endDate) {
+        projectShellPayload.modifications.endDateToApply = { date: parseDate(payload.endDate) };
+    }
+    if (payload.programName) {
+        projectShellPayload.modifications.programToApply = { program: { name: payload.programName } };
+    }
+    if (mappedProjectLeaderUri) {
+        projectShellPayload.modifications.projectLeaderToApply = { user: { uri: mappedProjectLeaderUri } };
+    }
+    if (payload.location) {
+        projectShellPayload.modifications.locationToApply = { location: { name: payload.location } };
+    }
     
-    // Department added back since we now have the exact system strings
-    if (payload.department) projectShellPayload.modifications.departmentGroupToApply = { departmentGroup: { name: payload.department } };
+    // Applying the mapped Department URI
+    if (mappedDeptUri) {
+        projectShellPayload.modifications.departmentGroupToApply = { departmentGroup: { uri: mappedDeptUri } };
+    }
     
     if (payload.clientName) {
         projectShellPayload.modifications.clientAssignmentsSchedulesToApply = {
