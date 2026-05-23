@@ -10,7 +10,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
     let programs = new Set();
     let locations = new Set();
     
-    // Extract from Dimension Table
     if (dataMatrix && dataMatrix.dimensionTable) {
       Object.values(dataMatrix.dimensionTable).forEach(p => {
         if (p.client && p.client !== "Unknown") clients.add(p.client);
@@ -18,13 +17,10 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
       });
     }
 
-    // THE FIX: Look at factTable instead of the raw cube
     if (dataMatrix && dataMatrix.factTable) {
         dataMatrix.factTable.forEach(row => {
             if (row.client && row.client !== "Unknown") clients.add(row.client);
             if (row.program && row.program !== "Unknown" && row.program !== "Unassigned") programs.add(row.program);
-            
-            // Extract Locations properly!
             if (row.location && row.location !== "Unknown" && row.location.trim() !== "") {
                 locations.add(row.location);
             }
@@ -33,12 +29,16 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
 
     const roster = dataMatrix?.roster || [];
     const activeEngineers = roster.filter(e => e.status === "Enabled").sort((a,b) => a.name.localeCompare(b.name));
+    
+    // Pull the account managers directly from the matrix
+    const accountManagers = dataMatrix?.accountManagers || [];
 
     return {
       clients: Array.from(clients).sort(),
       programs: Array.from(programs).sort(),
       locations: Array.from(locations).sort(),
-      engineers: activeEngineers
+      engineers: activeEngineers,
+      accountManagers: accountManagers
     };
   }, [dataMatrix]);
 
@@ -49,27 +49,35 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bulkAssignValue, setBulkAssignValue] = useState('');
   
+  // NEW: Toggle state for client creation
+  const [clientMode, setClientMode] = useState('existing'); // 'existing' or 'new'
+  const [newClientName, setNewClientName] = useState('');
+  
   const [formData, setFormData] = useState({
     projectName: '', projectCode: '', clientName: '', programName: '', 
     projectManager: '', department: 'LiveRoute|Service Delivery', location: '',
     startDate: '', endDate: '', status: 'Planning', percentCompleted: '0',
     billingType: 'Time & Materials', allowTimeEntry: 'Yes', 
     clientBillingRateCopy: 'Keep Existing Billing Rates', timeAndExpenseEntry: 'Billable & Non-Billable',
-    quotedHours: '', internalRemarks: ''
+    accountManager: '', quotedHours: '', internalRemarks: ''
   });
 
   const [tasks, setTasks] = useState([]);
 
+  // Determine which client name to validate based on the toggle
+  const actualClientName = clientMode === 'existing' ? formData.clientName : newClientName;
+
   // STRICT VALIDATION
   const isFormValid = formData.projectName.trim() !== '' &&
                       formData.projectCode.trim() !== '' &&
-                      formData.clientName !== '' &&
+                      actualClientName.trim() !== '' &&
                       formData.programName !== '' &&
                       formData.projectManager !== '' &&
                       formData.department !== '' &&
                       formData.location !== '' &&
                       formData.startDate !== '' &&
                       formData.endDate !== '' &&
+                      formData.accountManager !== '' && // Enforce AM selection
                       tasks.length > 0;
 
   // =========================================================================
@@ -165,7 +173,14 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
       assignees: t.assignees.filter(a => a !== "")
     }));
 
-    const payload = { ...formData, tasks: mappedTasks };
+    // Inject the correct client name and mode into the payload
+    const payload = { 
+      ...formData, 
+      clientName: actualClientName,
+      clientMode: clientMode,
+      tasks: mappedTasks 
+    };
+
     setIsSubmitting(true);
 
     try {
@@ -179,12 +194,14 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
       if(response.ok) {
         alert(`SUCCESS: ${result.message}`);
         setTasks([]); 
+        setNewClientName('');
+        setClientMode('existing');
         setFormData({
             projectName: '', projectCode: '', clientName: '', programName: '',
             projectManager: '', department: 'LiveRoute|Service Delivery', location: '', startDate: '', endDate: '',
             status: 'Planning', percentCompleted: '0', billingType: 'Time & Materials',
             allowTimeEntry: 'Yes', clientBillingRateCopy: 'Keep Existing Billing Rates',
-            timeAndExpenseEntry: 'Billable & Non-Billable',
+            timeAndExpenseEntry: 'Billable & Non-Billable', accountManager: '',
             quotedHours: '', internalRemarks: ''
         });
         syncMatrixData(true); 
@@ -242,14 +259,38 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
         </div>
         <div className={styles.formGroup}></div> 
 
+        {/* CLIENT SELECTION AREA */}
         <div className={styles.formGroup}>
-          <label>Client Name *</label>
-          <select className={styles.formControl} value={formData.clientName} onChange={e => setFormData({...formData, clientName: e.target.value})}>
-            <option value="">Select a Client...</option>
-            {dropdowns.clients.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
+          <label>Client Setup</label>
+          <div className={styles.segmentControl}>
+            <button className={clientMode === 'existing' ? styles.active : ''} onClick={() => setClientMode('existing')}>Existing Client</button>
+            <button className={clientMode === 'new' ? styles.active : ''} onClick={() => setClientMode('new')}>New Client</button>
+          </div>
         </div>
         
+        {clientMode === 'existing' ? (
+          <div className={styles.formGroup}>
+            <label>Client Name *</label>
+            <select className={styles.formControl} value={formData.clientName} onChange={e => setFormData({...formData, clientName: e.target.value})}>
+              <option value="">Select a Client...</option>
+              {dropdowns.clients.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+        ) : (
+          <div className={styles.formGroup}>
+            <label>New Client Name *</label>
+            <input type="text" className={styles.formControl} value={newClientName} onChange={e => setNewClientName(e.target.value)} placeholder="Type new client name..." />
+          </div>
+        )}
+
+        <div className={styles.formGroup}>
+          <label>Account Manager *</label>
+          <select className={styles.formControl} value={formData.accountManager} onChange={e => setFormData({...formData, accountManager: e.target.value})}>
+            <option value="">Select Account Manager...</option>
+            {dropdowns.accountManagers.map(am => <option key={am} value={am}>{am}</option>)}
+          </select>
+        </div>
+
         <div className={styles.formGroup}>
           <label>Program Name *</label>
           <select className={styles.formControl} value={formData.programName} onChange={e => setFormData({...formData, programName: e.target.value})}>
