@@ -224,7 +224,7 @@ app.post('/api/projects/new', async (req, res) => {
     const token = (process.env.REPLICON_TOKEN || "").trim();
     const company = (process.env.REPLICON_COMPANY || "").trim();
 
-    if (!token || !company) return res.status(500).json({ error: "Server configuration error. Replicon tokens missing." });
+    if (!token || !company) return res.status(500).json({ error: "Server configuration error. Tokens missing." });
 
     const headers = {
         'Authorization': `Bearer ${token}`,
@@ -232,42 +232,30 @@ app.post('/api/projects/new', async (req, res) => {
         'Content-Type': 'application/json'
     };
 
-    console.log(`\n[DEBUG] --- EXECUTING PROJECT PROVISIONING FLOW ---`);
+    console.log(`\n[DEBUG] --- EXECUTING SEQUENTIAL PROVISIONING PIPELINE ---`);
 
     // =========================================================================
     // PIPELINE 1: CREATE NEW CLIENT (If Selected)
     // =========================================================================
     if (payload.clientMode === 'new') {
-        console.log(`[DEBUG] Creating new client: ${payload.clientName}`);
-        const clientPayload = {
-            client: {
-                target: { uri: null },
-                name: payload.clientName,
-                clientManager: { name: payload.accountManager }
-            }
-        };
-
+        console.log(`[DEBUG] Step 1: Creating new client: ${payload.clientName}`);
         try {
             await axios.post(
                 `https://ap1.replicon.com/${company}/services/ClientService1.svc/PutClient`,
-                clientPayload,
+                { client: { target: { uri: null }, name: payload.clientName } },
                 { headers }
             );
             console.log(`[DEBUG] Client created successfully!`);
         } catch (error) {
-            console.error("❌ PIPELINE 1 (CLIENT) FAILED:", error.response?.data || error.message);
-            return res.status(500).json({ error: "Failed to create new Client. Check server logs." });
+            console.error("❌ PIPELINE 1 FAILED:", error.response?.data || error.message);
+            return res.status(500).json({ error: "Failed to create new Client." });
         }
     }
 
-   // =========================================================================
-    // PIPELINE 2: CREATE PROJECT (ISOLATION TEST)
     // =========================================================================
-    const parseDate = (dateStr) => {
-        if (!dateStr) return undefined; // Using undefined instead of null so it strips cleanly
-        const parts = dateStr.split('-');
-        return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10), day: parseInt(parts[2], 10) };
-    };
+    // PIPELINE 2: CREATE PROJECT SHELL
+    // =========================================================================
+    console.log(`[DEBUG] Step 2: Creating Project Shell for ${payload.projectCode}`);
 
     const pmUriMap = {
         "Ziad Shafik": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user:50",
@@ -275,48 +263,104 @@ app.post('/api/projects/new', async (req, res) => {
     };
     const mappedProjectLeaderUri = payload.projectManager ? pmUriMap[payload.projectManager] : undefined;
 
-    // We are temporarily stripping tasks and complex enums to prove the shell works.
-    const rawProjectPayload = {
-        project: {
-            projectInfo: {
-                name: payload.projectName,
-                code: payload.projectCode,
-                timeEntryDateRange: {
-                    startDate: parseDate(payload.startDate),
-                    endDate: parseDate(payload.endDate)
-                },
-                projectStatusLabel: { name: payload.status },
-                client: { name: payload.clientName },
-                projectLeader: mappedProjectLeaderUri ? { uri: mappedProjectLeaderUri } : undefined
-            }
-            // Tasks temporarily omitted for this one test
-        }
+    const parseDate = (dateStr) => {
+        if (!dateStr) return undefined;
+        const parts = dateStr.split('-');
+        return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10), day: parseInt(parts[2], 10) };
     };
 
-    // CRITICAL WCF FIX: This forcefully strips every `undefined` key from the object 
-    // so Replicon's strict parser doesn't choke on empty fields.
-    const safePayload = JSON.parse(JSON.stringify(rawProjectPayload));
+    // Mapped EXACTLY to the ToApply schema you pulled
+    const projectShellPayload = {
+        target: { uri: null },
+        modifications: {
+            nameToApply: { value: payload.projectName },
+            codeToApply: { value: payload.projectCode },
+            statusToApply: { name: payload.status },
+            isTimeEntryAllowed: payload.allowTimeEntry === 'Yes',
+            billingTypeToApply: { uri: payload.billingType === 'Fixed Bid' ? 'urn:replicon:billing-type:fixed-bid' : 'urn:replicon:billing-type:time-and-materials' }
+        },
+        projectModificationOptionUri: null, 
+        unitOfWorkId: `proj_shell_${Date.now()}`
+    };
 
-    console.log(`[DEBUG] Final Safe Payload:`, JSON.stringify(safePayload, null, 2));
+    // Safely inject optional fields to avoid passing explicit nulls
+    if (payload.internalRemarks) projectShellPayload.modifications.descriptionToApply = { value: payload.internalRemarks };
+    if (payload.startDate) projectShellPayload.modifications.startDateToApply = parseDate(payload.startDate);
+    if (payload.endDate) projectShellPayload.modifications.endDateToApply = parseDate(payload.endDate);
+    if (payload.programName) projectShellPayload.modifications.programToApply = { name: payload.programName };
+    if (mappedProjectLeaderUri) projectShellPayload.modifications.projectLeaderToApply = { user: { uri: mappedProjectLeaderUri } };
+    if (payload.clientName) {
+        projectShellPayload.modifications.clientAssignmentsSchedulesToApply = {
+            clients: [{ client: { name: payload.clientName } }]
+        };
+    }
+
+    // Strip any undefined keys so WCF doesn't crash
+    const safeProjectPayload = JSON.parse(JSON.stringify(projectShellPayload));
+    let finalProjectUri = null;
 
     try {
-        const projectResponse = await axios.post(
-            `https://ap1.replicon.com/${company}/services/ProjectService1.svc/PutProject`,
-            safePayload,
+        const shellResponse = await axios.post(
+            `https://ap1.replicon.com/${company}/services/ProjectService1.svc/CreateProjectOrApplyModifications`,
+            safeProjectPayload,
             { headers }
         );
-
-        res.status(200).json({ 
-            success: true, 
-            message: `Successfully created project shell ${payload.projectCode}!` 
-        });
-
+        finalProjectUri = shellResponse.data.d.uri;
+        console.log(`[DEBUG] Project Shell Created! URI: ${finalProjectUri}`);
     } catch (error) {
-        const errorMessage = error.response?.data || error.message;
-        console.error("❌ REPLICON PROVISIONING FLOW REJECTED PACKET:", JSON.stringify(errorMessage, null, 2));
-        const friendlyError = error.response?.data?.error?.details?.displayText || "Check terminal tracing variables.";
-        res.status(500).json({ error: `Replicon Verification Rejection: ${friendlyError}` });
+        console.error("❌ PIPELINE 2 FAILED:", JSON.stringify(error.response?.data || error.message, null, 2));
+        const friendlyError = error.response?.data?.error?.details?.displayText || "Check terminal logs.";
+        return res.status(500).json({ error: `Project Shell Rejection: ${friendlyError}` });
     }
+
+    // =========================================================================
+    // PIPELINE 3: ADD TASKS SEQUENTIALLY
+    // =========================================================================
+    console.log(`[DEBUG] Step 3: Injecting ${payload.tasks.length} tasks into Project URI...`);
+
+    let successfulTasks = 0;
+    for (let i = 0; i < payload.tasks.length; i++) {
+        const t = payload.tasks[i];
+        
+        // Mapped EXACTLY to the AddTask schema you pulled
+        const taskPayload = {
+            project: { uri: finalProjectUri },
+            task: {
+                name: `${t.name} (Task ${i + 1})`,
+                description: t.duration,
+                isTimeEntryAllowed: !t.isMilestone,
+                percentCompleted: 0
+            },
+            unitOfWorkId: `task_add_${i}_${Date.now()}`
+        };
+
+        try {
+            await axios.post(
+                `https://ap1.replicon.com/${company}/services/ProjectService1.svc/AddTask`,
+                taskPayload,
+                { headers }
+            );
+            successfulTasks++;
+            console.log(`[DEBUG] Added Task ${i + 1}/${payload.tasks.length}`);
+        } catch (error) {
+            console.error(`❌ FAILED TO ADD TASK ${i + 1}:`, JSON.stringify(error.response?.data || error.message));
+            // We log the error but let the loop continue so one bad task doesn't kill the batch
+        }
+    }
+
+    // =========================================================================
+    // PIPELINE 4: ASSIGN RESOURCES
+    // =========================================================================
+    console.log(`[DEBUG] Step 4: Resource Assignment (Pending URI Mapping)`);
+    // Note: You correctly identified AssignResourceToProject(projectUri, resourceUri, resourceToReplaceUri).
+    // Because we only have the engineers' display names from the frontend right now, 
+    // we need to get their URIs (like we did for you and Irfan) before this step can fire.
+    
+    console.log(`[DEBUG] Provisioning Pipeline Complete!`);
+    res.status(200).json({ 
+        success: true, 
+        message: `Successfully created project ${payload.projectCode} and injected ${successfulTasks} tasks!` 
+    });
 });
 
 // ---------------------------------------------------------------------------
