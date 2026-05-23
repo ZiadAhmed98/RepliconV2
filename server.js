@@ -207,43 +207,13 @@ app.get('/api/dashboard', async (req, res) => {
             }
         } catch(e) { console.error("Account Managers Fetch Error", e.message); }
 
-        // =========================================================================
-        // FETCH SYSTEM DICTIONARIES FOR DROPDOWNS
-        // =========================================================================
-        let dictionaries = { departments: [], locations: [], programs: [], clients: [] };
-        try {
-            console.log(`[DEBUG] Bootstrapping system dictionary URIs...`);
-            const [deptRes, locRes, progRes, clientRes] = await Promise.allSettled([
-                axios.post(`https://ap1.replicon.com/${company}/services/DepartmentService1.svc/BulkGetDepartments`, [], { headers }),
-                axios.post(`https://ap1.replicon.com/${company}/services/LocationService1.svc/BulkGetLocationDetails`, [], { headers }),
-                axios.post(`https://ap1.replicon.com/${company}/services/ProgramService1.svc/BulkGetProgramDetails`, [], { headers }),
-                axios.post(`https://ap1.replicon.com/${company}/services/ClientService1.svc/BulkGetClientDetails`, [], { headers })
-            ]);
-
-            if (deptRes.status === 'fulfilled') dictionaries.departments = (deptRes.value.data.d || deptRes.value.data || []).map(x => ({ name: x.name, uri: x.uri }));
-            if (locRes.status === 'fulfilled') dictionaries.locations = (locRes.value.data.d || locRes.value.data || []).map(x => ({ name: x.name, uri: x.uri }));
-            if (progRes.status === 'fulfilled') dictionaries.programs = (progRes.value.data.d || progRes.value.data || []).map(x => ({ name: x.name, uri: x.uri }));
-            if (clientRes.status === 'fulfilled') dictionaries.clients = (clientRes.value.data.d || clientRes.value.data || []).map(x => ({ name: x.name, uri: x.uri }));
-            
-            // Sort alphabetically for clean UI
-            dictionaries.departments.sort((a,b) => a.name.localeCompare(b.name));
-            dictionaries.locations.sort((a,b) => a.name.localeCompare(b.name));
-            dictionaries.programs.sort((a,b) => a.name.localeCompare(b.name));
-            dictionaries.clients.sort((a,b) => a.name.localeCompare(b.name));
-            
-            console.log(`[DEBUG] Dictionaries loaded successfully.`);
-        } catch (e) { 
-            console.warn(`[DEBUG WARNING] Dictionary extraction failed:`, e.message); 
-        }
-
         res.json({ 
             cube: rawDataCube, 
             roster: rawRoster, 
             drafts: rawDrafts, 
             timesheets: rawTimesheets, 
             tsDetails: rawTsDetails,
-            accountManagers: rawAccountManagers,
-            dictionaries: dictionaries 
+            accountManagers: rawAccountManagers 
         });
 
     } catch (error) { res.status(500).json({ error: "Failed to fetch live data." }); }
@@ -267,18 +237,15 @@ app.post('/api/projects/new', async (req, res) => {
     // =========================================================================
     // PIPELINE 1: CREATE NEW CLIENT (If Selected)
     // =========================================================================
-    let activeClientUri = payload.clientUri;
-
     if (payload.clientMode === 'new' && payload.clientName) {
         console.log(`[DEBUG] Step 1: Creating new client framework: ${payload.clientName}`);
         try {
-            const clientRes = await axios.post(
+            await axios.post(
                 `https://ap1.replicon.com/${company}/services/ClientService1.svc/PutClient`,
                 { client: { target: { uri: null }, name: payload.clientName } },
                 { headers }
             );
-            activeClientUri = clientRes.data.d.uri || clientRes.data.uri;
-            console.log(`[DEBUG] Client created successfully with URI: ${activeClientUri}`);
+            console.log(`[DEBUG] Client created successfully!`);
         } catch (error) {
             console.error("❌ PIPELINE 1 FAILED:", error.response?.data || error.message);
             return res.status(500).json({ error: "Failed to create new Client framework." });
@@ -286,9 +253,9 @@ app.post('/api/projects/new', async (req, res) => {
     }
 
     // =========================================================================
-    // PIPELINE 2: CREATE PROJECT SHELL (100% Dynamic URI Driven)
+    // PIPELINE 2: CREATE PROJECT SHELL 
     // =========================================================================
-    console.log(`[DEBUG] Step 2: Formulating Project Shell Payload for ${payload.projectCode}`);
+    console.log(`[DEBUG] Step 2: Creating Project Shell for ${payload.projectCode}`);
 
     const parseDate = (dateStr) => {
         if (!dateStr) return undefined;
@@ -296,12 +263,22 @@ app.post('/api/projects/new', async (req, res) => {
         return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10), day: parseInt(parts[2], 10) };
     };
 
-    // Temporary map for PMs until a user dictionary is built
     const pmUriMap = {
         "Ziad Shafik": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user:50",
         "Irfan Najmi": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user:2"
     };
+    
+    // The exact URIs you manually pulled to bypass the department block
+    const deptUriMap = {
+        "LiveRoute": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:department-group:db56271f-8c9c-490a-9389-6c35348a0a5e",
+        "Management": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:department-group:599c77c0-259d-4f49-b807-abcf89212c17",
+        "Pre Sales": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:department-group:30074dcf-e5d7-4fe6-81ec-08fc67e5f2aa",
+        "Sales": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:department-group:873cc7dd-5021-4d07-9ef3-52b3c953b4a6",
+        "Service Delivery": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:department-group:e5075151-ac60-48a3-9d1b-acd72e4683ad"
+    };
+
     const mappedProjectLeaderUri = payload.projectManager ? pmUriMap[payload.projectManager] : undefined;
+    const mappedDeptUri = payload.department ? deptUriMap[payload.department] : undefined;
 
     const projectShellPayload = {
         target: undefined, 
@@ -318,20 +295,20 @@ app.post('/api/projects/new', async (req, res) => {
         unitOfWorkId: `proj_shell_${Date.now()}`
     };
 
+    // Standard mappings
     if (payload.internalRemarks) projectShellPayload.modifications.descriptionToApply = { value: payload.internalRemarks };
     if (payload.startDate) projectShellPayload.modifications.startDateToApply = { date: parseDate(payload.startDate) };
     if (payload.endDate) projectShellPayload.modifications.endDateToApply = { date: parseDate(payload.endDate) };
     if (mappedProjectLeaderUri) projectShellPayload.modifications.projectLeaderToApply = { user: { uri: mappedProjectLeaderUri } };
     
-    // Wire up the exact URIs from React
-    if (payload.programUri) projectShellPayload.modifications.programToApply = { program: { uri: payload.programUri } };
-    if (payload.departmentUri) projectShellPayload.modifications.departmentGroupToApply = { departmentGroup: { uri: payload.departmentUri } };
-    if (payload.locationUri) projectShellPayload.modifications.locationToApply = { location: { uri: payload.locationUri } };
+    // Exactly what worked before: Names for Client/Program/Location, URI for Department!
+    if (payload.programName) projectShellPayload.modifications.programToApply = { program: { name: payload.programName } };
+    if (payload.location) projectShellPayload.modifications.locationToApply = { location: { name: payload.location } };
+    if (mappedDeptUri) projectShellPayload.modifications.departmentGroupToApply = { departmentGroup: { uri: mappedDeptUri } };
     
-    // Assign Client safely using either the newly created URI or the selected URI
-    if (activeClientUri) {
+    if (payload.clientName) {
         projectShellPayload.modifications.clientAssignmentsSchedulesToApply = {
-            clients: [{ client: { uri: activeClientUri } }],
+            clients: [{ client: { name: payload.clientName } }],
             effectiveDate: parseDate(payload.startDate || new Date().toISOString().split('T')[0])
         };
     }

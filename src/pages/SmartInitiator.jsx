@@ -3,23 +3,42 @@ import styles from './SmartInitiator.module.css';
 
 export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   // =========================================================================
-  // 1. DATA EXTRACTION & DICTIONARIES
+  // 1. DATA EXTRACTION & FAIL-SAFES (Restored)
   // =========================================================================
-  
-  // Extract dictionaries populated by the backend
-  const dictionaries = dataMatrix?.dictionaries || { departments: [], locations: [], programs: [], clients: [] };
-
   const dropdowns = useMemo(() => {
+    let clients = new Set();
+    let programs = new Set();
+    let locations = new Set();
+    
+    if (dataMatrix && dataMatrix.dimensionTable) {
+      Object.values(dataMatrix.dimensionTable).forEach(p => {
+        if (p.client && p.client !== "Unknown") clients.add(p.client);
+        if (p.program && p.program !== "Unknown" && p.program !== "Unassigned") programs.add(p.program);
+      });
+    }
+
+    if (dataMatrix && dataMatrix.factTable) {
+        dataMatrix.factTable.forEach(row => {
+            if (row.client && row.client !== "Unknown") clients.add(row.client);
+            if (row.program && row.program !== "Unknown" && row.program !== "Unassigned") programs.add(row.program);
+            if (row.location && row.location !== "Unknown" && row.location.trim() !== "") {
+                locations.add(row.location);
+            }
+        });
+    }
+
     const roster = dataMatrix?.roster || [];
     const activeEngineers = roster.filter(e => e.status === "Enabled").sort((a,b) => a.name.localeCompare(b.name));
     
-    // FAIL-SAFE: If App.jsx drops the accountManagers array, use the roster names
     let ams = dataMatrix?.accountManagers || [];
     if (ams.length === 0 && activeEngineers.length > 0) {
         ams = activeEngineers.map(e => e.name);
     }
 
     return {
+      clients: Array.from(clients).sort(),
+      programs: Array.from(programs).sort(),
+      locations: Array.from(locations).sort(),
       engineers: activeEngineers,
       accountManagers: ams
     };
@@ -35,11 +54,11 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   const [clientMode, setClientMode] = useState('existing'); 
   const [newClientName, setNewClientName] = useState('');
 
-  // Tracking exact URIs instead of names for WCF
+  // Reverted to using standard names
   const [formData, setFormData] = useState({
-    projectName: '', projectCode: '', 
-    clientUri: '', programUri: '', departmentUri: '', locationUri: '', 
-    projectManager: '', startDate: '', endDate: '', status: 'Planning', percentCompleted: '0',
+    projectName: '', projectCode: '', clientName: '', programName: '', 
+    projectManager: '', department: 'Service Delivery', location: '', 
+    startDate: '', endDate: '', status: 'Planning', percentCompleted: '0',
     billingType: 'Time & Materials', allowTimeEntry: 'Yes', 
     clientBillingRateCopy: 'Keep Existing Billing Rates', timeAndExpenseEntry: 'Billable & Non-Billable',
     accountManager: '', quotedHours: '', internalRemarks: ''
@@ -47,14 +66,16 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
 
   const [tasks, setTasks] = useState([]);
 
+  const actualClientName = clientMode === 'existing' ? formData.clientName : newClientName;
+
   // STRICT VALIDATION
   const isFormValid = formData.projectName.trim() !== '' &&
                       formData.projectCode.trim() !== '' &&
-                      (clientMode === 'existing' ? formData.clientUri !== '' : newClientName.trim() !== '') &&
-                      formData.programUri !== '' &&
+                      actualClientName.trim() !== '' &&
+                      formData.programName !== '' &&
                       formData.projectManager !== '' &&
-                      formData.departmentUri !== '' &&
-                      formData.locationUri !== '' &&
+                      formData.department !== '' &&
+                      formData.location !== '' &&
                       formData.startDate !== '' &&
                       formData.endDate !== '' &&
                       (clientMode === 'existing' || formData.accountManager !== '') && 
@@ -155,9 +176,8 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
 
     const payload = { 
       ...formData, 
+      clientName: actualClientName,
       clientMode: clientMode,
-      clientName: clientMode === 'new' ? newClientName : undefined, // Only pass name if brand new
-      clientUri: clientMode === 'existing' ? formData.clientUri : undefined, // Only pass URI if existing
       tasks: mappedTasks 
     };
 
@@ -177,8 +197,8 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
         setNewClientName('');
         setClientMode('existing');
         setFormData({
-            projectName: '', projectCode: '', clientUri: '', programUri: '',
-            departmentUri: '', locationUri: '', projectManager: '', startDate: '', endDate: '',
+            projectName: '', projectCode: '', clientName: '', programName: '',
+            projectManager: '', department: 'Service Delivery', location: '', startDate: '', endDate: '',
             status: 'Planning', percentCompleted: '0', billingType: 'Time & Materials',
             allowTimeEntry: 'Yes', clientBillingRateCopy: 'Keep Existing Billing Rates',
             timeAndExpenseEntry: 'Billable & Non-Billable', accountManager: '',
@@ -251,9 +271,9 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
         {clientMode === 'existing' ? (
           <div className={styles.formGroup}>
             <label>Client Name *</label>
-            <select className={styles.formControl} value={formData.clientUri} onChange={e => setFormData({...formData, clientUri: e.target.value})}>
+            <select className={styles.formControl} value={formData.clientName} onChange={e => setFormData({...formData, clientName: e.target.value})}>
               <option value="">Select a Client...</option>
-              {dictionaries.clients.map(c => <option key={c.uri} value={c.uri}>{c.name}</option>)}
+              {dropdowns.clients.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
         ) : (
@@ -274,9 +294,9 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
 
         <div className={styles.formGroup}>
           <label>Program Name *</label>
-          <select className={styles.formControl} value={formData.programUri} onChange={e => setFormData({...formData, programUri: e.target.value})}>
+          <select className={styles.formControl} value={formData.programName} onChange={e => setFormData({...formData, programName: e.target.value})}>
             <option value="">Select a Program...</option>
-            {dictionaries.programs.map(p => <option key={p.uri} value={p.uri}>{p.name}</option>)}
+            {dropdowns.programs.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
         </div>
 
@@ -291,9 +311,11 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
 
         <div className={styles.formGroup}>
           <label>Department *</label>
-          <select className={styles.formControl} value={formData.departmentUri} onChange={e => setFormData({...formData, departmentUri: e.target.value})}>
-            <option value="">Select a Department...</option>
-            {dictionaries.departments.map(d => <option key={d.uri} value={d.uri}>{d.name}</option>)}
+          <select className={styles.formControl} value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})}>
+            <option value="LiveRoute">LiveRoute</option>
+            <option value="Management">Management</option>
+            <option value="Pre Sales">Pre Sales</option>
+            <option value="Service Delivery">Service Delivery</option>
           </select>
         </div>
 
@@ -302,9 +324,9 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
         
         <div className={styles.formGroup}>
           <label>Location *</label>
-          <select className={styles.formControl} value={formData.locationUri} onChange={e => setFormData({...formData, locationUri: e.target.value})}>
+          <select className={styles.formControl} value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})}>
             <option value="">Select Location...</option>
-            {dictionaries.locations.map(l => <option key={l.uri} value={l.uri}>{l.name}</option>)}
+            {dropdowns.locations.map(l => <option key={l} value={l}>{l}</option>)}
           </select>
         </div>
 
