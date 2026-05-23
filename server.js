@@ -269,7 +269,6 @@ app.post('/api/projects/new', async (req, res) => {
         return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10), day: parseInt(parts[2], 10) };
     };
 
-    // CRITICAL FIX: The (idx + 1) forces every task to have a 100% unique name, stopping the 500 error!
     const formattedTasks = payload.tasks.map((t, idx) => ({
         task: {
             name: `${t.name} (Task ${idx + 1})`, 
@@ -280,6 +279,15 @@ app.post('/api/projects/new', async (req, res) => {
         },
         childTasks: [] 
     }));
+
+    // THE GOLDEN TICKET: Map the frontend dropdown names to their strict URIs
+    const pmUriMap = {
+        "Ziad Shafik": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user:50",
+        "Irfan Najmi": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user:2"
+    };
+
+    // Grab the exact URI based on what the user selected, or default to null
+    const mappedProjectLeaderUri = payload.projectManager ? pmUriMap[payload.projectManager] : null;
 
     const projectPayload = {
         project: {
@@ -296,7 +304,10 @@ app.post('/api/projects/new', async (req, res) => {
                 percentCompleted: parseInt(payload.percentCompleted || 0, 10),
                 client: { name: payload.clientName },
                 program: payload.programName ? { name: payload.programName } : null,
-                projectLeader: { name: payload.projectManager },
+                
+                // FIXED: We now send the exact URI wrapper instead of the name wrapper
+                projectLeader: mappedProjectLeaderUri ? { uri: mappedProjectLeaderUri } : null,
+                
                 isTimeEntryAllowed: payload.allowTimeEntry === 'Yes',
                 billingTypeUri: payload.billingType === 'Fixed Bid' ? 'urn:replicon:billing-type:fixed-bid' : 'urn:replicon:billing-type:time-and-materials'
             },
