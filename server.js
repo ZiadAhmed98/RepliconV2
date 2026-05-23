@@ -248,30 +248,36 @@ app.post('/api/projects/new', async (req, res) => {
 
     console.log(`\n[DEBUG] --- PIPELINE: CREATING PROJECT ---`);
     
-    // Convert YYYY-MM-DD to Replicon's { year, month, day } object
+    // =========================================================================
+    // PIPELINE: CREATE THE PROJECT & TASKS
+    // =========================================================================
     const parseDate = (dateStr) => {
         if (!dateStr) return null;
         const parts = dateStr.split('-');
         return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10), day: parseInt(parts[2], 10) };
     };
 
-    // Format tasks for the payload
-    const formattedTasks = payload.tasks.map(t => ({
-        name: t.name,
-        description: t.duration
+    // CRITICAL FIX: Wrap each task as a "Modification" with a unitOfWorkId
+    const formattedTasks = payload.tasks.map((t, index) => ({
+        unitOfWorkId: `task_batch_${index + 1}`, // Replicon needs a unique string for each item
+        target: { uri: null }, // Null means brand new task
+        modifications: {
+            name: t.name,
+            description: t.duration
+        }
     }));
 
     // The modern WCF payload structure Replicon demands
     const projectPayload = {
-        target: { uri: null }, // null tells Replicon to create a brand new project
+        target: { uri: null },
         modifications: {
             name: payload.projectName,
             code: payload.projectCode,
-            client: { name: payload.clientName }, // Linking to the existing client
+            client: { name: payload.clientName }, 
             program: payload.programName ? { name: payload.programName } : null,
             startDate: parseDate(payload.startDate),
             endDate: parseDate(payload.endDate),
-            tasks: formattedTasks
+            tasks: formattedTasks // Now correctly formatted as an array of modifications!
         }
     };
 
