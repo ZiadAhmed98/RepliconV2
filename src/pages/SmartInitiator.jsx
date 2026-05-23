@@ -10,6 +10,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
     let programs = new Set();
     let locations = new Set();
     
+    // Extract from Dimension Table (if any)
     if (dataMatrix && dataMatrix.dimensionTable) {
       Object.values(dataMatrix.dimensionTable).forEach(p => {
         if (p.client && p.client !== "Unknown") clients.add(p.client);
@@ -17,6 +18,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
       });
     }
 
+    // Extract Locations, Clients, and Programs from the Data Cube (c4dc... report)
     if (dataMatrix && dataMatrix.cube) {
         dataMatrix.cube.forEach(row => {
             if (row.client && row.client !== "Unknown") clients.add(row.client);
@@ -27,14 +29,12 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
 
     const roster = dataMatrix?.roster || [];
     const activeEngineers = roster.filter(e => e.status === "Enabled").sort((a,b) => a.name.localeCompare(b.name));
-    const accountManagers = dataMatrix?.accountManagers || [];
 
     return {
       clients: Array.from(clients).sort(),
       programs: Array.from(programs).sort(),
       locations: Array.from(locations).sort(),
-      engineers: activeEngineers,
-      accountManagers: accountManagers
+      engineers: activeEngineers
     };
   }, [dataMatrix]);
 
@@ -46,12 +46,12 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   const [bulkAssignValue, setBulkAssignValue] = useState('');
   
   const [formData, setFormData] = useState({
-    projectName: '', projectCode: '', clientName: '', clientRepresentative: '',
-    programName: '', projectManager: '', department: 'LiveRoute|Service Delivery', location: '',
+    projectName: '', projectCode: '', clientName: '', programName: '', 
+    projectManager: '', department: 'LiveRoute|Service Delivery', location: '',
     startDate: '', endDate: '', status: 'Planning', percentCompleted: '0',
     billingType: 'Time & Materials', allowTimeEntry: 'Yes', 
     clientBillingRateCopy: 'Keep Existing Billing Rates', timeAndExpenseEntry: 'Billable & Non-Billable',
-    projectLeaderApprovalRequired: 'Yes', quotedHours: '', internalStatus: '', internalRemarks: ''
+    quotedHours: '', internalRemarks: ''
   });
 
   const [tasks, setTasks] = useState([]);
@@ -176,12 +176,12 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
         alert(`SUCCESS: ${result.message}`);
         setTasks([]); 
         setFormData({
-            projectName: '', projectCode: '', clientName: '', clientRepresentative: '', programName: '',
+            projectName: '', projectCode: '', clientName: '', programName: '',
             projectManager: '', department: 'LiveRoute|Service Delivery', location: '', startDate: '', endDate: '',
             status: 'Planning', percentCompleted: '0', billingType: 'Time & Materials',
             allowTimeEntry: 'Yes', clientBillingRateCopy: 'Keep Existing Billing Rates',
-            timeAndExpenseEntry: 'Billable & Non-Billable', projectLeaderApprovalRequired: 'Yes',
-            quotedHours: '', internalStatus: '', internalRemarks: ''
+            timeAndExpenseEntry: 'Billable & Non-Billable',
+            quotedHours: '', internalRemarks: ''
         });
         syncMatrixData(true); 
       } else {
@@ -249,14 +249,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
         </div>
         
         <div className={styles.formGroup}>
-          <label>Client Rep.</label>
-          <select className={styles.formControl} value={formData.clientRepresentative} onChange={e => setFormData({...formData, clientRepresentative: e.target.value})}>
-            <option value="">-- Unassigned --</option>
-            {dropdowns.accountManagers.map(am => <option key={am} value={am}>{am}</option>)}
-          </select>
-        </div>
-
-        <div className={styles.formGroup}>
           <label>Program Name *</label>
           <select className={styles.formControl} value={formData.programName} onChange={e => setFormData({...formData, programName: e.target.value})}>
             <option value="">Select a Program...</option>
@@ -273,9 +265,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
           </select>
         </div>
 
-        <div className={styles.formGroup}><label>Start Date *</label><input type="date" className={styles.formControl} value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} /></div>
-        <div className={styles.formGroup}><label>End Date *</label><input type="date" className={styles.formControl} value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} /></div>
-        
         <div className={styles.formGroup}>
           <label>Department *</label>
           <select className={styles.formControl} value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})}>
@@ -285,6 +274,9 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
             <option value="LiveRoute|Service Delivery">LiveRoute|Service Delivery</option>
           </select>
         </div>
+
+        <div className={styles.formGroup}><label>Start Date *</label><input type="date" className={styles.formControl} value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} /></div>
+        <div className={styles.formGroup}><label>End Date *</label><input type="date" className={styles.formControl} value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} /></div>
         
         <div className={styles.formGroup}>
           <label>Location *</label>
