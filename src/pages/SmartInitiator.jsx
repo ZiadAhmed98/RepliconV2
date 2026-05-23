@@ -10,7 +10,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
     let programs = new Set();
     let locations = new Set();
     
-    // Extract from Dimension Table (if any)
+    // Extract from Dimension Table
     if (dataMatrix && dataMatrix.dimensionTable) {
       Object.values(dataMatrix.dimensionTable).forEach(p => {
         if (p.client && p.client !== "Unknown") clients.add(p.client);
@@ -18,12 +18,16 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
       });
     }
 
-    // Extract Locations, Clients, and Programs from the Data Cube (c4dc... report)
-    if (dataMatrix && dataMatrix.cube) {
-        dataMatrix.cube.forEach(row => {
+    // THE FIX: Look at factTable instead of the raw cube
+    if (dataMatrix && dataMatrix.factTable) {
+        dataMatrix.factTable.forEach(row => {
             if (row.client && row.client !== "Unknown") clients.add(row.client);
             if (row.program && row.program !== "Unknown" && row.program !== "Unassigned") programs.add(row.program);
-            if (row.location && row.location !== "Unknown") locations.add(row.location);
+            
+            // Extract Locations properly!
+            if (row.location && row.location !== "Unknown" && row.location.trim() !== "") {
+                locations.add(row.location);
+            }
         });
     }
 
@@ -56,7 +60,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
 
   const [tasks, setTasks] = useState([]);
 
-  // STRICT VALIDATION: All core fields must be filled and tasks uploaded
+  // STRICT VALIDATION
   const isFormValid = formData.projectName.trim() !== '' &&
                       formData.projectCode.trim() !== '' &&
                       formData.clientName !== '' &&
@@ -110,7 +114,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
             end: endStr.split('T')[0] || '-',
             duration: durationNode ? `${hours} hrs` : '-',
             isMilestone: isSummary, 
-            assignees: isSummary ? [] : [''] // Milestones get empty array, Tasks get one empty slot
+            assignees: isSummary ? [] : ['']
           });
         }
         setTasks(parsedTasks);
@@ -142,9 +146,9 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   const applyBulkAssign = () => {
     if (!bulkAssignValue) return;
     const newTasks = tasks.map(task => {
-      if (task.isMilestone) return task; // Never touch milestones
+      if (task.isMilestone) return task; 
       const updatedAssignees = [...task.assignees];
-      updatedAssignees[0] = bulkAssignValue; // Overwrite the primary engineer
+      updatedAssignees[0] = bulkAssignValue;
       return { ...task, assignees: updatedAssignees };
     });
     setTasks(newTasks);
@@ -154,7 +158,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   // 5. FORM SUBMISSION
   // =========================================================================
   const submitProject = async () => {
-    if (!isFormValid) return; // Failsafe
+    if (!isFormValid) return; 
     
     const mappedTasks = tasks.map(t => ({
       ...t,
@@ -202,7 +206,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
       <div className={styles.headerArea}>
         <h2 className={styles.title}>Project Initialization</h2>
         
-        {/* TOP RIGHT SUBMIT BUTTON */}
         <button 
           className={`${styles.btnPrimary} ${isFormValid ? styles.active : ''}`}
           disabled={!isFormValid || isSubmitting} 
@@ -212,7 +215,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
         </button>
       </div>
 
-      {/* --- TOP SECTION: FORM GRID --- */}
       <div className={styles.formGrid}>
         <div className={styles.formGroup}><label>Project Name *</label><input type="text" className={styles.formControl} value={formData.projectName} onChange={e => setFormData({...formData, projectName: e.target.value})} /></div>
         <div className={styles.formGroup}><label>Project Code *</label><input type="text" className={styles.formControl} value={formData.projectCode} onChange={e => setFormData({...formData, projectCode: e.target.value})} /></div>
@@ -324,7 +326,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
         <div className={styles.formGroup}><label>Remarks</label><input type="text" className={styles.formControl} value={formData.internalRemarks} onChange={e => setFormData({...formData, internalRemarks: e.target.value})} /></div>
       </div>
 
-      {/* --- BOTTOM SECTION: TASK TABLE & UPLOAD --- */}
       {tasks.length === 0 ? (
         <div className={styles.uploadZone} onClick={() => fileInputRef.current.click()}>
           <h3>Click to upload MS Project XML to populate tasks</h3>
