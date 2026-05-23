@@ -260,71 +260,55 @@ app.post('/api/projects/new', async (req, res) => {
         }
     }
 
-    // =========================================================================
-    // PIPELINE 2: CREATE PROJECT
+   // =========================================================================
+    // PIPELINE 2: CREATE PROJECT (ISOLATION TEST)
     // =========================================================================
     const parseDate = (dateStr) => {
-        if (!dateStr) return null;
+        if (!dateStr) return undefined; // Using undefined instead of null so it strips cleanly
         const parts = dateStr.split('-');
         return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10), day: parseInt(parts[2], 10) };
     };
 
-    const formattedTasks = payload.tasks.map((t, idx) => ({
-        task: {
-            name: `${t.name} (Task ${idx + 1})`, 
-            code: null, 
-            description: t.duration, 
-            isTimeEntryAllowed: !t.isMilestone, 
-            percentCompleted: 0
-        },
-        childTasks: [] 
-    }));
-
-    // THE GOLDEN TICKET: Map the frontend dropdown names to their strict URIs
     const pmUriMap = {
         "Ziad Shafik": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user:50",
         "Irfan Najmi": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user:2"
     };
+    const mappedProjectLeaderUri = payload.projectManager ? pmUriMap[payload.projectManager] : undefined;
 
-    // Grab the exact URI based on what the user selected, or default to null
-    const mappedProjectLeaderUri = payload.projectManager ? pmUriMap[payload.projectManager] : null;
-
-    const projectPayload = {
+    // We are temporarily stripping tasks and complex enums to prove the shell works.
+    const rawProjectPayload = {
         project: {
-            target: null, 
             projectInfo: {
                 name: payload.projectName,
                 code: payload.projectCode,
-                description: payload.internalRemarks || null,
                 timeEntryDateRange: {
                     startDate: parseDate(payload.startDate),
                     endDate: parseDate(payload.endDate)
                 },
                 projectStatusLabel: { name: payload.status },
-                percentCompleted: parseInt(payload.percentCompleted || 0, 10),
                 client: { name: payload.clientName },
-                program: payload.programName ? { name: payload.programName } : null,
-                
-                // FIXED: We now send the exact URI wrapper instead of the name wrapper
-                projectLeader: mappedProjectLeaderUri ? { uri: mappedProjectLeaderUri } : null,
-                
-                isTimeEntryAllowed: payload.allowTimeEntry === 'Yes',
-                billingTypeUri: payload.billingType === 'Fixed Bid' ? 'urn:replicon:billing-type:fixed-bid' : 'urn:replicon:billing-type:time-and-materials'
-            },
-            tasks: formattedTasks
+                projectLeader: mappedProjectLeaderUri ? { uri: mappedProjectLeaderUri } : undefined
+            }
+            // Tasks temporarily omitted for this one test
         }
     };
+
+    // CRITICAL WCF FIX: This forcefully strips every `undefined` key from the object 
+    // so Replicon's strict parser doesn't choke on empty fields.
+    const safePayload = JSON.parse(JSON.stringify(rawProjectPayload));
+
+    console.log(`[DEBUG] Final Safe Payload:`, JSON.stringify(safePayload, null, 2));
 
     try {
         const projectResponse = await axios.post(
             `https://ap1.replicon.com/${company}/services/ProjectService1.svc/PutProject`,
-            projectPayload,
+            safePayload,
             { headers }
         );
 
         res.status(200).json({ 
             success: true, 
-            message: `Successfully created project ${payload.projectCode} assigned to ${payload.clientName} with ${payload.tasks.length} tasks!` 
+            message: `Successfully created project shell ${payload.projectCode}!` 
         });
 
     } catch (error) {
