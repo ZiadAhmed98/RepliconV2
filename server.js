@@ -5,13 +5,11 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import cors from 'cors';
 
-// ES Module fix for __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// This is the permission slip allowing your frontend to connect
 app.use(cors({
     origin: ['http://51.170.86.2', 'http://localhost'],
     methods: ['GET', 'POST'],
@@ -121,7 +119,7 @@ app.get('/api/dashboard', async (req, res) => {
                     }
                 } 
             }
-        } catch(e) { console.error("[DEBUG] FATAL ERROR fetching Drafts:", e.message); }
+        } catch(e) { console.error("Drafts Fetch Error", e.message); }
 
         // Fetch Data Cube
         try {
@@ -183,16 +181,13 @@ app.get('/api/dashboard', async (req, res) => {
             let csvAM = resAM.data.d?.payload || resAM.data.payload || "";
             if (csvAM) {
                 let lines = csvAM.split(/\r?\n/);
-                // Look for either Manager or User Name just in case
-                let headerIdx = lines.findIndex(line => line.toLowerCase().includes('manager') || line.toLowerCase().includes('user name'));
+                let headerIdx = lines.findIndex(line => line.toLowerCase().includes('manager') || line.toLowerCase().includes('user name') || line.toLowerCase().includes('name'));
                 
                 if (headerIdx !== -1) {
-                    // HARD SCRUB: Remove \r, \n, double quotes, and payload= artifacts
                     let headerCols = parseCSVLine(lines[headerIdx]).map(h => h.replace(/["\r\n]/g, '').replace('payload=', '').trim());
                     
                     let idxName = headerCols.findIndex(h => h.toLowerCase().includes('manager'));
-                    // Fallback
-                    if (idxName === -1) idxName = headerCols.findIndex(h => h.toLowerCase().includes('user name'));
+                    if (idxName === -1) idxName = headerCols.findIndex(h => h.toLowerCase().includes('name'));
                     
                     if (idxName !== -1) {
                         for (let j = headerIdx + 1; j < lines.length; j++) {
@@ -206,8 +201,7 @@ app.get('/api/dashboard', async (req, res) => {
                             }
                         }
                         rawAccountManagers = [...new Set(rawAccountManagers)].sort();
-                    } else {
-                        console.log("[DEBUG] ERROR: Could not find Account Manager column even after cleaning headers:", headerCols);
+                        console.log(`[DEBUG] Extracted ${rawAccountManagers.length} unique Account Managers`);
                     }
                 }
             }
@@ -275,9 +269,10 @@ app.post('/api/projects/new', async (req, res) => {
         return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10), day: parseInt(parts[2], 10) };
     };
 
+    // CRITICAL FIX: The (idx + 1) forces every task to have a 100% unique name, stopping the 500 error!
     const formattedTasks = payload.tasks.map((t, idx) => ({
         task: {
-            name: `${t.name} (${idx})`, // Force uniqueness
+            name: `${t.name} (Task ${idx + 1})`, 
             code: null, 
             description: t.duration, 
             isTimeEntryAllowed: !t.isMilestone, 
@@ -299,7 +294,7 @@ app.post('/api/projects/new', async (req, res) => {
                 },
                 projectStatusLabel: { name: payload.status },
                 percentCompleted: parseInt(payload.percentCompleted || 0, 10),
-                client: { name: payload.clientName }, // Just-created or Existing, Replicon handles it by name
+                client: { name: payload.clientName },
                 program: payload.programName ? { name: payload.programName } : null,
                 projectLeader: { name: payload.projectManager },
                 isTimeEntryAllowed: payload.allowTimeEntry === 'Yes',

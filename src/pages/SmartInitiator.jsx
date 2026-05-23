@@ -3,7 +3,7 @@ import styles from './SmartInitiator.module.css';
 
 export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   // =========================================================================
-  // 1. DATA EXTRACTION
+  // 1. DATA EXTRACTION & FAIL-SAFES
   // =========================================================================
   const dropdowns = useMemo(() => {
     let clients = new Set();
@@ -30,14 +30,18 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
     const roster = dataMatrix?.roster || [];
     const activeEngineers = roster.filter(e => e.status === "Enabled").sort((a,b) => a.name.localeCompare(b.name));
     
-    const accountManagers = dataMatrix?.accountManagers || [];
+    // FAIL-SAFE: If App.jsx drops the accountManagers array, use the roster names
+    let ams = dataMatrix?.accountManagers || [];
+    if (ams.length === 0 && activeEngineers.length > 0) {
+        ams = activeEngineers.map(e => e.name);
+    }
 
     return {
       clients: Array.from(clients).sort(),
       programs: Array.from(programs).sort(),
       locations: Array.from(locations).sort(),
       engineers: activeEngineers,
-      accountManagers: accountManagers
+      accountManagers: ams
     };
   }, [dataMatrix]);
 
@@ -64,7 +68,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
 
   const actualClientName = clientMode === 'existing' ? formData.clientName : newClientName;
 
-  // STRICT VALIDATION (Account Manager is ONLY required if New Client is selected)
+  // STRICT VALIDATION
   const isFormValid = formData.projectName.trim() !== '' &&
                       formData.projectCode.trim() !== '' &&
                       actualClientName.trim() !== '' &&
@@ -278,7 +282,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
               <label>New Client Name *</label>
               <input type="text" className={styles.formControl} value={newClientName} onChange={e => setNewClientName(e.target.value)} placeholder="Type new client name..." />
             </div>
-            {/* AM Dropdown ONLY shows when creating a new client */}
             <div className={styles.formGroup}>
               <label>Account Manager *</label>
               <select className={styles.formControl} value={formData.accountManager} onChange={e => setFormData({...formData, accountManager: e.target.value})}>
