@@ -246,61 +246,74 @@ app.post('/api/projects/new', async (req, res) => {
         'Content-Type': 'application/json'
     };
 
-    console.log(`\n[DEBUG] --- PIPELINE: CREATING PROJECT ---`);
-    
-    // =========================================================================
-    // PIPELINE: CREATE THE PROJECT & TASKS
-    // =========================================================================
+    console.log(`\n[DEBUG] --- EXECUTING PROJECT PROVISIONING FLOW ---`);
+
+    // Format dates into Replicon's explicit { year, month, day } objects
     const parseDate = (dateStr) => {
         if (!dateStr) return null;
         const parts = dateStr.split('-');
         return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10), day: parseInt(parts[2], 10) };
     };
 
-    // CRITICAL FIX: Wrap each task as a "Modification" with a unitOfWorkId
-    const formattedTasks = payload.tasks.map((t, index) => ({
-        unitOfWorkId: `task_batch_${index + 1}`, // Replicon needs a unique string for each item
-        target: { uri: null }, // Null means brand new task
-        modifications: {
+    // Build the tasks array matching TaskHierarchyParameter1 mapping schema specs
+    const formattedTasks = payload.tasks.map(t => ({
+        task: {
             name: t.name,
-            description: t.duration
-        }
+            code: null, // Left null or auto-assigned
+            description: t.duration, // Reference imported MS Project hours duration tracking string
+            isTimeEntryAllowed: !t.isMilestone, // Lock tracking control configuration dynamically
+            percentCompleted: 0
+        },
+        childTasks: [] // Flattened setup flow schema hierarchy mapping architecture tracking
     }));
 
-    // The modern WCF payload structure Replicon demands
+    // Construct the production payload matching the explicit standard PutProject specs discovered
     const projectPayload = {
-        target: { uri: null },
-        modifications: {
-            name: payload.projectName,
-            code: payload.projectCode,
-            client: { name: payload.clientName }, 
-            program: payload.programName ? { name: payload.programName } : null,
-            startDate: parseDate(payload.startDate),
-            endDate: parseDate(payload.endDate),
-            tasks: formattedTasks // Now correctly formatted as an array of modifications!
+        project: {
+            target: null, // Null confirms explicit generation creation sequence flow
+            projectInfo: {
+                name: payload.projectName,
+                code: payload.projectCode,
+                description: payload.internalRemarks || null,
+                timeEntryDateRange: {
+                    startDate: parseDate(payload.startDate),
+                    endDate: parseDate(payload.endDate)
+                },
+                projectStatusLabel: { name: payload.status },
+                percentCompleted: parseInt(payload.percentCompleted || 0, 10),
+                client: { name: payload.clientName },
+                program: payload.programName ? { name: payload.programName } : null,
+                projectLeader: { name: payload.projectManager },
+                isTimeEntryAllowed: payload.allowTimeEntry === 'Yes',
+                billingTypeUri: payload.billingType === 'Fixed Bid' ? 'urn:replicon:billing-type:fixed-bid' : 'urn:replicon:billing-type:time-and-materials'
+            },
+            tasks: formattedTasks
         }
     };
 
-    console.log(`[DEBUG] Project Payload being sent to Replicon:`, JSON.stringify(projectPayload, null, 2));
+    console.log(`[DEBUG] Final PutProject Payload structural generation map string bundle:`, JSON.stringify(projectPayload, null, 2));
 
     try {
         const projectResponse = await axios.post(
-            `https://ap1.replicon.com/${company}/services/ProjectService1.svc/CreateProjectOrApplyModifications`,
+            `https://ap1.replicon.com/${company}/services/ProjectService1.svc/PutProject`,
             projectPayload,
             { headers }
         );
 
+        console.log(`[DEBUG] Replicon API Provisioning Success Response packet data verification payload:`, projectResponse.data);
+
         res.status(200).json({ 
             success: true, 
-            message: `Successfully created project ${payload.projectCode}!` 
+            message: `Successfully created project ${payload.projectCode} assigned to ${payload.clientName} with ${payload.tasks.length} structural task parameters mapped!` 
         });
 
     } catch (error) {
-        // Now that we're hitting a real endpoint, if Replicon doesn't like the task structure, 
-        // it will give us a clean JSON error telling us exactly what field to fix.
         const errorMessage = error.response?.data || error.message;
-        console.error("❌ PIPELINE FAILED:", JSON.stringify(errorMessage, null, 2));
-        return res.status(500).json({ error: "Failed to create Project in Replicon. Check server logs for the exact missing field." });
+        console.error("❌ REPLICON PROVISIONING FLOW REJECTED PACKET:", JSON.stringify(errorMessage, null, 2));
+        
+        // Dynamic messaging block capturing systemic errors smoothly
+        const friendlyError = error.response?.data?.error?.details?.displayText || "Check terminal tracing variables.";
+        res.status(500).json({ error: `Replicon Verification Rejection: ${friendlyError}` });
     }
 });
 
