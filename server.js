@@ -246,78 +246,55 @@ app.post('/api/projects/new', async (req, res) => {
         'Content-Type': 'application/json'
     };
 
-    let finalClientUri = null;
-
-    // =========================================================================
-    // PIPELINE 1: CREATE NEW CLIENT
-    // =========================================================================
-    if (payload.accountManager) {
-        console.log(`\n[DEBUG] --- PIPELINE 1: CREATING CLIENT ---`);
-        const clientPayload = {
-            client: {
-                name: payload.client,
-                // If this crashes, Replicon likely requires loginName or uri instead of name
-                accountManager: { name: payload.accountManager } 
-            }
-        };
-        console.log(`[DEBUG] Client Payload being sent:`, JSON.stringify(clientPayload, null, 2));
-
-        try {
-            const clientResponse = await axios.post(
-                `https://ap1.replicon.com/${company}/services/ClientService1.svc/CreateClient`,
-                clientPayload,
-                { headers }
-            );
-            finalClientUri = clientResponse.data.d.uri;
-            console.log(`[DEBUG] Client created successfully! URI: ${finalClientUri}`);
-        } catch (error) {
-            console.error("❌ PIPELINE 1 (CLIENT) FAILED:", error.response?.data || error.message);
-            return res.status(500).json({ error: "Failed to create Client in Replicon. Check server logs." });
-        }
-    }
-
-    // =========================================================================
-    // PIPELINE 2: CREATE THE PROJECT
-    // =========================================================================
-    console.log(`\n[DEBUG] --- PIPELINE 2: CREATING PROJECT ---`);
+    console.log(`\n[DEBUG] --- PIPELINE: CREATING PROJECT ---`);
+    
+    // Convert YYYY-MM-DD to Replicon's { year, month, day } object
     const parseDate = (dateStr) => {
+        if (!dateStr) return null;
         const parts = dateStr.split('-');
-        return { year: parseInt(parts[0]), month: parseInt(parts[1]), day: parseInt(parts[2]) };
+        return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10), day: parseInt(parts[2], 10) };
     };
 
+    // Format tasks for the payload
     const formattedTasks = payload.tasks.map(t => ({
         name: t.name,
         description: t.duration
     }));
 
+    // The modern WCF payload structure Replicon demands
     const projectPayload = {
-        project: {
+        target: { uri: null }, // null tells Replicon to create a brand new project
+        modifications: {
             name: payload.projectName,
             code: payload.projectCode,
-            client: finalClientUri ? { uri: finalClientUri } : { name: payload.client },
-            program: payload.program ? { name: payload.program } : null,
+            client: { name: payload.clientName }, // Linking to the existing client
+            program: payload.programName ? { name: payload.programName } : null,
             startDate: parseDate(payload.startDate),
             endDate: parseDate(payload.endDate),
             tasks: formattedTasks
         }
     };
-    console.log(`[DEBUG] Project Payload being sent:`, JSON.stringify(projectPayload, null, 2));
+
+    console.log(`[DEBUG] Project Payload being sent to Replicon:`, JSON.stringify(projectPayload, null, 2));
 
     try {
         const projectResponse = await axios.post(
-            `https://ap1.replicon.com/${company}/services/ProjectService1.svc/CreateProject`,
+            `https://ap1.replicon.com/${company}/services/ProjectService1.svc/CreateProjectOrApplyModifications`,
             projectPayload,
             { headers }
         );
 
         res.status(200).json({ 
             success: true, 
-            message: `Successfully created project ${payload.projectCode} ${payload.accountManager ? 'and new client ' + payload.client : ''}!` 
+            message: `Successfully created project ${payload.projectCode}!` 
         });
 
     } catch (error) {
-        console.error("❌ PIPELINE 2 (PROJECT) FAILED:", error.response?.data || error.message);
-        return res.status(500).json({ error: "Failed to create Project in Replicon. Check server logs." });
+        // Now that we're hitting a real endpoint, if Replicon doesn't like the task structure, 
+        // it will give us a clean JSON error telling us exactly what field to fix.
+        const errorMessage = error.response?.data || error.message;
+        console.error("❌ PIPELINE FAILED:", JSON.stringify(errorMessage, null, 2));
+        return res.status(500).json({ error: "Failed to create Project in Replicon. Check server logs for the exact missing field." });
     }
 });
 
