@@ -75,7 +75,7 @@ app.get('/api/dashboard', async (req, res) => {
 
     try {
         let rawDataCube = []; let rawRoster = []; let rawDrafts = []; let rawTimesheets = []; let rawTsDetails = [];
-        let rawAccountManagers = []; // <-- NEW: Array for Account Managers
+        let rawAccountManagers = []; 
 
         // Fetch Roster
         try {
@@ -101,25 +101,16 @@ app.get('/api/dashboard', async (req, res) => {
 
         // Fetch Drafts
         try {
-            console.log("--------- DEBUG: STARTING DRAFTS FETCH ---------");
             const payloadDrafts = { reportUri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:report:523be039-0435-402a-b1ba-fc7fc5810bb1", filterValues: [], outputFormatUri: "urn:replicon:report-output-format-option:csv" };
-            
             let resDrafts = await axios.post(reportEndpoint, payloadDrafts, { headers });
             let csvDrafts = resDrafts.data.d?.payload || resDrafts.data.payload || "";
-            
-            console.log(`[DEBUG] Replicon returned ${csvDrafts.length} bytes of Drafts CSV data.`);
-
             if (csvDrafts) {
                 let lines = csvDrafts.split(/\r?\n/);
                 let headerIdx = lines.findIndex(line => line.toLowerCase().includes('user name') && line.toLowerCase().includes('date'));
-                
                 if (headerIdx !== -1) {
                     let headerCols = parseCSVLine(lines[headerIdx]);
-                    console.log(`[DEBUG] Found Headers:`, headerCols); 
-                    
                     const getIdx = (str) => headerCols.findIndex(h => h.toLowerCase().includes(str.toLowerCase()));
                     const idxName = getIdx('User Name'), idxDate = getIdx('Date'), idxHours = Math.max(getIdx('Actual Work Hours'), getIdx('Hours'));
-                    
                     for (let j = headerIdx + 1; j < lines.length; j++) {
                         const line = lines[j].trim();
                         if (!line || line.startsWith('Full Summary')) continue;
@@ -128,14 +119,9 @@ app.get('/api/dashboard', async (req, res) => {
                             rawDrafts.push({ user: cols[idxName], date: parseDateToTimestamp(cols[idxDate]), act: parseNumber(cols[idxHours]) });
                         }
                     }
-                    console.log(`[DEBUG] Successfully parsed ${rawDrafts.length} daily draft entries.`);
-                } else {
-                    console.log("[DEBUG] ERROR: Could not find 'User Name' and 'Date' headers in the CSV!");
-                }
+                } 
             }
-        } catch(e) { 
-            console.error("[DEBUG] FATAL ERROR fetching Drafts:", e.message); 
-        }
+        } catch(e) { console.error("[DEBUG] FATAL ERROR fetching Drafts:", e.message); }
 
         // Fetch Data Cube
         try {
@@ -190,39 +176,43 @@ app.get('/api/dashboard', async (req, res) => {
             }
         } catch(e) { console.error("Timesheet Fetch Error"); }
 
-        // Fetch Account Managers
+        // Fetch Account Managers (Aggressively Cleaned)
         try {
             const payloadAM = { reportUri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:report:b53c2b12-15a2-4da8-b97e-babb796f8aa5", filterValues: [], outputFormatUri: "urn:replicon:report-output-format-option:csv" };
             let resAM = await axios.post(reportEndpoint, payloadAM, { headers });
             let csvAM = resAM.data.d?.payload || resAM.data.payload || "";
             if (csvAM) {
                 let lines = csvAM.split(/\r?\n/);
-                let headerIdx = lines.findIndex(line => line.toLowerCase().includes('manager'));
+                // Look for either Manager or User Name just in case
+                let headerIdx = lines.findIndex(line => line.toLowerCase().includes('manager') || line.toLowerCase().includes('user name'));
                 
                 if (headerIdx !== -1) {
-                    // CRITICAL FIX: Clean the headers just like we did for the data cube
-                    let headerCols = parseCSVLine(lines[headerIdx]).map(h => h.replace('payload=', '').trim());
-                    const idxName = headerCols.findIndex(h => h.toLowerCase().includes('manager'));
+                    // HARD SCRUB: Remove \r, \n, double quotes, and payload= artifacts
+                    let headerCols = parseCSVLine(lines[headerIdx]).map(h => h.replace(/["\r\n]/g, '').replace('payload=', '').trim());
                     
-                    let debugAMCount = 0;
-                    for (let j = headerIdx + 1; j < lines.length; j++) {
-                        const line = lines[j].trim();
-                        if (!line || line.startsWith('Full Summary')) continue;
-                        const cols = parseCSVLine(line);
-                        const amName = cols[idxName];
-                        
-                        if (amName && amName !== 'N/A' && !amName.includes('error') && amName.trim() !== '') {
-                            rawAccountManagers.push(amName);
-                            debugAMCount++;
+                    let idxName = headerCols.findIndex(h => h.toLowerCase().includes('manager'));
+                    // Fallback
+                    if (idxName === -1) idxName = headerCols.findIndex(h => h.toLowerCase().includes('user name'));
+                    
+                    if (idxName !== -1) {
+                        for (let j = headerIdx + 1; j < lines.length; j++) {
+                            const line = lines[j].trim();
+                            if (!line || line.startsWith('Full Summary')) continue;
+                            const cols = parseCSVLine(line);
+                            const amName = cols[idxName];
+                            
+                            if (amName && amName !== 'N/A' && !amName.includes('error') && amName.trim() !== '') {
+                                rawAccountManagers.push(amName);
+                            }
                         }
+                        rawAccountManagers = [...new Set(rawAccountManagers)].sort();
+                    } else {
+                        console.log("[DEBUG] ERROR: Could not find Account Manager column even after cleaning headers:", headerCols);
                     }
-                    rawAccountManagers = [...new Set(rawAccountManagers)].sort();
-                    console.log(`[DEBUG] Extracted ${rawAccountManagers.length} unique Account Managers from ${debugAMCount} rows.`);
                 }
             }
         } catch(e) { console.error("Account Managers Fetch Error", e.message); }
 
-        // <-- NEW: Added accountManagers to the JSON response -->
         res.json({ 
             cube: rawDataCube, 
             roster: rawRoster, 
@@ -250,29 +240,55 @@ app.post('/api/projects/new', async (req, res) => {
 
     console.log(`\n[DEBUG] --- EXECUTING PROJECT PROVISIONING FLOW ---`);
 
-    // Format dates into Replicon's explicit { year, month, day } objects
+    // =========================================================================
+    // PIPELINE 1: CREATE NEW CLIENT (If Selected)
+    // =========================================================================
+    if (payload.clientMode === 'new') {
+        console.log(`[DEBUG] Creating new client: ${payload.clientName}`);
+        const clientPayload = {
+            client: {
+                target: { uri: null },
+                name: payload.clientName,
+                clientManager: { name: payload.accountManager }
+            }
+        };
+
+        try {
+            await axios.post(
+                `https://ap1.replicon.com/${company}/services/ClientService1.svc/PutClient`,
+                clientPayload,
+                { headers }
+            );
+            console.log(`[DEBUG] Client created successfully!`);
+        } catch (error) {
+            console.error("❌ PIPELINE 1 (CLIENT) FAILED:", error.response?.data || error.message);
+            return res.status(500).json({ error: "Failed to create new Client. Check server logs." });
+        }
+    }
+
+    // =========================================================================
+    // PIPELINE 2: CREATE PROJECT
+    // =========================================================================
     const parseDate = (dateStr) => {
         if (!dateStr) return null;
         const parts = dateStr.split('-');
         return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10), day: parseInt(parts[2], 10) };
     };
 
-    // Build the tasks array matching TaskHierarchyParameter1 mapping schema specs
-    const formattedTasks = payload.tasks.map(t => ({
+    const formattedTasks = payload.tasks.map((t, idx) => ({
         task: {
-            name: t.name,
-            code: null, // Left null or auto-assigned
-            description: t.duration, // Reference imported MS Project hours duration tracking string
-            isTimeEntryAllowed: !t.isMilestone, // Lock tracking control configuration dynamically
+            name: `${t.name} (${idx})`, // Force uniqueness
+            code: null, 
+            description: t.duration, 
+            isTimeEntryAllowed: !t.isMilestone, 
             percentCompleted: 0
         },
-        childTasks: [] // Flattened setup flow schema hierarchy mapping architecture tracking
+        childTasks: [] 
     }));
 
-    // Construct the production payload matching the explicit standard PutProject specs discovered
     const projectPayload = {
         project: {
-            target: null, // Null confirms explicit generation creation sequence flow
+            target: null, 
             projectInfo: {
                 name: payload.projectName,
                 code: payload.projectCode,
@@ -283,7 +299,7 @@ app.post('/api/projects/new', async (req, res) => {
                 },
                 projectStatusLabel: { name: payload.status },
                 percentCompleted: parseInt(payload.percentCompleted || 0, 10),
-                client: { name: payload.clientName },
+                client: { name: payload.clientName }, // Just-created or Existing, Replicon handles it by name
                 program: payload.programName ? { name: payload.programName } : null,
                 projectLeader: { name: payload.projectManager },
                 isTimeEntryAllowed: payload.allowTimeEntry === 'Yes',
@@ -293,8 +309,6 @@ app.post('/api/projects/new', async (req, res) => {
         }
     };
 
-    console.log(`[DEBUG] Final PutProject Payload structural generation map string bundle:`, JSON.stringify(projectPayload, null, 2));
-
     try {
         const projectResponse = await axios.post(
             `https://ap1.replicon.com/${company}/services/ProjectService1.svc/PutProject`,
@@ -302,18 +316,14 @@ app.post('/api/projects/new', async (req, res) => {
             { headers }
         );
 
-        console.log(`[DEBUG] Replicon API Provisioning Success Response packet data verification payload:`, projectResponse.data);
-
         res.status(200).json({ 
             success: true, 
-            message: `Successfully created project ${payload.projectCode} assigned to ${payload.clientName} with ${payload.tasks.length} structural task parameters mapped!` 
+            message: `Successfully created project ${payload.projectCode} assigned to ${payload.clientName} with ${payload.tasks.length} tasks!` 
         });
 
     } catch (error) {
         const errorMessage = error.response?.data || error.message;
         console.error("❌ REPLICON PROVISIONING FLOW REJECTED PACKET:", JSON.stringify(errorMessage, null, 2));
-        
-        // Dynamic messaging block capturing systemic errors smoothly
         const friendlyError = error.response?.data?.error?.details?.displayText || "Check terminal tracing variables.";
         res.status(500).json({ error: `Replicon Verification Rejection: ${friendlyError}` });
     }
@@ -323,21 +333,15 @@ app.post('/api/projects/new', async (req, res) => {
 // 2. STATIC FILE SERVING FOR REACT 
 // ---------------------------------------------------------------------------
 
-// FORCE the MIME type headers to beat the Linux block
 app.use(express.static(path.join(__dirname, 'dist'), {
     setHeaders: (res, filePath) => {
-        if (filePath.endsWith('.css')) {
-            res.setHeader('Content-Type', 'text/css');
-        } else if (filePath.endsWith('.js')) {
-            res.setHeader('Content-Type', 'application/javascript');
-        }
+        if (filePath.endsWith('.css')) res.setHeader('Content-Type', 'text/css');
+        else if (filePath.endsWith('.js')) res.setHeader('Content-Type', 'application/javascript');
     }
 }));
 
 app.get('*', (req, res) => {
-    if (req.path.startsWith('/api')) {
-        return res.status(404).json({ error: "API route not found" });
-    }
+    if (req.path.startsWith('/api')) return res.status(404).json({ error: "API route not found" });
     res.sendFile(path.join(__dirname, 'dist/index.html'));
 });
 
@@ -348,6 +352,5 @@ console.log("--- CONFIG CHECK ---");
 console.log("Token exists:", !!process.env.REPLICON_TOKEN);
 console.log("Company exists:", !!process.env.REPLICON_COMPANY);
 console.log("--------------------");
-// We add '0.0.0.0' so the container accepts outside traffic
-app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
 
+app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));

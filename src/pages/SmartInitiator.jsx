@@ -30,7 +30,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
     const roster = dataMatrix?.roster || [];
     const activeEngineers = roster.filter(e => e.status === "Enabled").sort((a,b) => a.name.localeCompare(b.name));
     
-    // Pull the account managers directly from the matrix
     const accountManagers = dataMatrix?.accountManagers || [];
 
     return {
@@ -49,8 +48,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bulkAssignValue, setBulkAssignValue] = useState('');
   
-  // NEW: Toggle state for client creation
-  const [clientMode, setClientMode] = useState('existing'); // 'existing' or 'new'
+  const [clientMode, setClientMode] = useState('existing'); 
   const [newClientName, setNewClientName] = useState('');
   
   const [formData, setFormData] = useState({
@@ -64,10 +62,9 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
 
   const [tasks, setTasks] = useState([]);
 
-  // Determine which client name to validate based on the toggle
   const actualClientName = clientMode === 'existing' ? formData.clientName : newClientName;
 
-  // STRICT VALIDATION
+  // STRICT VALIDATION (Account Manager is ONLY required if New Client is selected)
   const isFormValid = formData.projectName.trim() !== '' &&
                       formData.projectCode.trim() !== '' &&
                       actualClientName.trim() !== '' &&
@@ -77,7 +74,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
                       formData.location !== '' &&
                       formData.startDate !== '' &&
                       formData.endDate !== '' &&
-                      formData.accountManager !== '' && // Enforce AM selection
+                      (clientMode === 'existing' || formData.accountManager !== '') && 
                       tasks.length > 0;
 
   // =========================================================================
@@ -173,7 +170,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
       assignees: t.assignees.filter(a => a !== "")
     }));
 
-    // Inject the correct client name and mode into the payload
     const payload = { 
       ...formData, 
       clientName: actualClientName,
@@ -277,19 +273,21 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
             </select>
           </div>
         ) : (
-          <div className={styles.formGroup}>
-            <label>New Client Name *</label>
-            <input type="text" className={styles.formControl} value={newClientName} onChange={e => setNewClientName(e.target.value)} placeholder="Type new client name..." />
-          </div>
+          <>
+            <div className={styles.formGroup}>
+              <label>New Client Name *</label>
+              <input type="text" className={styles.formControl} value={newClientName} onChange={e => setNewClientName(e.target.value)} placeholder="Type new client name..." />
+            </div>
+            {/* AM Dropdown ONLY shows when creating a new client */}
+            <div className={styles.formGroup}>
+              <label>Account Manager *</label>
+              <select className={styles.formControl} value={formData.accountManager} onChange={e => setFormData({...formData, accountManager: e.target.value})}>
+                <option value="">Select Account Manager...</option>
+                {dropdowns.accountManagers.map(am => <option key={am} value={am}>{am}</option>)}
+              </select>
+            </div>
+          </>
         )}
-
-        <div className={styles.formGroup}>
-          <label>Account Manager *</label>
-          <select className={styles.formControl} value={formData.accountManager} onChange={e => setFormData({...formData, accountManager: e.target.value})}>
-            <option value="">Select Account Manager...</option>
-            {dropdowns.accountManagers.map(am => <option key={am} value={am}>{am}</option>)}
-          </select>
-        </div>
 
         <div className={styles.formGroup}>
           <label>Program Name *</label>
