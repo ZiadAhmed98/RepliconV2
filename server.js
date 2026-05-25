@@ -265,10 +265,10 @@ app.post('/api/projects/new', async (req, res) => {
 
     const getStatusUri = (statusString) => {
         const map = {
-            'Planning': 'urn:replicon:project-status:tentative',
-            'In Progress': 'urn:replicon:project-status:in-progress',
-            'Completed': 'urn:replicon:project-status:completed',
-            'Archived': 'urn:replicon:project-status:archived'
+            'Planning': 'urn:replicon:project-status-type:tentative',
+            'In Progress': 'urn:replicon:project-status-type:in-progress',
+            'Completed': 'urn:replicon:project-status-type:completed',
+            'Archived': 'urn:replicon:project-status-type:archived'
         };
         return map[statusString] || 'urn:replicon:project-status:tentative';
     };
@@ -316,10 +316,7 @@ app.post('/api/projects/new', async (req, res) => {
             }, headers);
         }
 
-        let safeClientUriString = activeClientUri;
-        while (safeClientUriString && typeof safeClientUriString === 'object') {
-            safeClientUriString = safeClientUriString.uri || safeClientUriString.Value || safeClientUriString.d;
-        }
+        const safeClientUriString = typeof activeClientUri === 'object' ? activeClientUri.uri : activeClientUri;
 
         await wcfRequest("Update Project Clients", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateClients`, {
             projectUri: projDraftUri,
@@ -350,12 +347,8 @@ app.post('/api/projects/new', async (req, res) => {
         let finalProjectUri = projPubRes.Value || projPubRes.d || projPubRes.uri;
 
         // Ensure flattened Project URI
-        let safeProjectUriString = finalProjectUri;
-        while (safeProjectUriString && typeof safeProjectUriString === 'object') {
-            safeProjectUriString = safeProjectUriString.uri || safeProjectUriString.Value || safeProjectUriString.d;
-        }
-
-        // ------------------------------------------------------------------------
+        const safeProjectUriString = typeof finalProjectUri === 'object' ? finalProjectUri.uri : finalProjectUri;
+           // ------------------------------------------------------------------------
         // STEP 3: ADD TASKS SEQUENTIALLY & CATCH NEW URIs
         // ------------------------------------------------------------------------
         console.log(`\n[STEP 3] Adding ${payload.tasks.length} Tasks`);
