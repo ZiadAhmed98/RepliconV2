@@ -367,12 +367,18 @@ app.post('/api/projects/new', async (req, res) => {
         console.log(`\n[STEP 3] Adding ${payload.tasks.length} Tasks`);
         let successfulTasks = 0;
 
-        if (finalProjectUri && payload.tasks && payload.tasks.length > 0) {
+        // 1. Flatten the Project URI just like we did for the Client URI
+        let safeProjectUriString = finalProjectUri;
+        while (safeProjectUriString && typeof safeProjectUriString === 'object') {
+            safeProjectUriString = safeProjectUriString.uri || safeProjectUriString.Value || safeProjectUriString.d;
+        }
+
+        if (safeProjectUriString && payload.tasks && payload.tasks.length > 0) {
             for (let i = 0; i < payload.tasks.length; i++) {
                 const t = payload.tasks[i];
                 
                 const taskPayload = {
-                    project: { uri: finalProjectUri },
+                    project: { uri: safeProjectUriString }, // <-- Uses the flattened string!
                     task: {
                         target: { uri: null, name: t.name },
                         name: t.name,
@@ -397,7 +403,13 @@ app.post('/api/projects/new', async (req, res) => {
                 };
 
                 try {
-                    await wcfRequest(`Add Task ${i+1}/${payload.tasks.length}`, `https://ap1.replicon.com/${company}/services/TaskService1.svc/AddTask`, taskPayload, headers);
+                    // FIXED: Pointing back to ProjectService1.svc instead of TaskService1
+                    await wcfRequest(
+                        `Add Task ${i+1}/${payload.tasks.length}`, 
+                        `https://ap1.replicon.com/${company}/services/ProjectService1.svc/AddTask`, 
+                        taskPayload, 
+                        headers
+                    );
                     successfulTasks++;
                 } catch (error) {
                     console.error(`[XXX] TASK ${i+1} SKIPPED DUE TO ERROR`);
@@ -412,7 +424,7 @@ app.post('/api/projects/new', async (req, res) => {
         res.status(200).json({ 
             success: true, 
             message: `Successfully created project ${payload.projectCode} and injected ${successfulTasks} tasks!`,
-            projectUri: finalProjectUri
+            projectUri: safeProjectUriString
         });
 
     } catch (error) {
