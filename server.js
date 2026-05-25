@@ -96,7 +96,7 @@ app.get('/api/dashboard', async (req, res) => {
 
     try {
         let rawDataCube = []; let rawRoster = []; let rawDrafts = []; let rawTimesheets = []; let rawTsDetails = []; let rawAccountManagers = []; 
-        let dictionaries = { departments: [], locations: [], programs: [], clients: [], users: [] };
+        let dictionaries = { departments: [], locations: [], programs: [], clients: [], users: [], projectManagers: [] };
 
         console.log(`\n[DEBUG] --- BOOTSTRAPPING SYSTEM DICTIONARY URIs VIA GETDATA ---`);
         
@@ -113,26 +113,14 @@ app.get('/api/dashboard', async (req, res) => {
                 const data = await wcfRequest(`Fetch List: ${dictName}`, url, payload, headers);
                 let rows = data.d?.rows || data.rows || [];
                 
-                console.log(`\n[DICT DEBUG] ---> ${dictName} raw rows received: ${rows.length}`);
-
                 let parsedItems = rows.map(r => {
                     const cell = r.cells?.[0];
                     if (cell && cell.textValue && cell.uri) return { name: cell.textValue, uri: cell.uri };
                     return null;
                 }).filter(x => x !== null);
 
-                console.log(`[DICT DEBUG] ---> ${dictName} parsed successfully: ${parsedItems.length} items.`);
-                
-                if (parsedItems.length > 0) {
-                    console.log(`[DICT DEBUG] ---> Sample of ${dictName} payload passing to React:`);
-                    console.log(JSON.stringify(parsedItems.slice(0, 2), null, 2));
-                } else {
-                    console.log(`[DICT DEBUG] ⚠️ WARNING: ${dictName} RETURNED 0 PARSED ITEMS! Check Replicon UI permissions.`);
-                }
-
                 return parsedItems;
             } catch (err) {
-                console.warn(`[WARNING] Failed to fetch ${dictName}. Using fallback data if available.`);
                 return [];
             }
         };
@@ -141,9 +129,9 @@ app.get('/api/dashboard', async (req, res) => {
         dictionaries.programs = await fetchListData('Programs', 'ProgramListService1', 'urn:replicon:program-list-column:program');
         dictionaries.locations = await fetchListData('Locations', 'LocationListService1', 'urn:replicon:location-list-column:location');
         
-        // Strict PM Filter
         const allUsers = await fetchListData('Users', 'UserListService1', 'urn:replicon:user-list-column:user'); 
-        dictionaries.users = allUsers.filter(u => {
+        dictionaries.users = allUsers; 
+        dictionaries.projectManagers = allUsers.filter(u => {
             const name = u.name.toLowerCase();
             return name.includes('ziad shafik') || name.includes('irfan najmi');
         });
@@ -277,10 +265,10 @@ app.post('/api/projects/new', async (req, res) => {
 
     const getStatusUri = (statusString) => {
         const map = {
-            'Planning': 'urn:replicon:project-status-type:tentative',
-            'In Progress': 'urn:replicon:project-status-type:in-progress',
-            'Completed': 'urn:replicon:project-status-type:completed',
-            'Archived': 'urn:replicon:project-status-type:archived'
+            'Planning': 'urn:replicon:project-status:tentative',
+            'In Progress': 'urn:replicon:project-status:in-progress',
+            'Completed': 'urn:replicon:project-status:completed',
+            'Archived': 'urn:replicon:project-status:archived'
         };
         return map[statusString] || 'urn:replicon:project-status:tentative';
     };
@@ -328,10 +316,11 @@ app.post('/api/projects/new', async (req, res) => {
             }, headers);
         }
 
-        const safeClientUriString = typeof activeClientUri === 'object' ? activeClientUri.uri : activeClientUri;
-        // =========================================================================
-        // UPDATED: USING UpdateClients (PLURAL) WITH ARRAY PAYLOAD
-        // =========================================================================
+        let safeClientUriString = activeClientUri;
+        while (safeClientUriString && typeof safeClientUriString === 'object') {
+            safeClientUriString = safeClientUriString.uri || safeClientUriString.Value || safeClientUriString.d;
+        }
+
         await wcfRequest("Update Project Clients", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateClients`, {
             projectUri: projDraftUri,
             clients: [
@@ -351,7 +340,6 @@ app.post('/api/projects/new', async (req, res) => {
             await wcfRequest("Update Project Program", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateProgram`, { projectUri: projDraftUri, programUri: payload.programUri }, headers);
         }
 
-
         if (payload.pmUri) {
             await wcfRequest("Update Project Leader", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateProjectLeader`, { projectUri: projDraftUri, userUri: payload.pmUri }, headers);
         }
@@ -361,24 +349,25 @@ app.post('/api/projects/new', async (req, res) => {
         let projPubRes = await wcfRequest("Publish Project", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/PublishDraft`, { draftUri: projDraftUri }, headers);
         let finalProjectUri = projPubRes.Value || projPubRes.d || projPubRes.uri;
 
-        // ------------------------------------------------------------------------
-        // STEP 3: ADD TASKS SEQUENTIALLY (Using Strict Payload)
-        // ------------------------------------------------------------------------
-        console.log(`\n[STEP 3] Adding ${payload.tasks.length} Tasks`);
-        let successfulTasks = 0;
-
-        // 1. Flatten the Project URI just like we did for the Client URI
+        // Ensure flattened Project URI
         let safeProjectUriString = finalProjectUri;
         while (safeProjectUriString && typeof safeProjectUriString === 'object') {
             safeProjectUriString = safeProjectUriString.uri || safeProjectUriString.Value || safeProjectUriString.d;
         }
+
+        // ------------------------------------------------------------------------
+        // STEP 3: ADD TASKS SEQUENTIALLY & CATCH NEW URIs
+        // ------------------------------------------------------------------------
+        console.log(`\n[STEP 3] Adding ${payload.tasks.length} Tasks`);
+        let successfulTasks = 0;
+        let capturedTasks = []; 
 
         if (safeProjectUriString && payload.tasks && payload.tasks.length > 0) {
             for (let i = 0; i < payload.tasks.length; i++) {
                 const t = payload.tasks[i];
                 
                 const taskPayload = {
-                    project: { uri: safeProjectUriString }, // <-- Uses the flattened string!
+                    project: { uri: safeProjectUriString },
                     task: {
                         target: { uri: null, name: t.name },
                         name: t.name,
@@ -403,17 +392,58 @@ app.post('/api/projects/new', async (req, res) => {
                 };
 
                 try {
-                    // FIXED: Pointing back to ProjectService1.svc instead of TaskService1
-                    await wcfRequest(
-                        `Add Task ${i+1}/${payload.tasks.length}`, 
-                        `https://ap1.replicon.com/${company}/services/ProjectService1.svc/AddTask`, 
-                        taskPayload, 
-                        headers
-                    );
+                    let taskRes = await wcfRequest(`Add Task ${i+1}/${payload.tasks.length}`, `https://ap1.replicon.com/${company}/services/ProjectService1.svc/AddTask`, taskPayload, headers);
                     successfulTasks++;
+
+                    let newTaskUri = taskRes.Value || taskRes.d || taskRes.uri;
+                    while (newTaskUri && typeof newTaskUri === 'object') {
+                        newTaskUri = newTaskUri.uri || newTaskUri.Value || newTaskUri.d;
+                    }
+
+                    if (newTaskUri && t.assignedUsers && t.assignedUsers.length > 0) {
+                        capturedTasks.push({ taskUri: newTaskUri, assignedUris: t.assignedUsers });
+                    }
                 } catch (error) {
                     console.error(`[XXX] TASK ${i+1} SKIPPED DUE TO ERROR`);
                 }
+            }
+        }
+
+        // ------------------------------------------------------------------------
+        // STEP 4: ASSIGN UNIQUE USERS TO PROJECT SHELL
+        // ------------------------------------------------------------------------
+        console.log(`\n[STEP 4] Assigning Unique Users to Project Shell`);
+        const uniqueUsers = new Set();
+        capturedTasks.forEach(ct => {
+            ct.assignedUris.forEach(u => uniqueUsers.add(u));
+        });
+
+        for (const userUri of uniqueUsers) {
+            try {
+                await wcfRequest(`Assign User to Project`, `https://ap1.replicon.com/${company}/services/ProjectService1.svc/AssignResourceToProject`, {
+                    projectUri: safeProjectUriString,
+                    resourceUri: userUri,
+                    resourceToReplaceUri: null
+                }, headers);
+            } catch (error) {
+                console.error(`[XXX] Failed to assign user ${userUri} to project`);
+            }
+        }
+
+        // ------------------------------------------------------------------------
+        // STEP 5: BULK ASSIGN USERS TO SPECIFIC TASKS
+        // ------------------------------------------------------------------------
+        console.log(`\n[STEP 5] Bulk Assigning Users to Specific Tasks`);
+        for (let i = 0; i < capturedTasks.length; i++) {
+            const ct = capturedTasks[i];
+            try {
+                await wcfRequest(`Assign Users to Task ${i+1}`, `https://ap1.replicon.com/${company}/services/TaskService1.svc/BulkUpdateResourceAssignments`, {
+                    taskUri: ct.taskUri,
+                    resourceUris: ct.assignedUris,
+                    isAssigned: true
+                }, headers);
+            } catch (error) {
+                console.error(`[XXX] Failed to assign users to task ${ct.taskUri}`);
             }
         }
 
@@ -423,7 +453,7 @@ app.post('/api/projects/new', async (req, res) => {
         
         res.status(200).json({ 
             success: true, 
-            message: `Successfully created project ${payload.projectCode} and injected ${successfulTasks} tasks!`,
+            message: `Successfully created project ${payload.projectCode}, injected ${successfulTasks} tasks, and completed team assignments!`,
             projectUri: safeProjectUriString
         });
 
