@@ -322,6 +322,8 @@ app.post('/api/projects/new', async (req, res) => {
             }, headers);
         }
 
+        const safeClientUriString = typeof activeClientUri === 'object' ? activeClientUri.uri : activeClientUri;
+
         // =========================================================================
         // UPDATED: USING UpdateClients (PLURAL) WITH ARRAY PAYLOAD
         // =========================================================================
@@ -330,7 +332,7 @@ app.post('/api/projects/new', async (req, res) => {
             clients: [
                 {
                     client: { 
-                        uri: activeClientUri.clientPubRes.uri,
+                        uri: safeClientUriString,
                         name: null,
                         code: null,
                         parameterCorrelationId: null
