@@ -98,9 +98,6 @@ app.get('/api/dashboard', async (req, res) => {
         let rawDataCube = []; let rawRoster = []; let rawDrafts = []; let rawTimesheets = []; let rawTsDetails = []; let rawAccountManagers = []; 
         let dictionaries = { departments: [], locations: [], programs: [], clients: [], users: [] };
 
-        // =====================================================================
-        // NEW LIST SERVICE FETCHING WITH EXTREME LOGGING
-        // =====================================================================
         console.log(`\n[DEBUG] --- BOOTSTRAPPING SYSTEM DICTIONARY URIs VIA GETDATA ---`);
         
         const fetchListData = async (dictName, serviceName, columnUri) => {
@@ -147,9 +144,6 @@ app.get('/api/dashboard', async (req, res) => {
         
         dictionaries.departments = []; 
 
-        // ---------------------------------------------------------------------
-        // REPORTS FETCHING
-        // ---------------------------------------------------------------------
         try {
             const payloadRoster = { reportUri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:report:3f1148e3-624f-4666-ba25-6a0432a883ee", filterValues: [], outputFormatUri: "urn:replicon:report-output-format-option:csv" };
             let resRoster = await axios.post(reportEndpoint, payloadRoster, { headers });
@@ -328,7 +322,18 @@ app.post('/api/projects/new', async (req, res) => {
             }, headers);
         }
 
-        await wcfRequest("Update Project Client", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateClient`, { projectUri: projDraftUri, clientUri: activeClientUri }, headers);
+        // =========================================================================
+        // UPDATED: USING UpdateClients (PLURAL) WITH ARRAY PAYLOAD
+        // =========================================================================
+        await wcfRequest("Update Project Clients", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateClients`, {
+            projectUri: projDraftUri,
+            clients: [
+                {
+                    client: { uri: activeClientUri },
+                    costAllocationPercentage: 100
+                }
+            ]
+        }, headers);
 
         if (payload.programUri) {
             await wcfRequest("Update Project Program", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateProgram`, { projectUri: projDraftUri, programUri: payload.programUri }, headers);
@@ -379,7 +384,6 @@ app.post('/api/projects/new', async (req, res) => {
                 };
 
                 try {
-                    // Make sure it hits TaskService1.svc for AddTask
                     await wcfRequest(`Add Task ${i+1}/${payload.tasks.length}`, `https://ap1.replicon.com/${company}/services/TaskService1.svc/AddTask`, taskPayload, headers);
                     successfulTasks++;
                 } catch (error) {
