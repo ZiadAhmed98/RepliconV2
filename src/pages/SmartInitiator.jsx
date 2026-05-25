@@ -2,27 +2,32 @@ import React, { useState, useMemo, useRef } from 'react';
 import styles from './SmartInitiator.module.css';
 
 export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
-  // =========================================================================
-  // 1. DYNAMIC DICTIONARY BINDING
+// =========================================================================
+  // 1. DYNAMIC DICTIONARY BINDING (BULLETPROOF MAPPING)
   // =========================================================================
   const dictionaries = useMemo(() => {
-    const dicts = dataMatrix?.dictionaries || { departments: [], locations: [], programs: [], clients: [], users: [] };
+    // Helper function to find the data whether the hook put it at the root or inside 'dictionaries'
+    const getArray = (key) => {
+      if (dataMatrix?.[key] && dataMatrix[key].length > 0) return dataMatrix[key];
+      if (dataMatrix?.dictionaries?.[key]) return dataMatrix.dictionaries[key];
+      return [];
+    };
+
+    const dicts = {
+      departments: getArray('departments'),
+      locations: getArray('locations'),
+      programs: getArray('programs'),
+      clients: getArray('clients'),
+      users: getArray('users')
+    };
+
+    // Safely sort them alphabetically without mutating the original state
     Object.keys(dicts).forEach(key => {
-        if(dicts[key]) dicts[key].sort((a,b) => a.name.localeCompare(b.name));
+      dicts[key] = [...dicts[key]].sort((a, b) => a.name.localeCompare(b.name));
     });
+
     return dicts;
   }, [dataMatrix]);
-
-  const roster = useMemo(() => {
-    const r = dataMatrix?.roster || [];
-    return r.filter(e => e.status === "Enabled").sort((a,b) => a.name.localeCompare(b.name));
-  }, [dataMatrix]);
-
-  const fallbackAccountManagers = useMemo(() => {
-      let ams = dataMatrix?.accountManagers || [];
-      if (ams.length === 0 && roster.length > 0) ams = roster.map(e => e.name);
-      return ams;
-  }, [dataMatrix, roster]);
 
   // =========================================================================
   // 2. COMPONENT STATE (Tracking Clean Strings)
