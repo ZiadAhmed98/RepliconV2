@@ -140,7 +140,13 @@ app.get('/api/dashboard', async (req, res) => {
         dictionaries.clients = await fetchListData('Clients', 'ClientListService1', 'urn:replicon:client-list-column:client');
         dictionaries.programs = await fetchListData('Programs', 'ProgramListService1', 'urn:replicon:program-list-column:program');
         dictionaries.locations = await fetchListData('Locations', 'LocationListService1', 'urn:replicon:location-list-column:location');
-        dictionaries.users = await fetchListData('Users', 'UserListService1', 'urn:replicon:user-list-column:user'); 
+        
+        // Strict PM Filter
+        const allUsers = await fetchListData('Users', 'UserListService1', 'urn:replicon:user-list-column:user'); 
+        dictionaries.users = allUsers.filter(u => {
+            const name = u.name.toLowerCase();
+            return name.includes('ziad shafik') || name.includes('irfan najmi');
+        });
         
         dictionaries.departments = []; 
 
@@ -323,7 +329,6 @@ app.post('/api/projects/new', async (req, res) => {
         }
 
         const safeClientUriString = typeof activeClientUri === 'object' ? activeClientUri.uri : activeClientUri;
-
         // =========================================================================
         // UPDATED: USING UpdateClients (PLURAL) WITH ARRAY PAYLOAD
         // =========================================================================
@@ -347,7 +352,7 @@ app.post('/api/projects/new', async (req, res) => {
         }
 
         if (payload.pmUri) {
-            await wcfRequest("Update Project Manager", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/AddProjectManager`, { projectUri: projDraftUri, userUri: payload.pmUri }, headers);
+            await wcfRequest("Update Project Leader", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateProjectLeader`, { projectUri: projDraftUri, userUri: payload.pmUri }, headers);
         }
 
         await wcfRequest("Update Project Status", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateStatus`, { projectUri: projDraftUri, projectStatusUri: getStatusUri(payload.status) }, headers);
