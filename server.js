@@ -18,9 +18,33 @@ app.use(cors({
 
 app.use(express.json()); 
 
-// ---------------------------------------------------------------------------
-// 1. REPLICON API ENDPOINTS
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// EXTREME LOGGING ENGINE FOR REPLICON WCF DEBUGGING
+// ===========================================================================
+async function wcfRequest(stepName, url, payload, headers) {
+    console.log(`\n========================================================`);
+    console.log(`[>> REPLICON API REQUEST >>] ${stepName}`);
+    console.log(`URL: ${url}`);
+    console.log(`PAYLOAD:\n${JSON.stringify(payload, null, 2)}`);
+    console.log(`--------------------------------------------------------`);
+    try {
+        const response = await axios.post(url, payload, { headers });
+        console.log(`[<< REPLICON API SUCCESS <<] ${stepName} - 200 OK`);
+        console.log(`========================================================\n`);
+        return response.data;
+    } catch (error) {
+        console.error(`\n❌ [XX REPLICON API ERROR XX] ${stepName} FAILED!`);
+        console.error(`URL: ${url}`);
+        if (error.response) {
+            console.error(`STATUS: ${error.response.status} ${error.response.statusText}`);
+            console.error(`ERROR RESPONSE JSON:\n${JSON.stringify(error.response.data, null, 2)}`);
+        } else {
+            console.error(`ERROR MESSAGE: ${error.message}`);
+        }
+        console.error(`========================================================\n`);
+        throw error;
+    }
+}
 
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
@@ -38,17 +62,17 @@ app.post('/api/login', async (req, res) => {
     }
 
     try {
-        const response = await axios.post(
+        const data = await wcfRequest(
+            "User Login",
             `https://ap1.replicon.com/${company}/services/UserService1.svc/GetUser2`,
             { user: { loginName: REPLICON_LOGINS[lowerUsername] } }, 
-            { headers: { 'Authorization': `Bearer ${token}`, 'X-Replicon-Security-Context': 'User', 'Content-Type': 'application/json' } }
+            { 'Authorization': `Bearer ${token}`, 'X-Replicon-Security-Context': 'User', 'Content-Type': 'application/json' }
         );
-        res.json({ success: true, displayName: response.data.d.displayName, uri: response.data.d.uri });
+        res.json({ success: true, displayName: data.d.displayName, uri: data.d.uri });
     } catch (error) { res.status(400).json({ error: "Replicon rejected the user request." }); }
 });
 
 function cleanStr(str) { return !str ? "" : str.replace(/[\r\n\t]/g, '').trim(); }
-
 function parseCSVLine(line) {
     const result = []; let cur = ''; let inQuotes = false;
     for (let i = 0; i < line.length; i++) {
@@ -60,7 +84,6 @@ function parseCSVLine(line) {
     result.push(cleanStr(cur));
     return result;
 }
-
 function parseNumber(val) { return parseFloat(String(val).replace(/"/g, '').replace(/,/g, '')) || 0; }
 function parseDateToTimestamp(dateStr) { const p = Date.parse((dateStr || "").replace(/"/g, '')); return isNaN(p) ? 0 : p; }
 
@@ -72,10 +95,48 @@ app.get('/api/dashboard', async (req, res) => {
     const reportEndpoint = `https://ap1.replicon.com/${company}/services/ReportService1.svc/GenerateReport`;
 
     try {
-        let rawDataCube = []; let rawRoster = []; let rawDrafts = []; let rawTimesheets = []; let rawTsDetails = [];
-        let rawAccountManagers = []; 
+        let rawDataCube = []; let rawRoster = []; let rawDrafts = []; let rawTimesheets = []; let rawTsDetails = []; let rawAccountManagers = []; 
+        let dictionaries = { departments: [], locations: [], programs: [], clients: [], users: [] };
 
-        // Fetch Roster
+        // =====================================================================
+        // NEW LIST SERVICE FETCHING (GETDATA)
+        // =====================================================================
+        console.log(`\n[DEBUG] --- BOOTSTRAPPING SYSTEM DICTIONARY URIs VIA GETDATA ---`);
+        
+        const fetchListData = async (dictName, serviceName, columnUri) => {
+            const url = `https://ap1.replicon.com/${company}/services/${serviceName}.svc/GetData`;
+            const payload = {
+                page: 1,
+                pagesize: 10000,
+                columnUris: [columnUri],
+                sort: [],
+                filterExpression: null
+            };
+            try {
+                const data = await wcfRequest(`Fetch List: ${dictName}`, url, payload, headers);
+                let rows = data.d?.rows || data.rows || [];
+                return rows.map(r => {
+                    const cell = r.cells?.[0];
+                    if (cell && cell.textValue && cell.uri) return { name: cell.textValue, uri: cell.uri };
+                    return null;
+                }).filter(x => x !== null);
+            } catch (err) {
+                console.warn(`[WARNING] Failed to fetch ${dictName}. Using fallback data if available.`);
+                return [];
+            }
+        };
+
+        dictionaries.clients = await fetchListData('Clients', 'ClientListService1', 'urn:replicon:client-list-column:client');
+        dictionaries.programs = await fetchListData('Programs', 'ProgramListService1', 'urn:replicon:program-list-column:program');
+        dictionaries.locations = await fetchListData('Locations', 'LocationListService1', 'urn:replicon:location-list-column:location');
+        dictionaries.users = await fetchListData('Users', 'UserListService1', 'urn:replicon:user-list-column:user'); 
+        
+        // Departments Disabled per user request
+        dictionaries.departments = []; 
+
+        // ---------------------------------------------------------------------
+        // REPORTS FETCHING
+        // ---------------------------------------------------------------------
         try {
             const payloadRoster = { reportUri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:report:3f1148e3-624f-4666-ba25-6a0432a883ee", filterValues: [], outputFormatUri: "urn:replicon:report-output-format-option:csv" };
             let resRoster = await axios.post(reportEndpoint, payloadRoster, { headers });
@@ -95,9 +156,8 @@ app.get('/api/dashboard', async (req, res) => {
                     }
                 }
             }
-        } catch(e) { console.error("Roster Fetch Error"); }
+        } catch(e) {}
 
-        // Fetch Drafts
         try {
             const payloadDrafts = { reportUri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:report:523be039-0435-402a-b1ba-fc7fc5810bb1", filterValues: [], outputFormatUri: "urn:replicon:report-output-format-option:csv" };
             let resDrafts = await axios.post(reportEndpoint, payloadDrafts, { headers });
@@ -119,9 +179,8 @@ app.get('/api/dashboard', async (req, res) => {
                     }
                 } 
             }
-        } catch(e) { console.error("Drafts Fetch Error", e.message); }
+        } catch(e) {}
 
-        // Fetch Data Cube
         try {
             const payloadCube = { reportUri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:report:c4dc8459-d888-4db8-af86-051e965912b3", filterValues: [], outputFormatUri: "urn:replicon:report-output-format-option:csv" };
             let resReport = await axios.post(reportEndpoint, payloadCube, { headers });
@@ -149,7 +208,6 @@ app.get('/api/dashboard', async (req, res) => {
             }
         } catch (e) { console.error("Cube Fetch Error"); }
 
-        // Fetch Timesheets
         try {
             const payloadTs = { reportUri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:report:759875bf-264a-4aef-8a44-26649c81ae65", filterValues: [], outputFormatUri: "urn:replicon:report-output-format-option:csv" };
             let resTs = await axios.post(reportEndpoint, payloadTs, { headers });
@@ -172,53 +230,19 @@ app.get('/api/dashboard', async (req, res) => {
                     }
                 }
             }
-        } catch(e) { console.error("Timesheet Fetch Error"); }
-
-        // Fetch Account Managers (Aggressively Cleaned)
-        try {
-            const payloadAM = { reportUri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:report:b53c2b12-15a2-4da8-b97e-babb796f8aa5", filterValues: [], outputFormatUri: "urn:replicon:report-output-format-option:csv" };
-            let resAM = await axios.post(reportEndpoint, payloadAM, { headers });
-            let csvAM = resAM.data.d?.payload || resAM.data.payload || "";
-            if (csvAM) {
-                let lines = csvAM.split(/\r?\n/);
-                let headerIdx = lines.findIndex(line => line.toLowerCase().includes('manager') || line.toLowerCase().includes('user name') || line.toLowerCase().includes('name'));
-                
-                if (headerIdx !== -1) {
-                    let headerCols = parseCSVLine(lines[headerIdx]).map(h => h.replace(/["\r\n]/g, '').replace('payload=', '').trim());
-                    
-                    let idxName = headerCols.findIndex(h => h.toLowerCase().includes('manager'));
-                    if (idxName === -1) idxName = headerCols.findIndex(h => h.toLowerCase().includes('name'));
-                    
-                    if (idxName !== -1) {
-                        for (let j = headerIdx + 1; j < lines.length; j++) {
-                            const line = lines[j].trim();
-                            if (!line || line.startsWith('Full Summary')) continue;
-                            const cols = parseCSVLine(line);
-                            const amName = cols[idxName];
-                            
-                            if (amName && amName !== 'N/A' && !amName.includes('error') && amName.trim() !== '') {
-                                rawAccountManagers.push(amName);
-                            }
-                        }
-                        rawAccountManagers = [...new Set(rawAccountManagers)].sort();
-                        console.log(`[DEBUG] Extracted ${rawAccountManagers.length} unique Account Managers`);
-                    }
-                }
-            }
-        } catch(e) { console.error("Account Managers Fetch Error", e.message); }
+        } catch(e) {}
 
         res.json({ 
-            cube: rawDataCube, 
-            roster: rawRoster, 
-            drafts: rawDrafts, 
-            timesheets: rawTimesheets, 
-            tsDetails: rawTsDetails,
-            accountManagers: rawAccountManagers 
+            cube: rawDataCube, roster: rawRoster, drafts: rawDrafts, timesheets: rawTimesheets, tsDetails: rawTsDetails, accountManagers: rawAccountManagers,
+            dictionaries: dictionaries 
         });
 
     } catch (error) { res.status(500).json({ error: "Failed to fetch live data." }); }
 });
 
+// ============================================================================
+// PROJECT CREATION WORKFLOW (STRICT SEQUENCE)
+// ============================================================================
 app.post('/api/projects/new', async (req, res) => {
     const payload = req.body;
     const token = (process.env.REPLICON_TOKEN || "").trim();
@@ -226,59 +250,41 @@ app.post('/api/projects/new', async (req, res) => {
 
     if (!token || !company) return res.status(500).json({ error: "Server configuration error. Tokens missing." });
 
-    const headers = {
-        'Authorization': `Bearer ${token}`,
-        'X-Replicon-Security-Context': 'User',
-        'Content-Type': 'application/json'
-    };
+    const headers = { 'Authorization': `Bearer ${token}`, 'X-Replicon-Security-Context': 'User', 'Content-Type': 'application/json' };
 
-    console.log(`\n[DEBUG] --- EXECUTING SEQUENTIAL PROVISIONING PIPELINE ---`);
+    console.log(`\n========================================================`);
+    console.log(`[WORKFLOW START] SEQUENTIAL PROJECT PROVISIONING`);
+    console.log(`========================================================`);
 
-    // =========================================================================
-    // PIPELINE 1: CREATE NEW CLIENT (If Selected)
-    // =========================================================================
+    // ------------------------------------------------------------------------
+    // STEP 1: CREATE NEW CLIENT (Wait for 200 OK)
+    // ------------------------------------------------------------------------
+    let activeClientUri = payload.clientUri;
+
     if (payload.clientMode === 'new' && payload.clientName) {
-        console.log(`[DEBUG] Step 1: Creating new client framework: ${payload.clientName}`);
         try {
-            await axios.post(
+            const clientRes = await wcfRequest(
+                "Create New Client",
                 `https://ap1.replicon.com/${company}/services/ClientService1.svc/PutClient`,
-                { client: { target: { uri: null }, name: payload.clientName } },
-                { headers }
+                { client: { target: undefined, name: payload.clientName } },
+                headers
             );
-            console.log(`[DEBUG] Client created successfully!`);
+            activeClientUri = clientRes.d?.uri || clientRes.uri;
         } catch (error) {
-            console.error("❌ PIPELINE 1 FAILED:", error.response?.data || error.message);
-            return res.status(500).json({ error: "Failed to create new Client framework." });
+            return res.status(500).json({ error: "Pipeline aborted at Step 1: Failed to create Client." });
         }
+    } else {
+        console.log(`\n[STEP 1] SKIPPED: Using existing client URI (${activeClientUri})`);
     }
 
-    // =========================================================================
-    // PIPELINE 2: CREATE PROJECT SHELL 
-    // =========================================================================
-    console.log(`[DEBUG] Step 2: Creating Project Shell for ${payload.projectCode}`);
-
-    const parseDate = (dateStr) => {
+    // ------------------------------------------------------------------------
+    // STEP 2: CREATE PROJECT SHELL
+    // ------------------------------------------------------------------------
+    const parseDateForReplicon = (dateStr) => {
         if (!dateStr) return undefined;
         const parts = dateStr.split('-');
         return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10), day: parseInt(parts[2], 10) };
     };
-
-    const pmUriMap = {
-        "Ziad Shafik": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user:50",
-        "Irfan Najmi": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user:2"
-    };
-    
-    // The exact URIs you manually pulled to bypass the department block
-    const deptUriMap = {
-        "LiveRoute": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:department-group:db56271f-8c9c-490a-9389-6c35348a0a5e",
-        "Management": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:department-group:599c77c0-259d-4f49-b807-abcf89212c17",
-        "Pre Sales": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:department-group:30074dcf-e5d7-4fe6-81ec-08fc67e5f2aa",
-        "Sales": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:department-group:873cc7dd-5021-4d07-9ef3-52b3c953b4a6",
-        "Service Delivery": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:department-group:e5075151-ac60-48a3-9d1b-acd72e4683ad"
-    };
-
-    const mappedProjectLeaderUri = payload.projectManager ? pmUriMap[payload.projectManager] : undefined;
-    const mappedDeptUri = payload.department ? deptUriMap[payload.department] : undefined;
 
     const projectShellPayload = {
         target: undefined, 
@@ -287,92 +293,87 @@ app.post('/api/projects/new', async (req, res) => {
             codeToApply: { value: payload.projectCode },
             isTimeEntryAllowed: payload.allowTimeEntry === 'Yes',
             billingTypeToApply: { 
-                value: payload.billingType === 'Fixed Bid' 
-                    ? 'urn:replicon:billing-type:fixed-bid' 
-                    : 'urn:replicon:billing-type:time-and-material' 
+                value: payload.billingType === 'Fixed Bid' ? 'urn:replicon:billing-type:fixed-bid' : 'urn:replicon:billing-type:time-and-material' 
             }
         },
         unitOfWorkId: `proj_shell_${Date.now()}`
     };
 
-    // Standard mappings
+    // Inject native fields
     if (payload.internalRemarks) projectShellPayload.modifications.descriptionToApply = { value: payload.internalRemarks };
-    if (payload.startDate) projectShellPayload.modifications.startDateToApply = { date: parseDate(payload.startDate) };
-    if (payload.endDate) projectShellPayload.modifications.endDateToApply = { date: parseDate(payload.endDate) };
-    if (mappedProjectLeaderUri) projectShellPayload.modifications.projectLeaderToApply = { user: { uri: mappedProjectLeaderUri } };
+    if (payload.startDate) projectShellPayload.modifications.startDateToApply = { date: parseDateForReplicon(payload.startDate) };
+    if (payload.endDate) projectShellPayload.modifications.endDateToApply = { date: parseDateForReplicon(payload.endDate) };
     
-    // Exactly what worked before: Names for Client/Program/Location, URI for Department!
-    if (payload.programName) projectShellPayload.modifications.programToApply = { program: { name: payload.programName } };
-    if (payload.location) projectShellPayload.modifications.locationToApply = { location: { name: payload.location } };
-    if (mappedDeptUri) projectShellPayload.modifications.departmentGroupToApply = { departmentGroup: { uri: mappedDeptUri } };
+    // Wire up the EXACT dynamic URIs passed from the frontend React state
+    if (payload.pmUri) projectShellPayload.modifications.projectLeaderToApply = { user: { uri: payload.pmUri } };
+    if (payload.programUri) projectShellPayload.modifications.programToApply = { program: { uri: payload.programUri } };
+    if (payload.locationUri) projectShellPayload.modifications.locationToApply = { location: { uri: payload.locationUri } };
     
-    if (payload.clientName) {
+    // DEPARTMENTS COMPLETELY EXCLUDED HERE PER YOUR INSTRUCTIONS.
+    
+    if (activeClientUri) {
         projectShellPayload.modifications.clientAssignmentsSchedulesToApply = {
-            clients: [{ client: { name: payload.clientName } }],
-            effectiveDate: parseDate(payload.startDate || new Date().toISOString().split('T')[0])
+            clients: [{ client: { uri: activeClientUri } }],
+            effectiveDate: parseDateForReplicon(payload.startDate || new Date().toISOString().split('T')[0])
         };
     }
 
-    const safeProjectPayload = JSON.parse(JSON.stringify(projectShellPayload));
+    const safeProjectPayload = JSON.parse(JSON.stringify(projectShellPayload)); // Strips undefined fields
     let finalProjectUri = null;
 
     try {
-        const shellResponse = await axios.post(
+        const shellResponse = await wcfRequest(
+            "Create Project Shell",
             `https://ap1.replicon.com/${company}/services/ProjectService1.svc/CreateProjectOrApplyModifications`,
             safeProjectPayload,
-            { headers }
+            headers
         );
-        finalProjectUri = shellResponse.data.d.uri;
-        console.log(`[DEBUG] Project Shell Created! URI Target Reference: ${finalProjectUri}`);
+        finalProjectUri = shellResponse.d?.uri || shellResponse.uri;
     } catch (error) {
-        console.error("❌ PIPELINE 2 FAILED:", JSON.stringify(error.response?.data || error.message, null, 2));
-        const friendlyError = error.response?.data?.error?.details?.displayText || "Check terminal logs.";
-        return res.status(500).json({ error: `Project Shell structural compilation dropped: ${friendlyError}` });
+        const friendlyError = error.response?.data?.error?.details?.displayText || error.response?.data?.error?.details?.notifications?.[0]?.displayText || "Check terminal logs.";
+        return res.status(500).json({ error: `Pipeline aborted at Step 2. Shell rejection: ${friendlyError}` });
     }
 
-    // =========================================================================
-    // PIPELINE 3: ADD TASKS SEQUENTIALLY
-    // =========================================================================
-    console.log(`[DEBUG] Step 3: Injecting ${payload.tasks.length} tasks into Project URI...`);
-
+    // ------------------------------------------------------------------------
+    // STEP 3: ADD TASKS SEQUENTIALLY
+    // ------------------------------------------------------------------------
     let successfulTasks = 0;
-    for (let i = 0; i < payload.tasks.length; i++) {
-        const t = payload.tasks[i];
-        
-        const taskPayload = {
-            project: { uri: finalProjectUri },
-            task: {
-                name: `${t.name} (Task ${i + 1})`,
-                description: t.duration,
-                isTimeEntryAllowed: !t.isMilestone,
-                percentCompleted: 0
-            },
-            unitOfWorkId: `task_add_${i}_${Date.now()}`
-        };
+    if (finalProjectUri) {
+        for (let i = 0; i < payload.tasks.length; i++) {
+            const t = payload.tasks[i];
+            const taskPayload = {
+                project: { uri: finalProjectUri },
+                task: {
+                    name: `${t.name}`,
+                    description: t.duration,
+                    isTimeEntryAllowed: !t.isMilestone,
+                    percentCompleted: 0
+                },
+                unitOfWorkId: `task_add_${i}_${Date.now()}`
+            };
 
-        try {
-            await axios.post(
-                `https://ap1.replicon.com/${company}/services/ProjectService1.svc/AddTask`,
-                taskPayload,
-                { headers }
-            );
-            successfulTasks++;
-            console.log(`[DEBUG] Added Task ${i + 1}/${payload.tasks.length}`);
-        } catch (error) {
-            console.error(`❌ FAILED TO ADD TASK ${i + 1}:`, JSON.stringify(error.response?.data || error.message));
+            try {
+                await wcfRequest(
+                    `Add Task ${i+1}/${payload.tasks.length}`,
+                    `https://ap1.replicon.com/${company}/services/ProjectService1.svc/AddTask`,
+                    taskPayload,
+                    headers
+                );
+                successfulTasks++;
+            } catch (error) {
+                console.error(`[XXX] TASK ${i+1} SKIPPED DUE TO ERROR`);
+            }
         }
     }
 
-    console.log(`[DEBUG] Provisioning Pipeline Complete!`);
+    console.log(`\n=============================================================`);
+    console.log(`✅ [WORKFLOW COMPLETE] Provisioning finished!`);
+    console.log(`=============================================================\n`);
     res.status(200).json({ 
         success: true, 
         message: `Successfully created project ${payload.projectCode} and injected ${successfulTasks} tasks!` 
     });
 });
-
-// ---------------------------------------------------------------------------
-// 2. STATIC FILE SERVING FOR REACT 
-// ---------------------------------------------------------------------------
 
 app.use(express.static(path.join(__dirname, 'dist'), {
     setHeaders: (res, filePath) => {
@@ -387,11 +388,4 @@ app.get('*', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.get('/api/health', (req, res) => res.send('Backend is alive!'));
-
-console.log("--- CONFIG CHECK ---");
-console.log("Token exists:", !!process.env.REPLICON_TOKEN);
-console.log("Company exists:", !!process.env.REPLICON_COMPANY);
-console.log("--------------------");
-
 app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
