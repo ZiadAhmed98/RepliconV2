@@ -128,7 +128,7 @@ app.get('/api/dashboard', async (req, res) => {
                 
                 if (parsedItems.length > 0) {
                     console.log(`[DICT DEBUG] ---> Sample of ${dictName} payload passing to React:`);
-                    console.log(JSON.stringify(parsedItems.slice(0, 2), null, 2)); // Shows the first 2 items safely
+                    console.log(JSON.stringify(parsedItems.slice(0, 2), null, 2));
                 } else {
                     console.log(`[DICT DEBUG] ⚠️ WARNING: ${dictName} RETURNED 0 PARSED ITEMS! Check Replicon UI permissions.`);
                 }
@@ -145,7 +145,6 @@ app.get('/api/dashboard', async (req, res) => {
         dictionaries.locations = await fetchListData('Locations', 'LocationListService1', 'urn:replicon:location-list-column:location');
         dictionaries.users = await fetchListData('Users', 'UserListService1', 'urn:replicon:user-list-column:user'); 
         
-        // Departments Disabled per user request
         dictionaries.departments = []; 
 
         // ---------------------------------------------------------------------
@@ -255,7 +254,7 @@ app.get('/api/dashboard', async (req, res) => {
 });
 
 // ============================================================================
-// PROJECT CREATION WORKFLOW (STRICT SEQUENCE)
+// PROJECT CREATION WORKFLOW (STRICT SEQUENCE USING REPLICON DRAFT PATTERN)
 // ============================================================================
 app.post('/api/projects/new', async (req, res) => {
     const payload = req.body;
@@ -270,123 +269,139 @@ app.post('/api/projects/new', async (req, res) => {
     console.log(`[WORKFLOW START] SEQUENTIAL PROJECT PROVISIONING`);
     console.log(`========================================================`);
 
-    // ------------------------------------------------------------------------
-    // STEP 1: CREATE NEW CLIENT (Wait for 200 OK)
-    // ------------------------------------------------------------------------
-    let activeClientUri = payload.clientUri;
-
-    if (payload.clientMode === 'new' && payload.clientName) {
-        try {
-            const clientRes = await wcfRequest(
-                "Create New Client",
-                `https://ap1.replicon.com/${company}/services/ClientService1.svc/PutClient`,
-                { client: { target: undefined, name: payload.clientName } },
-                headers
-            );
-            activeClientUri = clientRes.d?.uri || clientRes.uri;
-        } catch (error) {
-            return res.status(500).json({ error: "Pipeline aborted at Step 1: Failed to create Client." });
-        }
-    } else {
-        console.log(`\n[STEP 1] SKIPPED: Using existing client URI (${activeClientUri})`);
-    }
-
-    // ------------------------------------------------------------------------
-    // STEP 2: CREATE PROJECT SHELL
-    // ------------------------------------------------------------------------
     const parseDateForReplicon = (dateStr) => {
         if (!dateStr) return undefined;
         const parts = dateStr.split('-');
         return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10), day: parseInt(parts[2], 10) };
     };
 
-    const projectShellPayload = {
-        target: undefined, 
-        modifications: {
-            nameToApply: { value: payload.projectName },
-            codeToApply: { value: payload.projectCode },
-            isTimeEntryAllowed: payload.allowTimeEntry === 'Yes',
-            billingTypeToApply: { 
-                value: payload.billingType === 'Fixed Bid' ? 'urn:replicon:billing-type:fixed-bid' : 'urn:replicon:billing-type:time-and-material' 
-            }
-        },
-        unitOfWorkId: `proj_shell_${Date.now()}`
+    const getStatusUri = (statusString) => {
+        const map = {
+            'Planning': 'urn:replicon:project-status:tentative',
+            'In Progress': 'urn:replicon:project-status:in-progress',
+            'Completed': 'urn:replicon:project-status:completed',
+            'Archived': 'urn:replicon:project-status:archived'
+        };
+        return map[statusString] || 'urn:replicon:project-status:tentative';
     };
 
-    // Inject native fields
-    if (payload.internalRemarks) projectShellPayload.modifications.descriptionToApply = { value: payload.internalRemarks };
-    if (payload.startDate) projectShellPayload.modifications.startDateToApply = { date: parseDateForReplicon(payload.startDate) };
-    if (payload.endDate) projectShellPayload.modifications.endDateToApply = { date: parseDateForReplicon(payload.endDate) };
-    
-    // Wire up the EXACT dynamic URIs passed from the frontend React state
-    if (payload.pmUri) projectShellPayload.modifications.projectLeaderToApply = { user: { uri: payload.pmUri } };
-    if (payload.programUri) projectShellPayload.modifications.programToApply = { program: { uri: payload.programUri } };
-    if (payload.locationUri) projectShellPayload.modifications.locationToApply = { location: { uri: payload.locationUri } };
-    
-    // DEPARTMENTS COMPLETELY EXCLUDED HERE PER YOUR INSTRUCTIONS.
-    
-    if (activeClientUri) {
-        projectShellPayload.modifications.clientAssignmentsSchedulesToApply = {
-            clients: [{ client: { uri: activeClientUri } }],
-            effectiveDate: parseDateForReplicon(payload.startDate || new Date().toISOString().split('T')[0])
-        };
-    }
-
-    const safeProjectPayload = JSON.parse(JSON.stringify(projectShellPayload)); // Strips undefined fields
-    let finalProjectUri = null;
-
     try {
-        const shellResponse = await wcfRequest(
-            "Create Project Shell",
-            `https://ap1.replicon.com/${company}/services/ProjectService1.svc/CreateProjectOrApplyModifications`,
-            safeProjectPayload,
-            headers
-        );
-        finalProjectUri = shellResponse.d?.uri || shellResponse.uri;
-    } catch (error) {
-        const friendlyError = error.response?.data?.error?.details?.displayText || error.response?.data?.error?.details?.notifications?.[0]?.displayText || "Check terminal logs.";
-        return res.status(500).json({ error: `Pipeline aborted at Step 2. Shell rejection: ${friendlyError}` });
-    }
+        // ------------------------------------------------------------------------
+        // STEP 1: CREATE NEW CLIENT (Using Draft Sequence)
+        // ------------------------------------------------------------------------
+        let activeClientUri = payload.clientUri;
 
-    // ------------------------------------------------------------------------
-    // STEP 3: ADD TASKS SEQUENTIALLY
-    // ------------------------------------------------------------------------
-    let successfulTasks = 0;
-    if (finalProjectUri) {
-        for (let i = 0; i < payload.tasks.length; i++) {
-            const t = payload.tasks[i];
-            const taskPayload = {
-                project: { uri: finalProjectUri },
-                task: {
-                    name: `${t.name}`,
-                    description: t.duration,
-                    isTimeEntryAllowed: !t.isMilestone,
-                    percentCompleted: 0
-                },
-                unitOfWorkId: `task_add_${i}_${Date.now()}`
-            };
+        if (payload.clientMode === 'new' && payload.clientName) {
+            console.log(`\n[STEP 1] Creating New Client Draft: ${payload.clientName}`);
+            
+            let clientDraftRes = await wcfRequest("Create Client Draft", `https://ap1.replicon.com/${company}/services/ClientService1.svc/CreateNewDraft`, {}, headers);
+            let clientDraftUri = clientDraftRes.Value || clientDraftRes.d || clientDraftRes.uri;
 
-            try {
-                await wcfRequest(
-                    `Add Task ${i+1}/${payload.tasks.length}`,
-                    `https://ap1.replicon.com/${company}/services/ProjectService1.svc/AddTask`,
-                    taskPayload,
-                    headers
-                );
-                successfulTasks++;
-            } catch (error) {
-                console.error(`[XXX] TASK ${i+1} SKIPPED DUE TO ERROR`);
+            await wcfRequest("Update Client Name", `https://ap1.replicon.com/${company}/services/ClientService1.svc/UpdateName`, { clientUri: clientDraftUri, name: payload.clientName }, headers);
+            
+            let clientPubRes = await wcfRequest("Publish Client", `https://ap1.replicon.com/${company}/services/ClientService1.svc/PublishDraft`, { draftUri: clientDraftUri }, headers);
+            activeClientUri = clientPubRes.Value || clientPubRes.d || clientPubRes.uri;
+        } else {
+            console.log(`\n[STEP 1] SKIPPED: Using existing client URI (${activeClientUri})`);
+        }
+
+        if (!activeClientUri) throw new Error("Pipeline aborted: Client URI is missing.");
+
+        // ------------------------------------------------------------------------
+        // STEP 2: CREATE PROJECT SHELL (Using Draft Sequence)
+        // ------------------------------------------------------------------------
+        console.log(`\n[STEP 2] Creating Project Draft Sequence`);
+
+        let projDraftRes = await wcfRequest("Create Project Draft", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/CreateNewDraft`, {}, headers);
+        let projDraftUri = projDraftRes.Value || projDraftRes.d || projDraftRes.uri;
+
+        await wcfRequest("Update Project Name", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateName`, { projectUri: projDraftUri, name: payload.projectName }, headers);
+        await wcfRequest("Update Project Code", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateCode`, { projectUri: projDraftUri, code: payload.projectCode }, headers);
+
+        if (payload.startDate || payload.endDate) {
+            await wcfRequest("Update Project Dates", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateTimeEntryDateRange`, {
+                projectUri: projDraftUri,
+                dateRange: {
+                    startDate: parseDateForReplicon(payload.startDate),
+                    endDate: parseDateForReplicon(payload.endDate)
+                }
+            }, headers);
+        }
+
+        await wcfRequest("Update Project Client", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateClient`, { projectUri: projDraftUri, clientUri: activeClientUri }, headers);
+
+        if (payload.programUri) {
+            await wcfRequest("Update Project Program", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateProgram`, { projectUri: projDraftUri, programUri: payload.programUri }, headers);
+        }
+
+        if (payload.pmUri) {
+            await wcfRequest("Update Project Manager", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/AddProjectManager`, { projectUri: projDraftUri, userUri: payload.pmUri }, headers);
+        }
+
+        await wcfRequest("Update Project Status", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateStatus`, { projectUri: projDraftUri, projectStatusUri: getStatusUri(payload.status) }, headers);
+
+        let projPubRes = await wcfRequest("Publish Project", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/PublishDraft`, { draftUri: projDraftUri }, headers);
+        let finalProjectUri = projPubRes.Value || projPubRes.d || projPubRes.uri;
+
+        // ------------------------------------------------------------------------
+        // STEP 3: ADD TASKS SEQUENTIALLY (Using Strict Payload)
+        // ------------------------------------------------------------------------
+        console.log(`\n[STEP 3] Adding ${payload.tasks.length} Tasks`);
+        let successfulTasks = 0;
+
+        if (finalProjectUri && payload.tasks && payload.tasks.length > 0) {
+            for (let i = 0; i < payload.tasks.length; i++) {
+                const t = payload.tasks[i];
+                
+                const taskPayload = {
+                    project: { uri: finalProjectUri },
+                    task: {
+                        target: { uri: null, name: t.name },
+                        name: t.name,
+                        code: "",
+                        description: "",
+                        timeEntryDateRange: {
+                            startDate: parseDateForReplicon(t.start),
+                            endDate: parseDateForReplicon(t.end)
+                        },
+                        percentCompleted: 0,
+                        isTimeEntryAllowed: true,
+                        isClosed: false,
+                        customFieldValues: [
+                            { customField: { uri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:ff2f15e9-8238-4691-89ee-53d780cd899a" }, number: 0 },
+                            { customField: { uri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:45c59ea2-2ceb-496a-8544-c836cbcac626" }, number: null },
+                            { customField: { uri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:ad68d557-6779-4adc-8925-a25c403f8504" }, text: "Unlimited" }
+                        ],
+                        estimatedCost: { amount: 0, currency: { uri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:currency:8" } },
+                        timeAndExpenseEntryTypeUri: "urn:replicon:time-and-expense-entry-type:billable-and-non-billable"
+                    },
+                    unitOfWorkId: `batch_${Date.now()}_${i}`
+                };
+
+                try {
+                    // Make sure it hits TaskService1.svc for AddTask
+                    await wcfRequest(`Add Task ${i+1}/${payload.tasks.length}`, `https://ap1.replicon.com/${company}/services/TaskService1.svc/AddTask`, taskPayload, headers);
+                    successfulTasks++;
+                } catch (error) {
+                    console.error(`[XXX] TASK ${i+1} SKIPPED DUE TO ERROR`);
+                }
             }
         }
-    }
 
-    console.log(`\n=============================================================`);
-    console.log(`✅ [WORKFLOW COMPLETE] Provisioning finished!`);
-    console.log(`=============================================================\n`);
-    res.status(200).json({ 
-        success: true, 
-        message: `Successfully created project ${payload.projectCode} and injected ${successfulTasks} tasks!` 
-    });
+        console.log(`\n=============================================================`);
+        console.log(`✅ [WORKFLOW COMPLETE] Provisioning finished!`);
+        console.log(`=============================================================\n`);
+        
+        res.status(200).json({ 
+            success: true, 
+            message: `Successfully created project ${payload.projectCode} and injected ${successfulTasks} tasks!`,
+            projectUri: finalProjectUri
+        });
+
+    } catch (error) {
+        console.error("❌ [SERVER] WCF Flow Failed:", error);
+        res.status(500).json({ error: error.message || "An error occurred during project creation." });
+    }
 });
 
 app.use(express.static(path.join(__dirname, 'dist'), {
