@@ -277,10 +277,10 @@ app.post('/api/projects/new', async (req, res) => {
 
     const getStatusUri = (statusString) => {
         const map = {
-            'Planning': 'urn:replicon:project-status:tentative',
-            'In Progress': 'urn:replicon:project-status:in-progress',
-            'Completed': 'urn:replicon:project-status:completed',
-            'Archived': 'urn:replicon:project-status:archived'
+            'Planning': 'urn:replicon:project-status-type:tentative',
+            'In Progress': 'urn:replicon:project-status-type:in-progress',
+            'Completed': 'urn:replicon:project-status-type:completed',
+            'Archived': 'urn:replicon:project-status-type:archived'
         };
         return map[statusString] || 'urn:replicon:project-status:tentative';
     };
@@ -350,6 +350,7 @@ app.post('/api/projects/new', async (req, res) => {
         if (payload.programUri) {
             await wcfRequest("Update Project Program", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateProgram`, { projectUri: projDraftUri, programUri: payload.programUri }, headers);
         }
+
 
         if (payload.pmUri) {
             await wcfRequest("Update Project Leader", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateProjectLeader`, { projectUri: projDraftUri, userUri: payload.pmUri }, headers);
