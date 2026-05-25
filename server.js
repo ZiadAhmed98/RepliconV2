@@ -329,8 +329,13 @@ app.post('/api/projects/new', async (req, res) => {
             projectUri: projDraftUri,
             clients: [
                 {
-                    client: { uri: activeClientUri },
-                    costAllocationPercentage: 100
+                    client: { 
+                        uri: activeClientUri,
+                        name: null,
+                        code: null,
+                        parameterCorrelationId: null
+                    },
+                    costAllocationPercentage: "100.0"
                 }
             ]
         }, headers);
