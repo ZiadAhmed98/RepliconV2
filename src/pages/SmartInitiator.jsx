@@ -213,6 +213,18 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   };
 
   // =========================================================================
+  // 🚀 BROWSER CONSOLE DEBUGGER (REMOVE BEFORE PRODUCTION)
+  // =========================================================================
+  console.log("🟦 [DEBUG] 1. Raw dataMatrix from Parent:", dataMatrix);
+  console.log("🟧 [DEBUG] 2. Processed Dictionaries:", dictionaries);
+  console.log("🟩 [DEBUG] 3. Processed Roster:", roster);
+  if (roster.length === 0 && dataMatrix?.roster?.length > 0) {
+      console.warn("⚠️ [WARNING] Parent sent roster data, but the filter wiped it out! Check the 'status' field.");
+      console.log("Raw Roster Item Sample:", dataMatrix.roster[0]);
+  }
+  // =========================================================================
+
+  // =========================================================================
   // 6. RENDER UI
   // =========================================================================
   return (
