@@ -66,7 +66,9 @@ export function useRepliconData(externalSessionUser) {
         drafts: [],
         timesheets: [],
         topClients: [],
-        compliance: { dailyDeficits: 0, weeklyDeficits: 0, dailyList: [], weeklyList: [], sparkline: [] }
+        compliance: { dailyDeficits: 0, weeklyDeficits: 0, dailyList: [], weeklyList: [], sparkline: [] },
+        dictionaries: { departments: [], locations: [], programs: [], clients: [], users: [] },
+        accountManagers: []
     });
 
     var getMonday = (d) => {
@@ -195,6 +197,8 @@ export function useRepliconData(externalSessionUser) {
             sparkline.push(Math.max(0, activeInWeek.length - loggedInWeek.size));
         }
 
+        // --- THE FIX IS HERE --- 
+        // We are passing the dictionaries from rawData straight into the box.
         setDataMatrix({
             factTable,
             dimensionTable,
@@ -202,7 +206,9 @@ export function useRepliconData(externalSessionUser) {
             drafts: cleanDrafts,
             timesheets: cleanTimesheets,
             topClients,
-            compliance: { dailyDeficits: dailyDeficitCount, weeklyDeficits: weeklyDeficitCount, dailyList, weeklyList, sparkline }
+            compliance: { dailyDeficits: dailyDeficitCount, weeklyDeficits: weeklyDeficitCount, dailyList, weeklyList, sparkline },
+            dictionaries: rawData.dictionaries || { departments: [], locations: [], programs: [], clients: [], users: [] },
+            accountManagers: rawData.accountManagers || []
         });
     }, []);
 
