@@ -2,8 +2,8 @@ import React, { useState, useMemo, useRef } from 'react';
 import styles from './SmartInitiator.module.css';
 
 export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
-// =========================================================================
-  // 1. DYNAMIC DICTIONARY BINDING (BULLETPROOF MAPPING)
+  // =========================================================================
+  // 1. DYNAMIC DICTIONARY BINDING
   // =========================================================================
   const dictionaries = useMemo(() => {
     // Helper function to find the data whether the hook put it at the root or inside 'dictionaries'
@@ -28,6 +28,17 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
 
     return dicts;
   }, [dataMatrix]);
+
+  const roster = useMemo(() => {
+    const r = dataMatrix?.roster || [];
+    return r.filter(e => e.status === "Enabled").sort((a,b) => a.name.localeCompare(b.name));
+  }, [dataMatrix]);
+
+  const fallbackAccountManagers = useMemo(() => {
+      let ams = dataMatrix?.accountManagers || [];
+      if (ams.length === 0 && roster.length > 0) ams = roster.map(e => e.name);
+      return ams;
+  }, [dataMatrix, roster]);
 
   // =========================================================================
   // 2. COMPONENT STATE (Tracking Clean Strings)
