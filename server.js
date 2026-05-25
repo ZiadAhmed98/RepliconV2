@@ -330,7 +330,7 @@ app.post('/api/projects/new', async (req, res) => {
             clients: [
                 {
                     client: { 
-                        uri: activeClientUri,
+                        uri: activeClientUri.clientPubRes.uri,
                         name: null,
                         code: null,
                         parameterCorrelationId: null
