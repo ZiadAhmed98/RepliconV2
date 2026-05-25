@@ -1,0 +1,20 @@
+############# Global API calls #############
+https://ap1.replicon.com/services/help/all
+
+############# Fetch Data from Replicon API - Using GetData Function Calls #############
+
+clients URI:
+- https://ap1.replicon.com/services/ClientListService1.svc/help/test/GetData
+- urn:replicon:client-list-column:client
+
+Projects:
+- https://ap1.replicon.com/services/ProjectListService1.svc/help/test/GetData
+- urn:replicon:project-list-column:project
+
+Programs:
+- https://ap1.replicon.com/services/ProgramListService1.svc/help/test/GetData
+- urn:replicon:program-list-column:program
+
+Location:
+- https://ap1.replicon.com/services/LocationListService1.svc/help/test/GetData
+- urn:replicon:location-list-column:location
