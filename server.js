@@ -99,7 +99,7 @@ app.get('/api/dashboard', async (req, res) => {
         let dictionaries = { departments: [], locations: [], programs: [], clients: [], users: [] };
 
         // =====================================================================
-        // NEW LIST SERVICE FETCHING (GETDATA)
+        // NEW LIST SERVICE FETCHING WITH EXTREME LOGGING
         // =====================================================================
         console.log(`\n[DEBUG] --- BOOTSTRAPPING SYSTEM DICTIONARY URIs VIA GETDATA ---`);
         
@@ -115,11 +115,25 @@ app.get('/api/dashboard', async (req, res) => {
             try {
                 const data = await wcfRequest(`Fetch List: ${dictName}`, url, payload, headers);
                 let rows = data.d?.rows || data.rows || [];
-                return rows.map(r => {
+                
+                console.log(`\n[DICT DEBUG] ---> ${dictName} raw rows received: ${rows.length}`);
+
+                let parsedItems = rows.map(r => {
                     const cell = r.cells?.[0];
                     if (cell && cell.textValue && cell.uri) return { name: cell.textValue, uri: cell.uri };
                     return null;
                 }).filter(x => x !== null);
+
+                console.log(`[DICT DEBUG] ---> ${dictName} parsed successfully: ${parsedItems.length} items.`);
+                
+                if (parsedItems.length > 0) {
+                    console.log(`[DICT DEBUG] ---> Sample of ${dictName} payload passing to React:`);
+                    console.log(JSON.stringify(parsedItems.slice(0, 2), null, 2)); // Shows the first 2 items safely
+                } else {
+                    console.log(`[DICT DEBUG] ⚠️ WARNING: ${dictName} RETURNED 0 PARSED ITEMS! Check Replicon UI permissions.`);
+                }
+
+                return parsedItems;
             } catch (err) {
                 console.warn(`[WARNING] Failed to fetch ${dictName}. Using fallback data if available.`);
                 return [];
