@@ -19,7 +19,8 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
       clients: getArray('clients'),
       users: getArray('users'),
       projectManagers: getArray('projectManagers'),
-      employeeTypes: getArray('employeeTypes')
+      employeeTypes: getArray('employeeTypes'),
+      accountManagers: getArray('accountManagers')
     };
 
     Object.keys(dicts).forEach(key => {
@@ -28,12 +29,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
 
     return dicts;
   }, [dataMatrix]);
-
-  const fallbackAccountManagers = useMemo(() => {
-      let ams = dataMatrix?.accountManagers || [];
-      if (ams.length === 0 && dictionaries.users.length > 0) ams = dictionaries.users.map(e => e.name);
-      return ams;
-  }, [dataMatrix, dictionaries.users]);
 
   // =========================================================================
   // 2. COMPONENT STATE
@@ -82,14 +77,12 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
         const taskNodes = xml.getElementsByTagName('Task');
         let parsedTasks = [];
         
-        // Trackers for the Running Integer Balance Algorithm
         let runningExactHours = 0;
         let runningRoundedHours = 0;
 
         for (let i = 0; i < taskNodes.length; i++) {
           const t = taskNodes[i];
           
-          // CRITICAL: ID 0 is the Root Project Wrapper in MS Project. Skip it.
           const idNode = t.getElementsByTagName('ID')[0]?.textContent;
           if (idNode === "0") continue; 
 
@@ -98,7 +91,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
           
           const isSummary = t.getElementsByTagName('Summary')[0]?.textContent === "1";
           
-          // Extract Hierarchy Level (Default to 1 if missing)
           const outlineLevelNode = t.getElementsByTagName('OutlineLevel')[0]?.textContent;
           const outlineLevel = outlineLevelNode ? parseInt(outlineLevelNode, 10) : 1;
 
@@ -113,7 +105,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
           if (hMatch) exactHours += parseInt(hMatch[1], 10);
           if (mMatch) exactHours += parseInt(mMatch[1], 10) / 60; 
           
-          // RUNNING BALANCE ALGORITHM (e.g., 12.5 + 11.5 = 24 integers)
           runningExactHours += exactHours;
           const targetTotalRounded = Math.round(runningExactHours);
           const currentRoundedHours = targetTotalRounded - runningRoundedHours;
@@ -125,8 +116,8 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
             start: startStr.split('T')[0] || '-',
             end: endStr.split('T')[0] || '-',
             duration: durationNode ? `${currentRoundedHours} hrs` : '-',
-            roundedHours: currentRoundedHours, // Sent to backend
-            outlineLevel: outlineLevel,        // Sent to backend for nesting
+            roundedHours: currentRoundedHours, 
+            outlineLevel: outlineLevel,        
             isMilestone: isSummary, 
             assignees: isSummary ? [] : ['']
           });
@@ -191,6 +182,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
     const safeLocationUri = dictionaries.locations.find(l => l.name === formData.locationName)?.uri || undefined;
     const safeDepartmentUri = dictionaries.departments.find(d => d.name === formData.departmentName)?.uri || undefined;
     const safeEmployeeTypeUri = dictionaries.employeeTypes.find(e => e.name === formData.employeeTypeName)?.uri || undefined;
+    const safeAccountManagerUri = dictionaries.accountManagers.find(am => am.name === formData.accountManager)?.uri || undefined;
     
     let safePmUri = dictionaries.projectManagers.find(u => u.name === formData.projectManagerName)?.uri;
     if (!safePmUri) safePmUri = dictionaries.users.find(u => u.name === formData.projectManagerName)?.uri;
@@ -204,6 +196,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
       locationUri: safeLocationUri,
       departmentUri: safeDepartmentUri,
       employeeTypeUri: safeEmployeeTypeUri,
+      accountManagerUri: safeAccountManagerUri,
       pmUri: safePmUri,
       tasks: mappedTasks 
     };
@@ -313,7 +306,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
               <label>Select Account Manager</label>
               <select className={styles.formControl} value={formData.accountManager} onChange={e => setFormData({...formData, accountManager: e.target.value})}>
                 <option value="">Select Account Manager...</option>
-                {fallbackAccountManagers.map(am => <option key={am} value={am}>{am}</option>)}
+                {dictionaries.accountManagers?.map(am => <option key={am.name} value={am.name}>{am.name}</option>)}
               </select>
             </div>
           </>

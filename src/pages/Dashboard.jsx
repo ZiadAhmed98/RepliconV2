@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import Chart from 'react-apexcharts';
 import styles from './Dashboard.module.css';
 import ComplianceModal from '../components/ComplianceModal';
@@ -6,16 +6,31 @@ import ComplianceModal from '../components/ComplianceModal';
 export default function Dashboard({ dataMatrix }) {
   // =========================================================================
   // 1. COMPONENT STATE
-  // Manages what the user sees (modals, filters, and current views)
   // =========================================================================
   const [compView, setCompView] = useState('daily');
   const [isCompModalOpen, setIsCompModalOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  
   const dashboardRef = useRef(null); 
+  const filterPanelRef = useRef(null); // Ref to handle click-outside
+
+  // Handle clicking outside the filter panel to close it
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (filterPanelRef.current && !filterPanelRef.current.contains(event.target)) {
+        setShowFilters(false);
+      }
+    };
+    if (showFilters) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showFilters]);
 
   // =========================================================================
   // 2. FILTER ENGINE STATE
-  // Stores the current selections for the interactive filter panel
   // =========================================================================
   const [filters, setFilters] = useState({ 
     client: 'All', project: 'All', program: 'All', 
@@ -54,7 +69,6 @@ export default function Dashboard({ dataMatrix }) {
     const { factTable = [], dimensionTable = {}, topClients = [], compliance = {}, roster = [] } = dataMatrix || {};
     const nowTs = Date.now();
 
-    // --- A. Apply Date Boundaries based on Filters ---
     let tsFrom = 0, tsTo = Infinity;
     if (filters.timePreset === 'This Week') {
       const d = new Date(); const day = d.getDay(); const diff = d.getDate() - day + (day === 0 ? -6 : 1);
@@ -66,7 +80,6 @@ export default function Dashboard({ dataMatrix }) {
       if (filters.dateTo) tsTo = new Date(filters.dateTo).getTime() + 86400000; 
     }
 
-    // --- B. Filter the Fact Table (Timesheets) ---
     const filteredFacts = factTable.filter(row => {
       if (row.date > 0 && (row.date < tsFrom || row.date > tsTo)) return false;
       if (filters.client !== 'All' && row.client !== filters.client) return false;
@@ -75,7 +88,6 @@ export default function Dashboard({ dataMatrix }) {
       return true;
     });
 
-    // --- C. Calculate General Metrics from Filtered Facts ---
     filteredFacts.forEach(row => {
       if (row.client && row.client !== "Unknown") activeClientsSet.add(row.client);
       if (row.project && row.project !== "Unknown") activeProjectsSet.add(row.project);
@@ -95,7 +107,6 @@ export default function Dashboard({ dataMatrix }) {
 
     let projLabels = [], projAct = [], projEst = [], projQuoted = [];
     
-    // --- D. Process Dimension Table (Projects) against filters ---
     Object.keys(dimensionTable).forEach(pName => {
       const pData = dimensionTable[pName];
       
@@ -133,7 +144,6 @@ export default function Dashboard({ dataMatrix }) {
       }
     });
 
-    // --- E. Process Trend Capacity ---
     let trendLabels = [], trendActuals = [], trendCapacity = [];
     Object.keys(timeTrendMap).sort().forEach(k => {
       let [year, month] = k.split('-'); let mStart = new Date(year, parseInt(month)-1, 1).getTime(); let mEnd = new Date(year, parseInt(month), 0).getTime();
@@ -178,22 +188,15 @@ export default function Dashboard({ dataMatrix }) {
     };
   }, [dataMatrix, filters]);
 
-  // Formatting Helpers
   const fmtInt = (num) => Math.round(num || 0).toLocaleString('en-US');
   const fmtK = (num) => num > 999 ? (num/1000).toFixed(1) + 'k' : num;
   
-  // =========================================================================
-  // APPLE PREMIUM CHART THEME GLOBALS
-  // =========================================================================
   const chartDefaults = { 
-    foreColor: '#8e8e93', // Apple grey 
+    foreColor: '#8e8e93', 
     theme: { mode: 'dark' },
-    grid: { borderColor: 'rgba(255,255,255,0.05)', strokeDashArray: 4 } // Sleek dashed grid
+    grid: { borderColor: 'rgba(255,255,255,0.05)', strokeDashArray: 4 }
   };
 
-  // =========================================================================
-  // 4. PDF EXPORT HANDLER
-  // =========================================================================
   const handlePrintPDF = async () => {
     if (!window.html2pdf) {
       alert("PDF Engine is still loading. Please wait a moment.");
@@ -221,16 +224,13 @@ export default function Dashboard({ dataMatrix }) {
     }
   };
 
-  // =========================================================================
-  // 5. USER INTERFACE RENDER
-  // =========================================================================
   return (
     <div ref={dashboardRef}>
       
       <ComplianceModal isOpen={isCompModalOpen} onClose={() => setIsCompModalOpen(false)} viewType={compView} dataMatrix={dataMatrix} />
 
       {/* --- HEADER & CONTROLS --- */}
-      <div className={styles.sectionHeader}>
+      <div className={styles.sectionHeader} style={{ position: 'relative' }}>
         <div className={styles.titleArea}>
           <h2 className={styles.sectionTitle}>Analytics Overview</h2>
           <div className="badges-container">
@@ -242,12 +242,12 @@ export default function Dashboard({ dataMatrix }) {
 
         <div className={styles.actionHeader}>
           <div className={styles.actionBtn} onClick={handlePrintPDF} title="Export PDF"><i className='bx bx-export'></i></div>
-          <div className={styles.actionBtn} onClick={() => setShowFilters(!showFilters)} title="Toggle Filters"><i className='bx bx-filter-alt'></i></div>
+          <div className={styles.actionBtn} onClick={(e) => { e.stopPropagation(); setShowFilters(!showFilters); }} title="Toggle Filters"><i className='bx bx-filter-alt'></i></div>
         </div>
 
         {/* --- INTERACTIVE FILTER PANEL --- */}
         {showFilters && (
-          <div className={styles.filterPanel}>
+          <div className={styles.filterPanel} ref={filterPanelRef}>
             <h4>Global Filters <i className='bx bx-x' style={{ cursor: 'pointer' }} onClick={() => setShowFilters(false)}></i></h4>
             
             <div className={styles.filterGroup}>
@@ -321,8 +321,8 @@ export default function Dashboard({ dataMatrix }) {
           </div>
           <div><p>{compView === 'daily' ? "Daily Deficits" : "Weekly Deficits"}</p><h3 style={{ color: 'var(--accent-coral)' }}>{compView === 'daily' ? metrics.compliance.dailyDeficits : metrics.compliance.weeklyDeficits}</h3></div>
           <div className={styles.sparklineContainer}>
-            {/* THE FIX: Added background: 'transparent' inside the chart object */}
-            <Chart type="area" width="100%" height={35} series={[{ data: metrics.compliance.sparkline || [] }]} options={{ chart: { sparkline: { enabled: true }, background: 'transparent' }, stroke: { curve: 'smooth', width: 2 }, colors: ['#ff3b30'], fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0, stops: [0, 100] } }, tooltip: { theme: 'dark', fixed: { enabled: false }, x: { show: false }, marker: { show: false } } }} />
+            {/* FIX: Restored tooltip and removed fixed/marker hiding restrictions */}
+            <Chart type="area" width="100%" height={35} series={[{ name: 'Deficits', data: metrics.compliance.sparkline || [] }]} options={{ chart: { sparkline: { enabled: true }, background: 'transparent' }, stroke: { curve: 'smooth', width: 2 }, colors: ['#ff3b30'], fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0, stops: [0, 100] } }, tooltip: { enabled: true, theme: 'dark', y: { title: { formatter: () => '' } } } }} />
           </div>
         </div>
       </div>
@@ -335,7 +335,6 @@ export default function Dashboard({ dataMatrix }) {
             <Chart type="area" width="100%" height={320}
               series={[ { name: 'Quoted', data: metrics.deepEffort.quoted }, { name: 'Estimated', data: metrics.deepEffort.est }, { name: 'Actual', data: metrics.deepEffort.act } ]}
               options={{ ...chartDefaults, 
-                // THE FIX: Added background: 'transparent' and toolbar: false
                 chart: { stacked: true, background: 'transparent', toolbar: { show: false } }, 
                 colors: ['rgba(255,255,255,0.05)', '#6366f1', '#a855f7'], 
                 stroke: { curve: 'smooth', width: [1, 2, 2] }, 
@@ -351,7 +350,6 @@ export default function Dashboard({ dataMatrix }) {
         <div className="chart-card">
           <h4><i className='bx bx-bar-chart-alt-2' style={{ color: 'var(--accent-blue)' }}></i> All-Time Top Clients</h4>
           <div className={styles.chartWrapper}>
-            {/* THE FIX: Added background: 'transparent' inside chart */}
             <Chart type="bar" width="100%" height={320} series={[{ name: 'Hours', data: metrics.topClients.map(c => Math.round(c.val)) }]} options={{ ...chartDefaults, chart: { background: 'transparent', toolbar: { show: false } }, colors: ['#a855f7'], plotOptions: { bar: { horizontal: false, borderRadius: 6, distributed: true, columnWidth: '45%' } }, dataLabels: { enabled: false }, xaxis: { categories: metrics.topClients.map(c => c.name), labels: { style: { colors: '#8e8e93' }, rotate: -45, trim: true } }, legend: { show: false } }} />
           </div>
         </div>
@@ -370,15 +368,14 @@ export default function Dashboard({ dataMatrix }) {
         <div className="chart-card">
           <h4><i className='bx bx-line-chart' style={{ color: 'var(--accent-purple)' }}></i> Burn Trend vs Max Capacity</h4>
           <div className={styles.chartWrapper}>
-            {/* THE FIX: Added background: 'transparent' inside chart */}
             <Chart type="line" width="100%" height={320} series={[ { name: 'Capacity', type: 'line', data: metrics.trend.cap }, { name: 'Actual Burn', type: 'area', data: metrics.trend.act } ]} options={{ ...chartDefaults, chart: { background: 'transparent', toolbar: { show: false } }, colors: ['#8e8e93', '#a855f7'], stroke: { curve: 'smooth', width: [3, 2] }, fill: { type: ['solid', 'gradient'], gradient: { shadeIntensity: 1, opacityFrom: 0.5, opacityTo: 0.05, stops: [0, 100] } }, xaxis: { categories: metrics.trend.labels, labels: { style: { colors: '#8e8e93' } }, axisBorder: { show: false }, axisTicks: { show: false } }, yaxis: { labels: { formatter: (v) => fmtInt(v), style: { colors: '#8e8e93' } } }, legend: { position: 'top', labels: { colors: '#8e8e93' } }, tooltip: { theme: 'dark' } }} />
           </div>
         </div>
         <div className="chart-card">
           <h4><i className='bx bx-doughnut-chart' style={{ color: 'var(--accent-blue)' }}></i> Billable vs Non-Billable</h4>
           <div className={styles.chartWrapper}>
-            {/* THE FIX: Added background: 'transparent' inside chart */}
-            <Chart type="donut" width="100%" height={320} series={[metrics.billable, metrics.overhead]} options={{ ...chartDefaults, chart: { background: 'transparent', toolbar: { show: false } }, labels: ['Billable', 'Non-Billable'], colors: ['#a855f7', 'rgba(255,255,255,0.05)'], stroke: { width: 3, colors: ['var(--bg-card)'] }, plotOptions: { pie: { donut: { size: '75%' } } }, dataLabels: { enabled: false }, legend: { position: 'bottom', labels: { colors: '#8e8e93' } } }} />
+            {/* FIX: stroke width set to 0 to remove annoying slice borders */}
+            <Chart type="donut" width="100%" height={320} series={[metrics.billable, metrics.overhead]} options={{ ...chartDefaults, chart: { background: 'transparent', toolbar: { show: false } }, labels: ['Billable', 'Non-Billable'], colors: ['#a855f7', 'rgba(255,255,255,0.05)'], stroke: { width: 0 }, plotOptions: { pie: { donut: { size: '75%' } } }, dataLabels: { enabled: false }, legend: { position: 'bottom', labels: { colors: '#8e8e93' } } }} />
           </div>
         </div>
       </div>
@@ -388,22 +385,20 @@ export default function Dashboard({ dataMatrix }) {
         <div className="chart-card">
           <h4><i className='bx bx-error-circle' style={{ color: 'var(--accent-red)' }}></i> Revenue Leakage</h4>
           <div className={styles.chartWrapper}>
-            {/* THE FIX: Added background: 'transparent' inside chart */}
             <Chart type="bar" width="100%" height={300} series={[ { name: 'Est Budget', data: metrics.overburn.map(p => -p.est) }, { name: 'Act Burn', data: metrics.overburn.map(p => p.act) } ]} options={{ ...chartDefaults, chart: { stacked: true, background: 'transparent', toolbar: { show: false } }, colors: ['rgba(255,255,255,0.1)', '#ff3b30'], plotOptions: { bar: { horizontal: true, borderRadius: 4 } }, xaxis: { categories: metrics.overburn.map(p => p.name), min: -metrics.bfMax, max: metrics.bfMax, labels: { style: { colors: '#8e8e93' }, formatter: (v) => fmtK(Math.abs(v)) } }, yaxis: { labels: { style: { colors: '#8e8e93' }, maxWidth: 150 } }, dataLabels: { enabled: false }, legend: { show: false }, tooltip: { theme: 'dark' } }} />
           </div>
         </div>
         <div className="chart-card">
           <h4><i className='bx bx-radar' style={{ color: 'var(--accent-coral)' }}></i> At-Risk Projects (Burn %)</h4>
           <div className={styles.chartWrapper}>
-            {/* THE FIX: Added background: 'transparent' inside chart */}
             <Chart type="bar" width="100%" height={300} series={[{ name: 'Burn %', data: metrics.atRisk.map(r => r.burn) }]} options={{ ...chartDefaults, chart: { background: 'transparent', toolbar: { show: false } }, colors: ['#ff3b30'], plotOptions: { bar: { horizontal: true, borderRadius: 6, barHeight: '40%' } }, dataLabels: { enabled: true, formatter: (val) => Math.round(val) + "%", textAnchor: 'start', style: { colors: ['#fff'] } }, xaxis: { categories: metrics.atRisk.map(r => r.name), max: 100, labels: { style: { colors: '#8e8e93' } } }, yaxis: { labels: { style: { colors: '#8e8e93' }, maxWidth: 150 } }, grid: { show: false }, tooltip: { theme: 'dark' } }} />
           </div>
         </div>
         <div className="chart-card">
           <h4><i className='bx bx-task' style={{ color: 'var(--accent-green)' }}></i> Active Projects by Status</h4>
           <div className={styles.chartWrapper}>
-            {/* THE FIX: Added background: 'transparent' inside chart */}
-            <Chart type="donut" width="100%" height={300} series={metrics.statusData.length ? metrics.statusData : [1]} options={{ ...chartDefaults, chart: { background: 'transparent', toolbar: { show: false } }, labels: metrics.statusLabels.length ? metrics.statusLabels : ['No Data'], colors: ['#a855f7', '#32ade6', '#34c759', '#ffcc00', '#ff3b30'], stroke: { width: 3, colors: ['var(--bg-card)'] }, plotOptions: { pie: { donut: { size: '75%' } } }, dataLabels: { enabled: false }, legend: { position: 'bottom', labels: { colors: '#8e8e93' } } }} />
+            {/* FIX: stroke width set to 0 to remove annoying slice borders */}
+            <Chart type="donut" width="100%" height={300} series={metrics.statusData.length ? metrics.statusData : [1]} options={{ ...chartDefaults, chart: { background: 'transparent', toolbar: { show: false } }, labels: metrics.statusLabels.length ? metrics.statusLabels : ['No Data'], colors: ['#a855f7', '#32ade6', '#34c759', '#ffcc00', '#ff3b30'], stroke: { width: 0 }, plotOptions: { pie: { donut: { size: '75%' } } }, dataLabels: { enabled: false }, legend: { position: 'bottom', labels: { colors: '#8e8e93' } } }} />
           </div>
         </div>
       </div>
@@ -440,7 +435,6 @@ export default function Dashboard({ dataMatrix }) {
                   { name: 'Quoted', data: metrics.deepEffort.quoted.map(v => Math.max(0.1, v)) } 
                 ]}
                 options={{ ...chartDefaults, 
-                  // THE FIX: Added background: 'transparent' inside chart
                   chart: { stacked: false, background: 'transparent', toolbar: { show: false }, animations: { enabled: false } }, 
                   colors: ['#a855f7', '#32ade6', 'rgba(255,255,255,0.1)'], 
                   plotOptions: { bar: { horizontal: false, columnWidth: '70%', borderRadius: 4 } }, 

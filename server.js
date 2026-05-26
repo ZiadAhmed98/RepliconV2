@@ -95,8 +95,8 @@ app.get('/api/dashboard', async (req, res) => {
     const reportEndpoint = `https://ap1.replicon.com/${company}/services/ReportService1.svc/GenerateReport`;
 
     try {
-        let rawDataCube = []; let rawRoster = []; let rawDrafts = []; let rawTimesheets = []; let rawTsDetails = []; let rawAccountManagers = []; 
-        let dictionaries = { departments: [], locations: [], programs: [], clients: [], users: [], projectManagers: [], employeeTypes: [] };
+        let rawDataCube = []; let rawRoster = []; let rawDrafts = []; let rawTimesheets = []; let rawTsDetails = []; 
+        let dictionaries = { departments: [], locations: [], programs: [], clients: [], users: [], projectManagers: [], employeeTypes: [], accountManagers: [] };
 
         console.log(`\n[DEBUG] --- BOOTSTRAPPING SYSTEM DICTIONARY URIs VIA GETDATA ---`);
         
@@ -171,6 +171,23 @@ app.get('/api/dashboard', async (req, res) => {
         dictionaries.departments = await fetchPolicyData('Departments', 'DepartmentGroupService1', 'GetPageOfDepartmentGroupsInPolicyDataAccessScope', 'departmentGroupSearch');
         dictionaries.employeeTypes = await fetchPolicyData('EmployeeTypes', 'EmployeeTypeGroupService1', 'GetPageOfEmployeeTypeGroupsInPolicyDataAccessScope', 'employeeTypeGroupSearch');
         
+        // =========================================================================
+        // FETCH CUSTOM FIELD: ACCOUNT MANAGERS
+        // =========================================================================
+        try {
+            const amData = await wcfRequest('Fetch Account Managers', `https://ap1.replicon.com/${company}/services/CustomFieldService1.svc/GetEnabledCustomFieldDropDownOptions`, {
+                customFieldUri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:fc1a8ce8-7e33-4683-bdd3-c08387b82b58"
+            }, headers);
+            
+            let amList = amData.d || amData || [];
+            dictionaries.accountManagers = amList.map(opt => ({
+                name: opt.displayText,
+                uri: opt.uri
+            }));
+        } catch(err) {
+            dictionaries.accountManagers = [];
+        }
+
         const allUsers = await fetchListData('Users', 'UserListService1', 'urn:replicon:user-list-column:user'); 
         dictionaries.users = allUsers; 
         dictionaries.projectManagers = allUsers.filter(u => {
@@ -275,7 +292,7 @@ app.get('/api/dashboard', async (req, res) => {
         } catch(e) {}
 
         res.json({ 
-            cube: rawDataCube, roster: rawRoster, drafts: rawDrafts, timesheets: rawTimesheets, tsDetails: rawTsDetails, accountManagers: rawAccountManagers,
+            cube: rawDataCube, roster: rawRoster, drafts: rawDrafts, timesheets: rawTimesheets, tsDetails: rawTsDetails,
             dictionaries: dictionaries 
         });
 
@@ -359,7 +376,7 @@ app.post('/api/projects/new', async (req, res) => {
         }
 
         // =========================================================================
-        // NEW: INJECTING NEW FIELDS (Dept, Emp Type, Location, Time Entry Toggle)
+        // INJECTING NEW FIELDS (Dept, Emp Type, Location, Time Entry Toggle, Account Manager)
         // =========================================================================
         if (payload.departmentUri) {
             await wcfRequest("Update Department", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateDepartmentGroup2`, {
@@ -379,6 +396,14 @@ app.post('/api/projects/new', async (req, res) => {
             await wcfRequest("Update Location", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateLocation`, {
                 projectUri: projDraftUri,
                 location: { uri: payload.locationUri, parentUri: null, name: null }
+            }, headers);
+        }
+
+        if (payload.accountManagerUri) {
+            await wcfRequest("Update Account Manager Custom Field", `https://ap1.replicon.com/${company}/services/CustomFieldService1.svc/UpdateDropdownValue`, {
+                objectUri: projDraftUri,
+                customFieldUri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:fc1a8ce8-7e33-4683-bdd3-c08387b82b58",
+                customFieldDropDownOptionUri: payload.accountManagerUri
             }, headers);
         }
 
@@ -418,7 +443,6 @@ app.post('/api/projects/new', async (req, res) => {
         let projPubRes = await wcfRequest("Publish Project", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/PublishDraft`, { draftUri: projDraftUri }, headers);
         let finalProjectUri = projPubRes.Value || projPubRes.d || projPubRes.uri;
 
-        // Ensure flattened Project URI
         const safeProjectUriString = typeof finalProjectUri === 'object' ? finalProjectUri.uri : finalProjectUri;
 
         // ------------------------------------------------------------------------
@@ -427,26 +451,23 @@ app.post('/api/projects/new', async (req, res) => {
         console.log(`\n[STEP 3] Adding ${payload.tasks.length} Tasks`);
         let successfulTasks = 0;
         let capturedTasks = []; 
-        let levelUriMap = {}; // Tracks the most recent task URI for each depth level
+        let levelUriMap = {}; 
 
         if (safeProjectUriString && payload.tasks && payload.tasks.length > 0) {
             for (let i = 0; i < payload.tasks.length; i++) {
                 const t = payload.tasks[i];
                 const level = t.outlineLevel || 1;
                 
-                // ROUTING FIX: Top level tasks have NO parent. Nested tasks use the previous level's Task URI.
                 let parentUri = null; 
                 if (level > 1 && levelUriMap[level - 1]) {
                     parentUri = levelUriMap[level - 1];
                 }
 
-                // DYNAMIC TARGET BLOCK: Cleanly omits "parent" if it's a Level 1 task
                 let targetBlock = {
                     uri: null, 
                     name: t.name
                 };
 
-                // Only inject the clean parent object if a parent actually exists (Level 2+)
                 if (parentUri) {
                     targetBlock.parent = { uri: parentUri };
                 }
@@ -462,7 +483,6 @@ app.post('/api/projects/new', async (req, res) => {
                             startDate: parseDateForReplicon(t.start),
                             endDate: parseDateForReplicon(t.end)
                         },
-                        // Real numbers and booleans, exactly matching the successful sniff!
                         percentCompleted: 0,
                         isTimeEntryAllowed: !t.isMilestone, 
                         isClosed: false,
@@ -491,7 +511,6 @@ app.post('/api/projects/new', async (req, res) => {
                         newTaskUri = newTaskUri.uri || newTaskUri.Value || newTaskUri.d;
                     }
 
-                    // Store this task's URI as the current parent for its specific level
                     if (newTaskUri) {
                         levelUriMap[level] = newTaskUri;
                     }
