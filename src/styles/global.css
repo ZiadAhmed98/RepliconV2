@@ -206,31 +206,66 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 .chart-card:hover { border-color: rgba(255,255,255,0.1); }
 .chart-card h4 { margin: 0 0 24px 0; font-size: 1.1rem; color: var(--text-main); font-weight: 600; letter-spacing: -0.01em; display: flex; align-items: center; gap: 10px; }
 
-/* Modern Ghost Buttons */
+/* =========================================================================
+   PREMIUM BUTTONS (Primary & Ghost)
+   ========================================================================= */
+
+/* Primary Button (Solid, High Contrast - for "I'm Still Here" and main actions) */
+.btn-primary {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #ffffff;
+  padding: 10px 20px;
+  border-radius: 12px;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 15px rgba(255, 255, 255, 0.15);
+}
+
+.btn-primary:hover {
+  background: #e5e5ea;
+  border-color: #e5e5ea;
+  transform: scale(1.02);
+  box-shadow: 0 6px 20px rgba(255, 255, 255, 0.2);
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+/* Modern Ghost Buttons (Subtle, dark glass - for "Log Out Now") */
 .btn-ghost { 
-  background: rgba(255, 255, 255, 0.02); 
-  color: var(--text-muted); 
-  border: 1px solid var(--border-color); 
-  padding: 8px 16px; 
+  background: rgba(255, 255, 255, 0.04); 
+  color: var(--text-main); 
+  border: 1px solid rgba(255, 255, 255, 0.12); 
+  padding: 10px 20px; 
   border-radius: 12px; 
+  font-family: inherit;
   font-weight: 500; 
-  font-size: 0.85rem; 
+  font-size: 0.9rem; 
   cursor: pointer; 
-  transition: all 0.2s; 
-  
-  /* FIXES HERE */
-  display: inline-flex;     /* Keeps button inline but allows flex layout inside */
-  align-items: center;      /* Vertically centers text/icons */
-  justify-content: center;  /* Horizontally centers text/icons */
-  text-align: center;       /* Fallback centering */
-  gap: 6px; 
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1); 
+  display: flex; 
+  align-items: center; 
+  justify-content: center;
+  gap: 8px; 
 }
 
 .btn-ghost:hover { 
-  color: var(--text-main); 
-  background: rgba(255, 255, 255, 0.06); 
-  border-color: rgba(255, 255, 255, 0.15); 
+  background: rgba(255, 255, 255, 0.08); 
+  border-color: rgba(255, 255, 255, 0.25); 
   transform: scale(1.02); 
+}
+
+.btn-ghost:active {
+  transform: scale(0.98);
 }
 
 /* =========================================================================
