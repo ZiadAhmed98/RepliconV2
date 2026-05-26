@@ -45,6 +45,22 @@ body {
 
 * { box-sizing: border-box; }
 
+/* =========================================================================
+   FIX FOR NATIVE BROWSER DROPDOWNS (WHITE BACKGROUND BUG)
+   ========================================================================= */
+select {
+  /* Forces the browser's native UI elements into dark mode */
+  color-scheme: dark; 
+}
+
+select option {
+  /* You cannot use transparent/glass on options, so we use a solid rich dark color */
+  background-color: #18181b !important; 
+  color: #fbfbfc !important;
+  font-weight: 500;
+  padding: 12px;
+}
+
 /* -------------------------------------
    KILL DEFAULT REACT/VITE WRAPPERS
 -------------------------------------- */

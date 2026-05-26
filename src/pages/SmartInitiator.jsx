@@ -292,7 +292,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
           <div className={styles.formGroup}>
             <label>Client Name *</label>
             <select className={styles.formControl} value={formData.clientName} onChange={e => setFormData({...formData, clientName: e.target.value})}>
-              <option value="">Select a Client...</option>
+              <option value="">Select Client</option>
               {dictionaries.clients.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
             </select>
           </div>
@@ -305,7 +305,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
             <div className={styles.formGroup}>
               <label>Select Account Manager</label>
               <select className={styles.formControl} value={formData.accountManager} onChange={e => setFormData({...formData, accountManager: e.target.value})}>
-                <option value="">Select Account Manager...</option>
+                <option value="">Select Account Manager</option>
                 {dictionaries.accountManagers?.map(am => <option key={am.name} value={am.name}>{am.name}</option>)}
               </select>
             </div>
