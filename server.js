@@ -422,7 +422,7 @@ app.post('/api/projects/new', async (req, res) => {
         const safeProjectUriString = typeof finalProjectUri === 'object' ? finalProjectUri.uri : finalProjectUri;
 
         // ------------------------------------------------------------------------
-        // STEP 3: ADD TASKS SEQUENTIALLY WITH NESTING, BALANCE, & STRICT NULLS
+        // STEP 3: ADD TASKS SEQUENTIALLY WITH NESTING & ESTIMATED HOURS
         // ------------------------------------------------------------------------
         console.log(`\n[STEP 3] Adding ${payload.tasks.length} Tasks`);
         let successfulTasks = 0;
@@ -440,102 +440,52 @@ app.post('/api/projects/new', async (req, res) => {
                     parentUri = levelUriMap[level - 1];
                 }
 
-                // DYNAMIC TARGET BLOCK: Completely omits the "parent" key if there is no parent
+                // DYNAMIC TARGET BLOCK: Completely omits "parent" if it's a Level 1 task
                 let targetBlock = {
                     uri: null, 
-                    name: t.name,
-                    parameterCorrelationId: null
+                    name: t.name
                 };
 
-                // Only inject the parent object if a parent actually exists
+                // Only inject the parent object if a parent actually exists (Level 2+)
                 if (parentUri) {
                     targetBlock.parent = {
-                        uri: parentUri,
-                        name: null,
-                        parent: null,
-                        parameterCorrelationId: null
+                        uri: parentUri
                     };
                 }
 
                 const taskPayload = {
-                    project: { 
-                        uri: safeProjectUriString,
-                        name: null,
-                        code: null,
-                        parameterCorrelationId: null 
-                    },
+                    project: { uri: safeProjectUriString },
                     task: {
-                        target: targetBlock, // Uses the dynamically built target block
+                        target: targetBlock,
                         name: t.name,
-                        code: null,
-                        description: null,
+                        code: "",
+                        description: "",
                         timeEntryDateRange: {
                             startDate: parseDateForReplicon(t.start),
-                            endDate: parseDateForReplicon(t.end),
-                            relativeDateRangeUri: null,
-                            relativeDateRangeAsOfDate: null
+                            endDate: parseDateForReplicon(t.end)
                         },
-                        percentCompleted: "0",
-                        // Milestone = false (no time entry), Regular Task = true
-                        isTimeEntryAllowed: t.isMilestone ? "false" : "true",
-                        estimatedHours: t.roundedHours > 0 ? {
-                            hours: t.roundedHours.toString(),
-                            minutes: null,
-                            seconds: null
-                        } : null,
-                        isClosed: "false",
+                        percentCompleted: 0,
+                        isTimeEntryAllowed: !t.isMilestone, // true for tasks, false for milestones
+                        isClosed: false,
                         customFieldValues: [
-                            {
-                                customField: {
-                                    uri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:ff2f15e9-8238-4691-89ee-53d780cd899a",
-                                    name: null,
-                                    groupUri: null
-                                },
-                                text: null,
-                                date: null,
-                                dropDownOption: null,
-                                number: "0"
-                            },
-                            {
-                                customField: {
-                                    uri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:45c59ea2-2ceb-496a-8544-c836cbcac626",
-                                    name: null,
-                                    groupUri: null
-                                },
-                                text: null,
-                                date: null,
-                                dropDownOption: null,
-                                number: null
-                            },
-                            {
-                                customField: {
-                                    uri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:ad68d557-6779-4adc-8925-a25c403f8504",
-                                    name: null,
-                                    groupUri: null
-                                },
-                                text: "unlimited",
-                                date: null,
-                                dropDownOption: null,
-                                number: null
-                            }
+                            { customField: { uri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:ff2f15e9-8238-4691-89ee-53d780cd899a" }, number: 0 },
+                            { customField: { uri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:45c59ea2-2ceb-496a-8544-c836cbcac626" }, number: null },
+                            { customField: { uri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:ad68d557-6779-4adc-8925-a25c403f8504" }, text: "Unlimited" }
                         ],
-                        estimatedCost: {
-                            amount: "0",
-                            currency: {
-                                uri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:currency:8",
-                                name: null,
-                                symbol: null
-                            }
-                        },
-                        costTypeUri: null,
-                        timeAndExpenseEntryTypeUri: "urn:replicon:time-and-expense-entry-type:billable-and-non-billable",
-                        assignedResources: [],
-                        keyValues: [],
-                        historicalKeyValues: [],
-                        extensionFieldValues: []
+                        estimatedCost: { amount: 0, currency: { uri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:currency:8" } },
+                        timeAndExpenseEntryTypeUri: "urn:replicon:time-and-expense-entry-type:billable-and-non-billable"
                     },
                     unitOfWorkId: `batch_${Date.now()}_${i}`
                 };
+
+                // Inject Estimated Hours only if > 0 (using pure integers)
+                if (t.roundedHours > 0) {
+                    taskPayload.task.estimatedHours = {
+                        hours: t.roundedHours,
+                        minutes: null,
+                        seconds: null
+                    };
+                }
 
                 try {
                     let taskRes = await wcfRequest(`Add Task ${i+1}/${payload.tasks.length} (Level ${level})`, `https://ap1.replicon.com/${company}/services/ProjectService1.svc/AddTask`, taskPayload, headers);
@@ -546,7 +496,7 @@ app.post('/api/projects/new', async (req, res) => {
                         newTaskUri = newTaskUri.uri || newTaskUri.Value || newTaskUri.d;
                     }
 
-                    // Store this task's URI as the current parent for its specific level
+                    // Store this task's URI as the current parent for its specific level so children can attach
                     if (newTaskUri) {
                         levelUriMap[level] = newTaskUri;
                     }
