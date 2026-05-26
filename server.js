@@ -19,7 +19,7 @@ app.use(cors({
 app.use(express.json()); 
 
 // ===========================================================================
-// EXTREME LOGGING ENGINE FOR REPLICON WCF DEBUGGING
+// LOGGING ENGINE FOR REPLICON WCF DEBUGGING
 // ===========================================================================
 async function wcfRequest(stepName, url, payload, headers) {
     console.log(`\n========================================================`);
@@ -58,7 +58,7 @@ app.post('/api/login', async (req, res) => {
     const REPLICON_LOGINS = { "ziad": "z.shafik", "mod": "i.najmi", "gm": "H.matta" };
 
     if (!ALLOWED_USERS[lowerUsername] || ALLOWED_USERS[lowerUsername] !== password) {
-        return res.status(401).json({ error: "Invalid dashboard credentials." });
+        return res.status(401).json({ error: "Invalid credentials." });
     }
 
     try {
