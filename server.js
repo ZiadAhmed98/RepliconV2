@@ -422,20 +422,37 @@ app.post('/api/projects/new', async (req, res) => {
         const safeProjectUriString = typeof finalProjectUri === 'object' ? finalProjectUri.uri : finalProjectUri;
 
         // ------------------------------------------------------------------------
-        // STEP 3: ADD TASKS SEQUENTIALLY & CATCH NEW URIs
+        // STEP 3: ADD TASKS SEQUENTIALLY WITH NESTING & ESTIMATED HOURS
         // ------------------------------------------------------------------------
         console.log(`\n[STEP 3] Adding ${payload.tasks.length} Tasks`);
         let successfulTasks = 0;
         let capturedTasks = []; 
+        let levelUriMap = {}; // Tracks the most recent parent URI for each depth level
 
         if (safeProjectUriString && payload.tasks && payload.tasks.length > 0) {
             for (let i = 0; i < payload.tasks.length; i++) {
                 const t = payload.tasks[i];
+                const level = t.outlineLevel || 1;
                 
+                // Determine the parent URI. If at level 2, the parent is the last level 1 URI.
+                const parentUri = level > 1 ? (levelUriMap[level - 1] || null) : null;
+                
+                const parentBlock = parentUri ? {
+                    uri: parentUri,
+                    name: null,
+                    parent: null,
+                    parameterCorrelationId: null
+                } : null;
+
                 const taskPayload = {
                     project: { uri: safeProjectUriString },
                     task: {
-                        target: { uri: null, name: t.name },
+                        target: { 
+                            uri: null, 
+                            name: t.name,
+                            parent: parentBlock, 
+                            parameterCorrelationId: null
+                        },
                         name: t.name,
                         code: "",
                         description: "",
@@ -443,8 +460,13 @@ app.post('/api/projects/new', async (req, res) => {
                             startDate: parseDateForReplicon(t.start),
                             endDate: parseDateForReplicon(t.end)
                         },
+                        estimatedHours: {
+                            hours: t.roundedHours || 0,
+                            minutes: null,
+                            seconds: null
+                        },
                         percentCompleted: 0,
-                        isTimeEntryAllowed: true,
+                        isTimeEntryAllowed: !t.isMilestone,
                         isClosed: false,
                         customFieldValues: [
                             { customField: { uri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:ff2f15e9-8238-4691-89ee-53d780cd899a" }, number: 0 },
@@ -458,12 +480,17 @@ app.post('/api/projects/new', async (req, res) => {
                 };
 
                 try {
-                    let taskRes = await wcfRequest(`Add Task ${i+1}/${payload.tasks.length}`, `https://ap1.replicon.com/${company}/services/ProjectService1.svc/AddTask`, taskPayload, headers);
+                    let taskRes = await wcfRequest(`Add Task ${i+1}/${payload.tasks.length} (Level ${level})`, `https://ap1.replicon.com/${company}/services/ProjectService1.svc/AddTask`, taskPayload, headers);
                     successfulTasks++;
 
                     let newTaskUri = taskRes.Value || taskRes.d || taskRes.uri;
                     while (newTaskUri && typeof newTaskUri === 'object') {
                         newTaskUri = newTaskUri.uri || newTaskUri.Value || newTaskUri.d;
+                    }
+
+                    // Store this task's URI as the current parent for its specific level
+                    if (newTaskUri) {
+                        levelUriMap[level] = newTaskUri;
                     }
 
                     if (newTaskUri && t.assignedUsers && t.assignedUsers.length > 0) {

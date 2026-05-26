@@ -19,7 +19,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
       clients: getArray('clients'),
       users: getArray('users'),
       projectManagers: getArray('projectManagers'),
-      employeeTypes: getArray('employeeTypes') // <-- NEW
+      employeeTypes: getArray('employeeTypes')
     };
 
     Object.keys(dicts).forEach(key => {
@@ -45,7 +45,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   const [clientMode, setClientMode] = useState('existing'); 
   const [newClientName, setNewClientName] = useState('');
 
-  // UI Tracker (Removed internalRemarks, Added employeeTypeName)
   const [formData, setFormData] = useState({
     projectName: '', projectCode: '', 
     clientName: '', programName: '', projectManagerName: '', 
@@ -67,7 +66,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
                       tasks.length > 0;
 
   // =========================================================================
-  // 3. XML PARSER & ASSIGNMENT LOGIC
+  // 3. XML PARSER (WITH HIERARCHY & RUNNING HOUR BALANCE)
   // =========================================================================
   const handleXMLUpload = (e) => {
     const file = e.target.files[0];
@@ -82,30 +81,52 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
 
         const taskNodes = xml.getElementsByTagName('Task');
         let parsedTasks = [];
+        
+        // Trackers for the Running Integer Balance Algorithm
+        let runningExactHours = 0;
+        let runningRoundedHours = 0;
 
         for (let i = 0; i < taskNodes.length; i++) {
           const t = taskNodes[i];
-          const isSummary = t.getElementsByTagName('Summary')[0]?.textContent === "1";
+          
+          // CRITICAL: ID 0 is the Root Project Wrapper in MS Project. Skip it.
+          const idNode = t.getElementsByTagName('ID')[0]?.textContent;
+          if (idNode === "0") continue; 
+
           const nameNode = t.getElementsByTagName('Name')[0]?.textContent;
           if (!nameNode) continue; 
           
+          const isSummary = t.getElementsByTagName('Summary')[0]?.textContent === "1";
+          
+          // Extract Hierarchy Level (Default to 1 if missing)
+          const outlineLevelNode = t.getElementsByTagName('OutlineLevel')[0]?.textContent;
+          const outlineLevel = outlineLevelNode ? parseInt(outlineLevelNode, 10) : 1;
+
           const startStr = t.getElementsByTagName('Start')[0]?.textContent || '';
           const endStr = t.getElementsByTagName('Finish')[0]?.textContent || '';
           const durationNode = t.getElementsByTagName('Duration')[0]?.textContent || '';
           
-          let hours = 0;
+          let exactHours = 0;
           const hMatch = durationNode.match(/(\d+)H/);
           const mMatch = durationNode.match(/(\d+)M/);
           
-          if (hMatch) hours += parseInt(hMatch[1], 10);
-          if (mMatch) hours += parseInt(mMatch[1], 10) / 60; 
+          if (hMatch) exactHours += parseInt(hMatch[1], 10);
+          if (mMatch) exactHours += parseInt(mMatch[1], 10) / 60; 
           
+          // RUNNING BALANCE ALGORITHM (e.g., 12.5 + 11.5 = 24 integers)
+          runningExactHours += exactHours;
+          const targetTotalRounded = Math.round(runningExactHours);
+          const currentRoundedHours = targetTotalRounded - runningRoundedHours;
+          runningRoundedHours += currentRoundedHours;
+
           parsedTasks.push({
-            id: `task_${i}`,
+            id: `task_${idNode}`,
             name: nameNode,
             start: startStr.split('T')[0] || '-',
             end: endStr.split('T')[0] || '-',
-            duration: durationNode ? `${hours} hrs` : '-',
+            duration: durationNode ? `${currentRoundedHours} hrs` : '-',
+            roundedHours: currentRoundedHours, // Sent to backend
+            outlineLevel: outlineLevel,        // Sent to backend for nesting
             isMilestone: isSummary, 
             assignees: isSummary ? [] : ['']
           });
@@ -143,7 +164,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   };
 
   // =========================================================================
-  // 5. FORM SUBMISSION (AUTOMATIC URI MAPPING)
+  // 5. FORM SUBMISSION
   // =========================================================================
   const submitProject = async () => {
     if (!isFormValid) return; 
@@ -165,7 +186,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
         return; 
     }
 
-    // Lookups for the new payload variables
     const safeClientUri = dictionaries.clients.find(c => c.name === formData.clientName)?.uri || undefined;
     const safeProgramUri = dictionaries.programs.find(p => p.name === formData.programName)?.uri || undefined;
     const safeLocationUri = dictionaries.locations.find(l => l.name === formData.locationName)?.uri || undefined;
@@ -315,9 +335,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
           </select>
         </div>
 
-        {/* ======================================= */}
-        {/* NEW DROPDOWNS: DEPARTMENT & EMPLOYEE TYPE */}
-        {/* ======================================= */}
         <div className={styles.formGroup}>
           <label>Department</label>
           <select className={styles.formControl} value={formData.departmentName} onChange={e => setFormData({...formData, departmentName: e.target.value})}>
@@ -333,7 +350,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
             {dictionaries.employeeTypes?.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
           </select>
         </div>
-        {/* ======================================= */}
 
         <div className={styles.formGroup}><label>Start Date *</label><input type="date" className={styles.formControl} value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} /></div>
         <div className={styles.formGroup}><label>End Date *</label><input type="date" className={styles.formControl} value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} /></div>
@@ -414,7 +430,8 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
               {tasks.map((task, tIndex) => (
                 <tr key={tIndex} className={task.isMilestone ? styles.milestoneRow : ''}>
                   <td>10{tIndex + 1}</td>
-                  <td>
+                  {/* VISUAL INDENTATION BASED ON OUTLINE LEVEL */}
+                  <td style={{ paddingLeft: `${Math.max(0, (task.outlineLevel - 1) * 20)}px` }}>
                     {task.isMilestone && <i className={`bx bxs-flag-alt ${styles.milestoneIcon}`}></i>}
                     {task.name}
                   </td>
