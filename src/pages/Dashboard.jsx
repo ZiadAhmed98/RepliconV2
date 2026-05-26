@@ -186,9 +186,7 @@ export default function Dashboard({ dataMatrix }) {
   // APPLE PREMIUM CHART THEME GLOBALS
   // =========================================================================
   const chartDefaults = { 
-    background: 'transparent', 
     foreColor: '#8e8e93', // Apple grey 
-    toolbar: { show: false },
     theme: { mode: 'dark' },
     grid: { borderColor: 'rgba(255,255,255,0.05)', strokeDashArray: 4 } // Sleek dashed grid
   };
@@ -323,7 +321,8 @@ export default function Dashboard({ dataMatrix }) {
           </div>
           <div><p>{compView === 'daily' ? "Daily Deficits" : "Weekly Deficits"}</p><h3 style={{ color: 'var(--accent-coral)' }}>{compView === 'daily' ? metrics.compliance.dailyDeficits : metrics.compliance.weeklyDeficits}</h3></div>
           <div className={styles.sparklineContainer}>
-            <Chart type="area" width="100%" height={35} series={[{ data: metrics.compliance.sparkline || [] }]} options={{ chart: { sparkline: { enabled: true } }, stroke: { curve: 'smooth', width: 2 }, colors: ['#ff3b30'], fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0, stops: [0, 100] } }, tooltip: { theme: 'dark', fixed: { enabled: false }, x: { show: false }, marker: { show: false } } }} />
+            {/* THE FIX: Added background: 'transparent' inside the chart object */}
+            <Chart type="area" width="100%" height={35} series={[{ data: metrics.compliance.sparkline || [] }]} options={{ chart: { sparkline: { enabled: true }, background: 'transparent' }, stroke: { curve: 'smooth', width: 2 }, colors: ['#ff3b30'], fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0, stops: [0, 100] } }, tooltip: { theme: 'dark', fixed: { enabled: false }, x: { show: false }, marker: { show: false } } }} />
           </div>
         </div>
       </div>
@@ -336,11 +335,12 @@ export default function Dashboard({ dataMatrix }) {
             <Chart type="area" width="100%" height={320}
               series={[ { name: 'Quoted', data: metrics.deepEffort.quoted }, { name: 'Estimated', data: metrics.deepEffort.est }, { name: 'Actual', data: metrics.deepEffort.act } ]}
               options={{ ...chartDefaults, 
-                chart: { stacked: true }, 
-                colors: ['rgba(255,255,255,0.05)', '#6366f1', '#a855f7'], // Apple Glass, Blue/Purple, Vibrant Purple
+                // THE FIX: Added background: 'transparent' and toolbar: false
+                chart: { stacked: true, background: 'transparent', toolbar: { show: false } }, 
+                colors: ['rgba(255,255,255,0.05)', '#6366f1', '#a855f7'], 
                 stroke: { curve: 'smooth', width: [1, 2, 2] }, 
                 fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.6, opacityTo: 0.1, stops: [0, 100] } },
-                dataLabels: { enabled: false }, // FIX: Removed overlapping labels
+                dataLabels: { enabled: false }, 
                 xaxis: { categories: metrics.deepEffort.labels, labels: { show: false }, axisBorder: { show: false }, axisTicks: { show: false } },
                 yaxis: { labels: { formatter: (v) => fmtK(v), style: { colors: '#8e8e93' } } }, 
                 legend: { position: 'top', labels: { colors: '#8e8e93' } }, 
@@ -351,7 +351,8 @@ export default function Dashboard({ dataMatrix }) {
         <div className="chart-card">
           <h4><i className='bx bx-bar-chart-alt-2' style={{ color: 'var(--accent-blue)' }}></i> All-Time Top Clients</h4>
           <div className={styles.chartWrapper}>
-            <Chart type="bar" width="100%" height={320} series={[{ name: 'Hours', data: metrics.topClients.map(c => Math.round(c.val)) }]} options={{ ...chartDefaults, colors: ['#a855f7'], plotOptions: { bar: { horizontal: false, borderRadius: 6, distributed: true, columnWidth: '45%' } }, dataLabels: { enabled: false }, xaxis: { categories: metrics.topClients.map(c => c.name), labels: { style: { colors: '#8e8e93' }, rotate: -45, trim: true } }, legend: { show: false } }} />
+            {/* THE FIX: Added background: 'transparent' inside chart */}
+            <Chart type="bar" width="100%" height={320} series={[{ name: 'Hours', data: metrics.topClients.map(c => Math.round(c.val)) }]} options={{ ...chartDefaults, chart: { background: 'transparent', toolbar: { show: false } }, colors: ['#a855f7'], plotOptions: { bar: { horizontal: false, borderRadius: 6, distributed: true, columnWidth: '45%' } }, dataLabels: { enabled: false }, xaxis: { categories: metrics.topClients.map(c => c.name), labels: { style: { colors: '#8e8e93' }, rotate: -45, trim: true } }, legend: { show: false } }} />
           </div>
         </div>
         <div className="chart-card">
@@ -369,13 +370,15 @@ export default function Dashboard({ dataMatrix }) {
         <div className="chart-card">
           <h4><i className='bx bx-line-chart' style={{ color: 'var(--accent-purple)' }}></i> Burn Trend vs Max Capacity</h4>
           <div className={styles.chartWrapper}>
-            <Chart type="line" width="100%" height={320} series={[ { name: 'Capacity', type: 'line', data: metrics.trend.cap }, { name: 'Actual Burn', type: 'area', data: metrics.trend.act } ]} options={{ ...chartDefaults, colors: ['#8e8e93', '#a855f7'], stroke: { curve: 'smooth', width: [3, 2] }, fill: { type: ['solid', 'gradient'], gradient: { shadeIntensity: 1, opacityFrom: 0.5, opacityTo: 0.05, stops: [0, 100] } }, xaxis: { categories: metrics.trend.labels, labels: { style: { colors: '#8e8e93' } }, axisBorder: { show: false }, axisTicks: { show: false } }, yaxis: { labels: { formatter: (v) => fmtInt(v), style: { colors: '#8e8e93' } } }, legend: { position: 'top', labels: { colors: '#8e8e93' } }, tooltip: { theme: 'dark' } }} />
+            {/* THE FIX: Added background: 'transparent' inside chart */}
+            <Chart type="line" width="100%" height={320} series={[ { name: 'Capacity', type: 'line', data: metrics.trend.cap }, { name: 'Actual Burn', type: 'area', data: metrics.trend.act } ]} options={{ ...chartDefaults, chart: { background: 'transparent', toolbar: { show: false } }, colors: ['#8e8e93', '#a855f7'], stroke: { curve: 'smooth', width: [3, 2] }, fill: { type: ['solid', 'gradient'], gradient: { shadeIntensity: 1, opacityFrom: 0.5, opacityTo: 0.05, stops: [0, 100] } }, xaxis: { categories: metrics.trend.labels, labels: { style: { colors: '#8e8e93' } }, axisBorder: { show: false }, axisTicks: { show: false } }, yaxis: { labels: { formatter: (v) => fmtInt(v), style: { colors: '#8e8e93' } } }, legend: { position: 'top', labels: { colors: '#8e8e93' } }, tooltip: { theme: 'dark' } }} />
           </div>
         </div>
         <div className="chart-card">
           <h4><i className='bx bx-doughnut-chart' style={{ color: 'var(--accent-blue)' }}></i> Billable vs Non-Billable</h4>
           <div className={styles.chartWrapper}>
-            <Chart type="donut" width="100%" height={320} series={[metrics.billable, metrics.overhead]} options={{ ...chartDefaults, labels: ['Billable', 'Non-Billable'], colors: ['#a855f7', 'rgba(255,255,255,0.05)'], stroke: { width: 3, colors: ['var(--bg-card)'] }, plotOptions: { pie: { donut: { size: '75%' } } }, dataLabels: { enabled: false }, legend: { position: 'bottom', labels: { colors: '#8e8e93' } } }} />
+            {/* THE FIX: Added background: 'transparent' inside chart */}
+            <Chart type="donut" width="100%" height={320} series={[metrics.billable, metrics.overhead]} options={{ ...chartDefaults, chart: { background: 'transparent', toolbar: { show: false } }, labels: ['Billable', 'Non-Billable'], colors: ['#a855f7', 'rgba(255,255,255,0.05)'], stroke: { width: 3, colors: ['var(--bg-card)'] }, plotOptions: { pie: { donut: { size: '75%' } } }, dataLabels: { enabled: false }, legend: { position: 'bottom', labels: { colors: '#8e8e93' } } }} />
           </div>
         </div>
       </div>
@@ -385,19 +388,22 @@ export default function Dashboard({ dataMatrix }) {
         <div className="chart-card">
           <h4><i className='bx bx-error-circle' style={{ color: 'var(--accent-red)' }}></i> Revenue Leakage</h4>
           <div className={styles.chartWrapper}>
-            <Chart type="bar" width="100%" height={300} series={[ { name: 'Est Budget', data: metrics.overburn.map(p => -p.est) }, { name: 'Act Burn', data: metrics.overburn.map(p => p.act) } ]} options={{ ...chartDefaults, chart: { stacked: true }, colors: ['rgba(255,255,255,0.1)', '#ff3b30'], plotOptions: { bar: { horizontal: true, borderRadius: 4 } }, xaxis: { categories: metrics.overburn.map(p => p.name), min: -metrics.bfMax, max: metrics.bfMax, labels: { style: { colors: '#8e8e93' }, formatter: (v) => fmtK(Math.abs(v)) } }, yaxis: { labels: { style: { colors: '#8e8e93' }, maxWidth: 150 } }, dataLabels: { enabled: false }, legend: { show: false }, tooltip: { theme: 'dark' } }} />
+            {/* THE FIX: Added background: 'transparent' inside chart */}
+            <Chart type="bar" width="100%" height={300} series={[ { name: 'Est Budget', data: metrics.overburn.map(p => -p.est) }, { name: 'Act Burn', data: metrics.overburn.map(p => p.act) } ]} options={{ ...chartDefaults, chart: { stacked: true, background: 'transparent', toolbar: { show: false } }, colors: ['rgba(255,255,255,0.1)', '#ff3b30'], plotOptions: { bar: { horizontal: true, borderRadius: 4 } }, xaxis: { categories: metrics.overburn.map(p => p.name), min: -metrics.bfMax, max: metrics.bfMax, labels: { style: { colors: '#8e8e93' }, formatter: (v) => fmtK(Math.abs(v)) } }, yaxis: { labels: { style: { colors: '#8e8e93' }, maxWidth: 150 } }, dataLabels: { enabled: false }, legend: { show: false }, tooltip: { theme: 'dark' } }} />
           </div>
         </div>
         <div className="chart-card">
           <h4><i className='bx bx-radar' style={{ color: 'var(--accent-coral)' }}></i> At-Risk Projects (Burn %)</h4>
           <div className={styles.chartWrapper}>
-            <Chart type="bar" width="100%" height={300} series={[{ name: 'Burn %', data: metrics.atRisk.map(r => r.burn) }]} options={{ ...chartDefaults, colors: ['#ff3b30'], plotOptions: { bar: { horizontal: true, borderRadius: 6, barHeight: '40%' } }, dataLabels: { enabled: true, formatter: (val) => Math.round(val) + "%", textAnchor: 'start', style: { colors: ['#fff'] } }, xaxis: { categories: metrics.atRisk.map(r => r.name), max: 100, labels: { style: { colors: '#8e8e93' } } }, yaxis: { labels: { style: { colors: '#8e8e93' }, maxWidth: 150 } }, grid: { show: false }, tooltip: { theme: 'dark' } }} />
+            {/* THE FIX: Added background: 'transparent' inside chart */}
+            <Chart type="bar" width="100%" height={300} series={[{ name: 'Burn %', data: metrics.atRisk.map(r => r.burn) }]} options={{ ...chartDefaults, chart: { background: 'transparent', toolbar: { show: false } }, colors: ['#ff3b30'], plotOptions: { bar: { horizontal: true, borderRadius: 6, barHeight: '40%' } }, dataLabels: { enabled: true, formatter: (val) => Math.round(val) + "%", textAnchor: 'start', style: { colors: ['#fff'] } }, xaxis: { categories: metrics.atRisk.map(r => r.name), max: 100, labels: { style: { colors: '#8e8e93' } } }, yaxis: { labels: { style: { colors: '#8e8e93' }, maxWidth: 150 } }, grid: { show: false }, tooltip: { theme: 'dark' } }} />
           </div>
         </div>
         <div className="chart-card">
           <h4><i className='bx bx-task' style={{ color: 'var(--accent-green)' }}></i> Active Projects by Status</h4>
           <div className={styles.chartWrapper}>
-            <Chart type="donut" width="100%" height={300} series={metrics.statusData.length ? metrics.statusData : [1]} options={{ ...chartDefaults, labels: metrics.statusLabels.length ? metrics.statusLabels : ['No Data'], colors: ['#a855f7', '#32ade6', '#34c759', '#ffcc00', '#ff3b30'], stroke: { width: 3, colors: ['var(--bg-card)'] }, plotOptions: { pie: { donut: { size: '75%' } } }, dataLabels: { enabled: false }, legend: { position: 'bottom', labels: { colors: '#8e8e93' } } }} />
+            {/* THE FIX: Added background: 'transparent' inside chart */}
+            <Chart type="donut" width="100%" height={300} series={metrics.statusData.length ? metrics.statusData : [1]} options={{ ...chartDefaults, chart: { background: 'transparent', toolbar: { show: false } }, labels: metrics.statusLabels.length ? metrics.statusLabels : ['No Data'], colors: ['#a855f7', '#32ade6', '#34c759', '#ffcc00', '#ff3b30'], stroke: { width: 3, colors: ['var(--bg-card)'] }, plotOptions: { pie: { donut: { size: '75%' } } }, dataLabels: { enabled: false }, legend: { position: 'bottom', labels: { colors: '#8e8e93' } } }} />
           </div>
         </div>
       </div>
@@ -434,9 +440,10 @@ export default function Dashboard({ dataMatrix }) {
                   { name: 'Quoted', data: metrics.deepEffort.quoted.map(v => Math.max(0.1, v)) } 
                 ]}
                 options={{ ...chartDefaults, 
-                  chart: { stacked: false, animations: { enabled: false } }, // FIX: Swapped to false to support Logarithmic scaling
-                  colors: ['#a855f7', '#32ade6', 'rgba(255,255,255,0.1)'], // Premium Modern colors
-                  plotOptions: { bar: { horizontal: false, columnWidth: '70%', borderRadius: 4 } }, // Sleek rounded bars
+                  // THE FIX: Added background: 'transparent' inside chart
+                  chart: { stacked: false, background: 'transparent', toolbar: { show: false }, animations: { enabled: false } }, 
+                  colors: ['#a855f7', '#32ade6', 'rgba(255,255,255,0.1)'], 
+                  plotOptions: { bar: { horizontal: false, columnWidth: '70%', borderRadius: 4 } }, 
                   xaxis: { categories: metrics.deepEffort.labels, labels: { style: { colors: '#8e8e93' }, rotate: -45, trim: true, maxHeight: 160 } },
                   yaxis: { 
                     logarithmic: true, 
