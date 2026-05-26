@@ -33,7 +33,7 @@ export default function Ribbon({ sessionUser, onLogout, onSync }) {
         
         <div className="user-profile" ref={dropdownRef} onClick={() => setDropdownOpen(!dropdownOpen)}>
           <div className="user-avatar">{userInitial}</div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div className="user-info">
             <span className="user-name">{userName}</span>
             <span className="user-role">Executive</span>
           </div>
