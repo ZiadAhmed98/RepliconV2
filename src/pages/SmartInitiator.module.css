@@ -20,8 +20,10 @@
   color: var(--si-text-main);
   font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
   padding: 40px;
-  max-width: 1600px;
-  margin: 0 auto;
+  
+  /* THE FIX: Let it stretch page-wide! */
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* =========================================================================
