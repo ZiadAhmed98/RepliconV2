@@ -422,7 +422,7 @@ app.post('/api/projects/new', async (req, res) => {
         const safeProjectUriString = typeof finalProjectUri === 'object' ? finalProjectUri.uri : finalProjectUri;
 
         // ------------------------------------------------------------------------
-        // STEP 3: ADD TASKS SEQUENTIALLY WITH NESTING & ESTIMATED HOURS
+        // STEP 3: ADD TASKS SEQUENTIALLY WITH NESTING, BALANCE, & CLEAN JSON TYPES
         // ------------------------------------------------------------------------
         console.log(`\n[STEP 3] Adding ${payload.tasks.length} Tasks`);
         let successfulTasks = 0;
@@ -440,17 +440,15 @@ app.post('/api/projects/new', async (req, res) => {
                     parentUri = levelUriMap[level - 1];
                 }
 
-                // DYNAMIC TARGET BLOCK: Completely omits "parent" if it's a Level 1 task
+                // DYNAMIC TARGET BLOCK: Cleanly omits "parent" if it's a Level 1 task
                 let targetBlock = {
                     uri: null, 
                     name: t.name
                 };
 
-                // Only inject the parent object if a parent actually exists (Level 2+)
+                // Only inject the clean parent object if a parent actually exists (Level 2+)
                 if (parentUri) {
-                    targetBlock.parent = {
-                        uri: parentUri
-                    };
+                    targetBlock.parent = { uri: parentUri };
                 }
 
                 const taskPayload = {
@@ -464,9 +462,15 @@ app.post('/api/projects/new', async (req, res) => {
                             startDate: parseDateForReplicon(t.start),
                             endDate: parseDateForReplicon(t.end)
                         },
+                        // Real numbers and booleans, exactly matching the successful sniff!
                         percentCompleted: 0,
-                        isTimeEntryAllowed: !t.isMilestone, // true for tasks, false for milestones
+                        isTimeEntryAllowed: !t.isMilestone, 
                         isClosed: false,
+                        estimatedHours: t.roundedHours > 0 ? {
+                            hours: t.roundedHours,
+                            minutes: 0,
+                            seconds: 0
+                        } : null,
                         customFieldValues: [
                             { customField: { uri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:ff2f15e9-8238-4691-89ee-53d780cd899a" }, number: 0 },
                             { customField: { uri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:45c59ea2-2ceb-496a-8544-c836cbcac626" }, number: null },
@@ -478,15 +482,6 @@ app.post('/api/projects/new', async (req, res) => {
                     unitOfWorkId: `batch_${Date.now()}_${i}`
                 };
 
-                // Inject Estimated Hours only if > 0 (using pure integers)
-                if (t.roundedHours > 0) {
-                    taskPayload.task.estimatedHours = {
-                        hours: t.roundedHours,
-                        minutes: null,
-                        seconds: null
-                    };
-                }
-
                 try {
                     let taskRes = await wcfRequest(`Add Task ${i+1}/${payload.tasks.length} (Level ${level})`, `https://ap1.replicon.com/${company}/services/ProjectService1.svc/AddTask`, taskPayload, headers);
                     successfulTasks++;
@@ -496,7 +491,7 @@ app.post('/api/projects/new', async (req, res) => {
                         newTaskUri = newTaskUri.uri || newTaskUri.Value || newTaskUri.d;
                     }
 
-                    // Store this task's URI as the current parent for its specific level so children can attach
+                    // Store this task's URI as the current parent for its specific level
                     if (newTaskUri) {
                         levelUriMap[level] = newTaskUri;
                     }
