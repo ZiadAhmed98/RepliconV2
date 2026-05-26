@@ -2,10 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 
 export default function SessionManager({ onLogout }) {
   const [showWarning, setShowWarning] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(10); // 15 minutes in seconds for the warning countdown
+  const [timeLeft, setTimeLeft] = useState(900); // 15 minutes in seconds for the warning countdown
 
   // 15 mins (900,000ms) until warning, 30 mins (1,800,000ms) total until force logout
-  const IDLE_TIMEOUT = 900000; 
+  const IDLE_TIMEOUT = 10; 
   const WARNING_DURATION = 900000; 
 
   const resetTimer = useCallback(() => {
