@@ -217,11 +217,21 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   font-size: 0.85rem; 
   cursor: pointer; 
   transition: all 0.2s; 
-  display: flex; 
-  align-items: center; 
+  
+  /* FIXES HERE */
+  display: inline-flex;     /* Keeps button inline but allows flex layout inside */
+  align-items: center;      /* Vertically centers text/icons */
+  justify-content: center;  /* Horizontally centers text/icons */
+  text-align: center;       /* Fallback centering */
   gap: 6px; 
 }
-.btn-ghost:hover { color: var(--text-main); background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.15); transform: scale(1.02); }
+
+.btn-ghost:hover { 
+  color: var(--text-main); 
+  background: rgba(255, 255, 255, 0.06); 
+  border-color: rgba(255, 255, 255, 0.15); 
+  transform: scale(1.02); 
+}
 
 /* =========================================================================
    APEXCHARTS DARK THEME OVERRIDES
