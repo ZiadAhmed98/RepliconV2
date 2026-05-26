@@ -96,38 +96,80 @@ app.get('/api/dashboard', async (req, res) => {
 
     try {
         let rawDataCube = []; let rawRoster = []; let rawDrafts = []; let rawTimesheets = []; let rawTsDetails = []; let rawAccountManagers = []; 
-        let dictionaries = { departments: [], locations: [], programs: [], clients: [], users: [], projectManagers: [] };
+        let dictionaries = { departments: [], locations: [], programs: [], clients: [], users: [], projectManagers: [], employeeTypes: [] };
 
         console.log(`\n[DEBUG] --- BOOTSTRAPPING SYSTEM DICTIONARY URIs VIA GETDATA ---`);
         
         const fetchListData = async (dictName, serviceName, columnUri) => {
             const url = `https://ap1.replicon.com/${company}/services/${serviceName}.svc/GetData`;
-            const payload = {
-                page: 1,
-                pagesize: 10000,
-                columnUris: [columnUri],
-                sort: [],
-                filterExpression: null
-            };
+            const payload = { page: 1, pagesize: 10000, columnUris: [columnUri], sort: [], filterExpression: null };
             try {
                 const data = await wcfRequest(`Fetch List: ${dictName}`, url, payload, headers);
                 let rows = data.d?.rows || data.rows || [];
-                
-                let parsedItems = rows.map(r => {
+                return rows.map(r => {
                     const cell = r.cells?.[0];
                     if (cell && cell.textValue && cell.uri) return { name: cell.textValue, uri: cell.uri };
                     return null;
                 }).filter(x => x !== null);
+            } catch (err) { return []; }
+        };
 
-                return parsedItems;
-            } catch (err) {
+        // =========================================================================
+        // NEW: POLICY DATA ACCESS ENDPOINT PARSER (For Depts, Locations, EmpTypes)
+        // =========================================================================
+        const fetchPolicyData = async (dictName, serviceName, methodName, searchKey) => {
+            const url = `https://ap1.replicon.com/${company}/services/${serviceName}.svc/${methodName}`;
+            const payload = {
+                pageIndex: "1",
+                pageSize: "1000",
+                policyUri: "urn:replicon:policy:project-management"
+            };
+            
+            if (searchKey) {
+                payload[searchKey] = searchKey === 'departmentGroupSearch' ? {
+                    statusOptionUri: "urn:replicon:department-group-status-option:include-only-enabled-department-groups",
+                    hierarchyDataOptionUri: null,
+                    textSearch: null
+                } : null;
+            }
+
+            try {
+                const data = await wcfRequest(`Fetch Policy List: ${dictName}`, url, payload, headers);
+                let items = data.d || data || [];
+                let parsed = [];
+                
+                items.forEach(item => {
+                    let target = item;
+                    // Dynamically dig out the nested object containing displayText (e.g., item.location)
+                    Object.values(item).forEach(val => {
+                        if (val && typeof val === 'object' && val.displayText && val.uri) {
+                            target = val;
+                        }
+                    });
+                    
+                    if (target && target.displayText && target.uri) {
+                        parsed.push({ name: target.displayText, uri: target.uri });
+                    }
+                });
+
+                // Per Requirements: Exclude Row 0 (Company/LiveRoute) from Departments
+                if (dictName === 'Departments' && parsed.length > 0) {
+                    parsed.shift(); 
+                }
+
+                return parsed;
+            } catch(err) {
                 return [];
             }
         };
 
         dictionaries.clients = await fetchListData('Clients', 'ClientListService1', 'urn:replicon:client-list-column:client');
         dictionaries.programs = await fetchListData('Programs', 'ProgramListService1', 'urn:replicon:program-list-column:program');
-        dictionaries.locations = await fetchListData('Locations', 'LocationListService1', 'urn:replicon:location-list-column:location');
+        
+        // Use New Policy Scope Functions
+        dictionaries.locations = await fetchPolicyData('Locations', 'LocationService1', 'GetPageOfLocationsInPolicyDataAccessScope', 'locationSearch');
+        dictionaries.departments = await fetchPolicyData('Departments', 'DepartmentGroupService1', 'GetPageOfDepartmentGroupsInPolicyDataAccessScope', 'departmentGroupSearch');
+        dictionaries.employeeTypes = await fetchPolicyData('EmployeeTypes', 'EmployeeTypeGroupService1', 'GetPageOfEmployeeTypeGroupsInPolicyDataAccessScope', 'employeeTypeGroupSearch');
         
         const allUsers = await fetchListData('Users', 'UserListService1', 'urn:replicon:user-list-column:user'); 
         dictionaries.users = allUsers; 
@@ -135,9 +177,8 @@ app.get('/api/dashboard', async (req, res) => {
             const name = u.name.toLowerCase();
             return name.includes('ziad shafik') || name.includes('irfan najmi');
         });
-        
-        dictionaries.departments = []; 
 
+        // Reports Fetching
         try {
             const payloadRoster = { reportUri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:report:3f1148e3-624f-4666-ba25-6a0432a883ee", filterValues: [], outputFormatUri: "urn:replicon:report-output-format-option:csv" };
             let resRoster = await axios.post(reportEndpoint, payloadRoster, { headers });
@@ -305,6 +346,7 @@ app.post('/api/projects/new', async (req, res) => {
 
         await wcfRequest("Update Project Name", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateName`, { projectUri: projDraftUri, name: payload.projectName }, headers);
         await wcfRequest("Update Project Code", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateCode`, { projectUri: projDraftUri, code: payload.projectCode }, headers);
+        await wcfRequest("Update Project Percentage", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdatePercentComplete`, { projectUri: projDraftUri, code: payload.percentCompleted }, headers);
 
         if (payload.startDate || payload.endDate) {
             await wcfRequest("Update Project Dates", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateTimeEntryDateRange`, {
@@ -315,6 +357,36 @@ app.post('/api/projects/new', async (req, res) => {
                 }
             }, headers);
         }
+
+        // =========================================================================
+        // NEW: INJECTING NEW FIELDS (Dept, Emp Type, Location, Time Entry Toggle)
+        // =========================================================================
+        if (payload.departmentUri) {
+            await wcfRequest("Update Department", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateDepartmentGroup2`, {
+                projectUri: projDraftUri,
+                departmentGroup: { uri: payload.departmentUri, parent: null, name: null, parameterCorrelationId: null }
+            }, headers);
+        }
+
+        if (payload.employeeTypeUri) {
+            await wcfRequest("Update Employee Type", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateEmployeeTypeGroup2`, {
+                projectUri: projDraftUri,
+                employeeTypeGroup: { uri: payload.employeeTypeUri, parent: null, name: null, parameterCorrelationId: null }
+            }, headers);
+        }
+
+        if (payload.locationUri) {
+            await wcfRequest("Update Location", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateLocation`, {
+                projectUri: projDraftUri,
+                location: { uri: payload.locationUri, parentUri: null, name: null }
+            }, headers);
+        }
+
+        await wcfRequest("Update Allow Time Entry", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateAllowTimeEntryAgainstTasksOnly`, {
+            projectUri: projDraftUri,
+            allowTimeEntryAgainstTasksOnly: payload.allowTimeEntry === 'Yes'
+        }, headers);
+        // =========================================================================
 
         const safeClientUriString = typeof activeClientUri === 'object' ? activeClientUri.uri : activeClientUri;
 
@@ -348,7 +420,8 @@ app.post('/api/projects/new', async (req, res) => {
 
         // Ensure flattened Project URI
         const safeProjectUriString = typeof finalProjectUri === 'object' ? finalProjectUri.uri : finalProjectUri;
-           // ------------------------------------------------------------------------
+
+        // ------------------------------------------------------------------------
         // STEP 3: ADD TASKS SEQUENTIALLY & CATCH NEW URIs
         // ------------------------------------------------------------------------
         console.log(`\n[STEP 3] Adding ${payload.tasks.length} Tasks`);

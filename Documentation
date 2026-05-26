@@ -1,0 +1,211 @@
+############# Global API calls #############
+https://ap1.replicon.com/services/help/all
+
+############# Fetch Data from Replicon API - Using GetData Function Calls #############
+
+clients URI:
+- https://ap1.replicon.com/services/ClientListService1.svc/help/test/GetData
+- urn:replicon:client-list-column:client
+
+Projects:
+- https://ap1.replicon.com/services/ProjectListService1.svc/help/test/GetData
+- urn:replicon:project-list-column:project
+
+Programs:
+- https://ap1.replicon.com/services/ProgramListService1.svc/help/test/GetData
+- urn:replicon:program-list-column:program
+
+Location:
+- https://ap1.replicon.com/services/LocationListService1.svc/help/test/GetData
+- urn:replicon:location-list-column:location
+
+############# PLAYBOOK #############
+
+We'll keep the language straightforward and focus purely on how the engine works and the specific quirks of Replicon's WCF backend.
+
+---
+
+# Replicon WCF API Integration Guide
+
+## 1. The Core Engine: `wcfRequest`
+
+This is your custom wrapper function for every POST request to Replicon.
+
+**How to use it:**
+
+```javascript
+
+await wcfRequest(
+    "Step Description for Logs", 
+    "https://ap1.replicon.com/{company}/services/{ServiceName}.svc/{MethodName}", 
+    { payloadObject }, 
+    headers
+);
+
+```
+
+**Why we built it this way:**
+Replicon's WCF endpoints throw very obscure 500 and 400 errors if a single field is missing. The `wcfRequest` function uses a `try/catch` block to intercept the Axios error, dig into `error.response.data`, and print the exact XML/JSON rejection string from the server directly into your Docker logs. Always use this instead of native `axios.post` for WCF calls.
+
+---
+
+## 2. Reading Data (The Two Methods)
+
+Replicon has two completely different ways to read data, and your `/api/dashboard` route uses both.
+
+### A. The System Dictionaries (`GetData`)
+
+Use this when you need strict database URIs (e.g., getting the exact URN for a user or client).
+
+* **Endpoint:** `[ListServiceName]1.svc/GetData` (e.g., `UserListService1.svc/GetData`)
+* **Payload:** Needs `page`, `pagesize`, and the specific `columnUris`.
+* **Response:** Returns an array of rows and cells. Our helper function `fetchListData` flattens this into a clean `[{ name: "Ziad Shafik", uri: "urn:..." }]` array.
+
+### B. The Report API
+
+Use this when you need human-readable data arrays (like timesheets, drafts, or project rosters).
+
+* **Endpoint:** `ReportService1.svc/GenerateReport`
+* **Payload:** Requires the specific `reportUri` and `outputFormatUri` (we use CSV).
+* **Response:** Returns a massive raw CSV string. You must split it by `\n` and parse it using the custom `parseCSVLine` function to turn it into JSON.
+
+---
+
+## 3. The 5-Step Project Provisioning Pipeline
+
+This is your master route (`/api/projects/new`). Because Replicon is highly relational, things must happen in strict sequential order.
+
+**Step 1: Create Client (The Draft Pattern)**
+You can't just inject a new client. You have to use the WCF "Draft" sequence:
+
+1. `CreateNewDraft` -> Returns a temporary `draftUri`.
+2. `UpdateName` -> Applies the string name to the draft.
+3. `PublishDraft` -> Commits it to the database and returns the permanent `clientUri`.
+
+**Step 2: Create Project Shell**
+Same draft pattern. You create the draft, apply the name/code/dates, and link the client.
+
+* *Crucial Function:* `UpdateClients` (Plural). It expects an array, even for one client, and requires a strict `costAllocationPercentage: "100.0"` (must be a string with a decimal).
+* *Crucial Function:* `UpdateProjectLeader` (not "Manager").
+
+**Step 3: Inject Tasks**
+Tasks are added via `ProjectService1.svc/AddTask` (not the Task service).
+
+* This loops through the frontend array sequentially.
+* It passes the required `customFieldValues` to bypass mandatory UI fields.
+* It captures the newly generated Task URI from the server response so we can assign people to it later.
+
+**Step 4: Assign Users to Project Shell**
+Before a user can be assigned to a specific task, they *must* exist at the project level.
+
+* We extract a unique Set of users from all tasks.
+* We loop through and call `AssignResourceToProject` for each unique user.
+
+**Step 5: Bulk Assign to Tasks**
+Now that users are on the project, we map them to their tasks.
+
+* **Endpoint:** `TaskService1.svc/BulkUpdateResourceAssignments`
+* Instead of looping through users, we pass the entire array of `resourceUris` (e.g., `["urn:user:1", "urn:user:2"]`) in one shot to save API rate limits.
+
+
+Example:
+
+- new project
+    UpdateName
+    https://ap1.replicon.com/services/ProjectService1.svc/help/test/UpdateName
+    {
+    "projectUri": null,
+    "name": null
+    }
+
+    UpdateCode
+    https://ap1.replicon.com/services/ProjectService1.svc/help/test/UpdateCode
+    {
+    "projectUri": null,
+    "code": null
+    }
+
+    UpdateTimeEntryDateRange
+    https://ap1.replicon.com/services/ProjectService1.svc/help/test/UpdateTimeEntryDateRange
+    {
+    "projectUri": null,
+    "dateRange": null
+    }
+
+    UpdateProgram
+    https://ap1.replicon.com/services/ProjectService1.svc/help/test/UpdateProgram
+    {
+    "projectUri": null,
+    "programUri": null
+    }
+
+    UpdateStatus
+    https://ap1.replicon.com/services/ProjectService1.svc/help/test/UpdateStatus
+    {
+    "projectUri": null,
+    "projectStatusUri": null
+    }
+    
+    PublishDraft
+    https://ap1.replicon.com/services/ProjectService1.svc/help/test/PublishDraft
+    {
+    "draftUri": null
+    }
+    UpdateClients
+    {
+    "projectUri": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:project:3959",
+        "clients": [
+            {
+            "client": {
+                "uri": "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:client:1734",
+                "name": null,
+                "code": null,
+                "parameterCorrelationId": null
+            },
+            "costAllocationPercentage": "100.0"
+            }
+        ]
+    }
+---
+
+## 4. The Replicon "Gotcha" Survival Guide
+
+These are the exact legacy quirks we had to reverse-engineer to stop the server from crashing. If you add new features, keep these rules in mind:
+
+### The "Russian Doll" URIs
+
+When Replicon returns a URI, it almost never returns just a clean string. Depending on the endpoint, it might return `{ uri: "urn:..." }`, `{ Value: "urn:..." }`, or `{ uri: { uri: "urn:..." } }`.
+
+* **The Fix:** Always use the `while` loop unwrapper before passing a URI into a payload.
+```javascript
+let safeUri = rawResponse;
+while (safeUri && typeof safeUri === 'object') {
+    safeUri = safeUri.uri || safeUri.Value || safeUri.d;
+}
+
+```
+
+### The `null` Handshake
+
+When linking an existing object (like a Client to a Project), Replicon forces you to provide the full object structure but demands you pass `null` for everything except the URI.
+
+* **Why:** If you pass a name (e.g., `name: "Microsoft"`), the Project endpoint thinks you're trying to edit the Client's profile and will throw a 500 error.
+* **The Fix:** Send empty boxes.
+```javascript
+client: { 
+    uri: "urn:...",
+    name: null,
+    code: null,
+    parameterCorrelationId: null
+}
+
+```
+### Plural Endpoints Require Arrays
+
+If an endpoint has an 's' (like `UpdateClients` or `BulkUpdateResourceAssignments`), it will crash if you send an object. It strictly requires an array format `[ { ... } ]`, even if you're only processing a single item.
+
+### The UI Name vs. Database Name Mismatch
+
+Never rely on human-typed names matching the database. The `roster` report outputs "First Last", but the `GetData` database outputs "Last, First".
+
+* **The Fix:** Always populate your UI dropdowns using the `dictionaries` mapping. That way, when a user selects a human-readable name, your code can instantly do a 1-to-1 lookup to find the exact backend `urn` without relying on messy string manipulation.

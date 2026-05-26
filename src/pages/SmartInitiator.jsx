@@ -6,7 +6,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   // 1. DYNAMIC DICTIONARY BINDING
   // =========================================================================
   const dictionaries = useMemo(() => {
-    // Helper function to find the data whether the hook put it at the root or inside 'dictionaries'
     const getArray = (key) => {
       if (dataMatrix?.[key] && dataMatrix[key].length > 0) return dataMatrix[key];
       if (dataMatrix?.dictionaries?.[key]) return dataMatrix.dictionaries[key];
@@ -19,10 +18,10 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
       programs: getArray('programs'),
       clients: getArray('clients'),
       users: getArray('users'),
-      projectManagers: getArray('projectManagers') 
+      projectManagers: getArray('projectManagers'),
+      employeeTypes: getArray('employeeTypes') // <-- NEW
     };
 
-    // Safely sort them alphabetically without mutating the original state
     Object.keys(dicts).forEach(key => {
       dicts[key] = [...dicts[key]].sort((a, b) => a.name.localeCompare(b.name));
     });
@@ -32,7 +31,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
 
   const fallbackAccountManagers = useMemo(() => {
       let ams = dataMatrix?.accountManagers || [];
-      // Use the users dictionary instead of roster for the fallback to ensure consistency
       if (ams.length === 0 && dictionaries.users.length > 0) ams = dictionaries.users.map(e => e.name);
       return ams;
   }, [dataMatrix, dictionaries.users]);
@@ -47,14 +45,15 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   const [clientMode, setClientMode] = useState('existing'); 
   const [newClientName, setNewClientName] = useState('');
 
-  // Values track the NAMES shown in the UI. 
+  // UI Tracker (Removed internalRemarks, Added employeeTypeName)
   const [formData, setFormData] = useState({
     projectName: '', projectCode: '', 
-    clientName: '', programName: '', projectManagerName: '', departmentName: 'Service Delivery', locationName: '', 
+    clientName: '', programName: '', projectManagerName: '', 
+    departmentName: '', employeeTypeName: '', locationName: '', 
     startDate: '', endDate: '', status: 'Planning', percentCompleted: '0',
     billingType: 'Time & Materials', allowTimeEntry: 'Yes', 
     clientBillingRateCopy: 'Keep Existing Billing Rates', timeAndExpenseEntry: 'Billable & Non-Billable',
-    accountManager: '', quotedHours: '', internalRemarks: ''
+    accountManager: '', quotedHours: ''
   });
 
   const [tasks, setTasks] = useState([]);
@@ -149,23 +148,15 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   const submitProject = async () => {
     if (!isFormValid) return; 
     
-    // Convert the plain UI names into the exact URIs the backend needs
     const mappedTasks = tasks.map(t => {
       const validNames = t.assignees.filter(a => a !== "");
-      
-      // CLEAN 1-to-1 MAPPING: Because the UI dropdown uses dictionaries.users, 
-      // this will match perfectly every single time.
       const assignedUserUris = validNames.map(name => {
         return dictionaries.users.find(u => u.name === name)?.uri || null;
       }).filter(uri => uri !== null);
 
-      return {
-        ...t,
-        assignedUsers: assignedUserUris // <-- Payload ready for backend
-      };
+      return { ...t, assignedUsers: assignedUserUris };
     });
 
-    // SAFETY NET: Ensure we didn't lose anyone
     const totalAssignedInUI = tasks.reduce((sum, t) => sum + t.assignees.filter(a => a !== "").length, 0);
     const totalMappedURIs = mappedTasks.reduce((sum, t) => sum + t.assignedUsers.length, 0);
 
@@ -174,10 +165,12 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
         return; 
     }
 
-    // Perform the URI lookup dynamically right before sending
+    // Lookups for the new payload variables
     const safeClientUri = dictionaries.clients.find(c => c.name === formData.clientName)?.uri || undefined;
     const safeProgramUri = dictionaries.programs.find(p => p.name === formData.programName)?.uri || undefined;
     const safeLocationUri = dictionaries.locations.find(l => l.name === formData.locationName)?.uri || undefined;
+    const safeDepartmentUri = dictionaries.departments.find(d => d.name === formData.departmentName)?.uri || undefined;
+    const safeEmployeeTypeUri = dictionaries.employeeTypes.find(e => e.name === formData.employeeTypeName)?.uri || undefined;
     
     let safePmUri = dictionaries.projectManagers.find(u => u.name === formData.projectManagerName)?.uri;
     if (!safePmUri) safePmUri = dictionaries.users.find(u => u.name === formData.projectManagerName)?.uri;
@@ -189,6 +182,8 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
       clientUri: safeClientUri,
       programUri: safeProgramUri,
       locationUri: safeLocationUri,
+      departmentUri: safeDepartmentUri,
+      employeeTypeUri: safeEmployeeTypeUri,
       pmUri: safePmUri,
       tasks: mappedTasks 
     };
@@ -210,11 +205,11 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
         setClientMode('existing');
         setFormData({
             projectName: '', projectCode: '', clientName: '', programName: '', 
-            projectManagerName: '', departmentName: 'Service Delivery', locationName: '', 
+            projectManagerName: '', departmentName: '', employeeTypeName: '', locationName: '', 
             startDate: '', endDate: '', status: 'Planning', percentCompleted: '0', 
             billingType: 'Time & Materials', allowTimeEntry: 'Yes', 
             clientBillingRateCopy: 'Keep Existing Billing Rates', timeAndExpenseEntry: 'Billable & Non-Billable',
-            accountManager: '', quotedHours: '', internalRemarks: ''
+            accountManager: '', quotedHours: ''
         });
         syncMatrixData(true); 
       } else {
@@ -295,7 +290,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
               <input type="text" className={styles.formControl} value={newClientName} onChange={e => setNewClientName(e.target.value)} placeholder="Type new client name..." />
             </div>
             <div className={styles.formGroup}>
-              <label>Account Manager</label>
+              <label>Select Account Manager</label>
               <select className={styles.formControl} value={formData.accountManager} onChange={e => setFormData({...formData, accountManager: e.target.value})}>
                 <option value="">Select Account Manager...</option>
                 {fallbackAccountManagers.map(am => <option key={am} value={am}>{am}</option>)}
@@ -307,7 +302,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
         <div className={styles.formGroup}>
           <label>Program Name</label>
           <select className={styles.formControl} value={formData.programName} onChange={e => setFormData({...formData, programName: e.target.value})}>
-            <option value="">None / System Default</option>
+            <option value="">Select Program</option>
             {dictionaries.programs.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
           </select>
         </div>
@@ -315,20 +310,30 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
         <div className={styles.formGroup}>
           <label>Project Manager *</label>
           <select className={styles.formControl} value={formData.projectManagerName} onChange={e => setFormData({...formData, projectManagerName: e.target.value})}>
-            <option value="">Select a Manager...</option>
+            <option value="">Select Project Manager</option>
             {dictionaries.projectManagers.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
           </select>
         </div>
 
+        {/* ======================================= */}
+        {/* NEW DROPDOWNS: DEPARTMENT & EMPLOYEE TYPE */}
+        {/* ======================================= */}
         <div className={styles.formGroup}>
-          <label>Department (Visual Only)</label>
+          <label>Department</label>
           <select className={styles.formControl} value={formData.departmentName} onChange={e => setFormData({...formData, departmentName: e.target.value})}>
-            <option value="LiveRoute">LiveRoute</option>
-            <option value="Management">Management</option>
-            <option value="Pre Sales">Pre Sales</option>
-            <option value="Service Delivery">Service Delivery</option>
+            <option value="">Select Department</option>
+            {dictionaries.departments.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
           </select>
         </div>
+
+        <div className={styles.formGroup}>
+          <label>Employee Type</label>
+          <select className={styles.formControl} value={formData.employeeTypeName} onChange={e => setFormData({...formData, employeeTypeName: e.target.value})}>
+            <option value="">Select Employee Type</option>
+            {dictionaries.employeeTypes?.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
+          </select>
+        </div>
+        {/* ======================================= */}
 
         <div className={styles.formGroup}><label>Start Date *</label><input type="date" className={styles.formControl} value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} /></div>
         <div className={styles.formGroup}><label>End Date *</label><input type="date" className={styles.formControl} value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} /></div>
@@ -336,7 +341,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
         <div className={styles.formGroup}>
           <label>Location</label>
           <select className={styles.formControl} value={formData.locationName} onChange={e => setFormData({...formData, locationName: e.target.value})}>
-            <option value="">None / System Default</option>
+            <option value="">Select Location</option>
             {dictionaries.locations.map(l => <option key={l.name} value={l.name}>{l.name}</option>)}
           </select>
         </div>
@@ -351,7 +356,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
         </div>
 
         <div className={styles.formGroup}>
-          <label>Allow Time Entry</label>
+          <label>Time Entry on Tasks</label>
           <div className={styles.segmentControl}>
             <button className={formData.allowTimeEntry === 'Yes' ? styles.active : ''} onClick={() => setFormData({...formData, allowTimeEntry: 'Yes'})}>Yes</button>
             <button className={formData.allowTimeEntry === 'No' ? styles.active : ''} onClick={() => setFormData({...formData, allowTimeEntry: 'No'})}>No</button>
@@ -376,7 +381,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
         </div>
 
         <div className={styles.formGroup}><label>Quoted Hours</label><input type="number" className={styles.formControl} value={formData.quotedHours} onChange={e => setFormData({...formData, quotedHours: e.target.value})} /></div>
-        <div className={styles.formGroup}><label>Remarks</label><input type="text" className={styles.formControl} value={formData.internalRemarks} onChange={e => setFormData({...formData, internalRemarks: e.target.value})} /></div>
       </div>
 
       {tasks.length === 0 ? (
@@ -391,7 +395,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
             <span>BULK ASSIGN:</span>
             <select className={styles.formControl} style={{ maxWidth: '300px' }} value={bulkAssignValue} onChange={e => setBulkAssignValue(e.target.value)}>
               <option value="">-- Select Engineer for all tasks --</option>
-              {/* UPDATED: Using dictionaries.users instead of roster */}
               {dictionaries.users.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
             </select>
             <button className={styles.btnPrimary} style={{ padding: '10px 20px', fontSize: '0.9rem' }} onClick={applyBulkAssign}>Apply</button>
@@ -425,7 +428,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
                         <div key={aIndex} className={styles.assigneeRow}>
                           <select className={styles.formControl} style={{ padding: '8px', fontSize: '0.85rem' }} value={assignee} onChange={e => handleAssigneeChange(tIndex, aIndex, e.target.value)}>
                             <option value="">-- Unassigned --</option>
-                            {/* UPDATED: Using dictionaries.users instead of roster */}
                             {dictionaries.users.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
                           </select>
                           {aIndex === 0 ? (
