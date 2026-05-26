@@ -42,39 +42,79 @@ body {
 
 * { box-sizing: border-box; }
 
-/* -------------------------------------
-   FIX NATIVE CALENDARS & DROPDOWNS
--------------------------------------- */
+/* =========================================================================
+   PREMIUM FORM INPUTS (Dates, Text, Selects)
+   Matches the large, padded, dark-glass style
+   ========================================================================= */
 select, input[type="date"], input[type="time"] { 
-  color-scheme: dark !important; 
-}
-select option { 
-  background-color: #1c1c1e !important; color: #ffffff !important; padding: 12px; font-weight: 500;
-}
-/* Force Date inputs to be dark glass */
-input[type="date"] {
-  background-color: rgba(255, 255, 255, 0.05) !important;
-  color: #ffffff !important;
-  border: 1px solid var(--border-color) !important;
-  border-radius: 12px;
-}
-input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(1); opacity: 0.6; cursor: pointer;
+  color-scheme: dark !important; /* Forces native popup menus into dark mode */
 }
 
-/* -------------------------------------
+select option { 
+  background-color: #1c1c1e !important; 
+  color: #ffffff !important; 
+  padding: 12px; 
+  font-weight: 500;
+}
+
+input[type="date"], 
+input[type="text"], 
+input[type="number"], 
+select {
+  background-color: rgba(20, 20, 25, 0.6) !important; /* Deep sleek dark background */
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 8px !important;
+  padding: 12px 16px !important; /* Massive padding to match your photo */
+  font-family: inherit;
+  font-size: 0.95rem;
+  outline: none;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+  min-width: 160px; /* Prevents the date box from getting squished */
+}
+
+input[type="date"]:focus, 
+input[type="text"]:focus, 
+select:focus {
+  border-color: var(--accent-primary) !important;
+  background-color: rgba(168, 85, 247, 0.05) !important;
+  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.2) !important;
+}
+
+/* Custom styling for the little calendar icon */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.4;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 0.8;
+}
+
+/* Clean label styling for "From" and "To" text */
+.filter-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-right: 10px;
+}
+
+/* =========================================================================
    THE FLOATING GLASS ISLAND (Header + Nav)
--------------------------------------- */
+   ========================================================================= */
 .sticky-header-group { 
   position: sticky; 
-  top: 20px; /* Floats down from the top edge */
+  top: 20px; 
   z-index: 1000; 
-  margin: 0 40px 20px 40px; /* Detaches it from the sides */
+  margin: 0 40px 20px 40px; 
   background: var(--bg-menu);
   backdrop-filter: blur(40px) saturate(150%);
   -webkit-backdrop-filter: blur(40px) saturate(150%);
   border: 1px solid var(--border-color);
-  border-radius: 24px; /* Perfectly rounded */
+  border-radius: 24px; 
   box-shadow: var(--shadow-glass);
   overflow: hidden; 
 }
@@ -90,8 +130,6 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .horizontal-menu a { color: var(--text-muted); text-decoration: none; font-size: 0.9rem; font-weight: 500; display: flex; align-items: center; gap: 8px; transition: 0.2s; padding-bottom: 12px; margin-bottom: -13px; border-bottom: 2px solid transparent; }
 .horizontal-menu a:hover { color: var(--text-main); }
 .horizontal-menu a.active { color: var(--text-main); border-bottom: 2px solid var(--text-main); }
-
-/* ... (Keep your existing User Controls, Dropdown Menu, Dashboard Container, KPI Cards, and Chart overrides exactly as they were in the previous step) ... */
 
 /* Glassmorphic Profile Dropdown Menu */
 .dropdown-menu { 
@@ -115,9 +153,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .dropdown-divider { height: 1px; background: var(--border-color); margin: 4px 0; }
 .text-danger { color: var(--accent-red) !important; }
 
-/* -------------------------------------
+/* =========================================================================
    UNIVERSAL COMPONENTS (Cards, Badges)
--------------------------------------- */
+   ========================================================================= */
 .dashboard-container { 
   padding: 40px; 
   width: 100%; 
@@ -185,9 +223,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 .btn-ghost:hover { color: var(--text-main); background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.15); transform: scale(1.02); }
 
-/* -------------------------------------
+/* =========================================================================
    APEXCHARTS DARK THEME OVERRIDES
--------------------------------------- */
+   ========================================================================= */
 .apexcharts-canvas { margin: 0 auto; }
 
 .apexcharts-menu {
@@ -244,9 +282,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   font-weight: 600 !important;
 }
 
-/* -------------------------------------
+/* =========================================================================
    CUSTOM DARK SCROLLBARS
--------------------------------------- */
+   ========================================================================= */
 ::-webkit-scrollbar { height: 8px; width: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 10px; }
