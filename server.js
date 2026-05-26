@@ -422,59 +422,117 @@ app.post('/api/projects/new', async (req, res) => {
         const safeProjectUriString = typeof finalProjectUri === 'object' ? finalProjectUri.uri : finalProjectUri;
 
         // ------------------------------------------------------------------------
-        // STEP 3: ADD TASKS SEQUENTIALLY WITH NESTING & ESTIMATED HOURS
+        // STEP 3: ADD TASKS SEQUENTIALLY WITH NESTING, BALANCE, & STRICT NULLS
         // ------------------------------------------------------------------------
         console.log(`\n[STEP 3] Adding ${payload.tasks.length} Tasks`);
         let successfulTasks = 0;
         let capturedTasks = []; 
-        let levelUriMap = {}; // Tracks the most recent parent URI for each depth level
+        let levelUriMap = {}; // Tracks the most recent task URI for each depth level
 
         if (safeProjectUriString && payload.tasks && payload.tasks.length > 0) {
             for (let i = 0; i < payload.tasks.length; i++) {
                 const t = payload.tasks[i];
                 const level = t.outlineLevel || 1;
                 
-                // Determine the parent URI. If at level 2, the parent is the last level 1 URI.
-                const parentUri = level > 1 ? (levelUriMap[level - 1] || null) : null;
-                
-                const parentBlock = parentUri ? {
-                    uri: parentUri,
-                    name: null,
-                    parent: null,
+                // ROUTING FIX: Top level tasks have NO parent. Nested tasks use the previous level's Task URI.
+                let parentUri = null; 
+                if (level > 1 && levelUriMap[level - 1]) {
+                    parentUri = levelUriMap[level - 1];
+                }
+
+                // DYNAMIC TARGET BLOCK: Completely omits the "parent" key if there is no parent
+                let targetBlock = {
+                    uri: null, 
+                    name: t.name,
                     parameterCorrelationId: null
-                } : null;
+                };
+
+                // Only inject the parent object if a parent actually exists
+                if (parentUri) {
+                    targetBlock.parent = {
+                        uri: parentUri,
+                        name: null,
+                        parent: null,
+                        parameterCorrelationId: null
+                    };
+                }
 
                 const taskPayload = {
-                    project: { uri: safeProjectUriString },
+                    project: { 
+                        uri: safeProjectUriString,
+                        name: null,
+                        code: null,
+                        parameterCorrelationId: null 
+                    },
                     task: {
-                        target: { 
-                            uri: null, 
-                            name: t.name,
-                            parent: parentBlock, 
-                            parameterCorrelationId: null
-                        },
+                        target: targetBlock, // Uses the dynamically built target block
                         name: t.name,
-                        code: "",
-                        description: "",
+                        code: null,
+                        description: null,
                         timeEntryDateRange: {
                             startDate: parseDateForReplicon(t.start),
-                            endDate: parseDateForReplicon(t.end)
+                            endDate: parseDateForReplicon(t.end),
+                            relativeDateRangeUri: null,
+                            relativeDateRangeAsOfDate: null
                         },
-                        estimatedHours: {
-                            hours: t.roundedHours || 0,
+                        percentCompleted: "0",
+                        // Milestone = false (no time entry), Regular Task = true
+                        isTimeEntryAllowed: t.isMilestone ? "false" : "true",
+                        estimatedHours: t.roundedHours > 0 ? {
+                            hours: t.roundedHours.toString(),
                             minutes: null,
                             seconds: null
-                        },
-                        percentCompleted: 0,
-                        isTimeEntryAllowed: !t.isMilestone,
-                        isClosed: false,
+                        } : null,
+                        isClosed: "false",
                         customFieldValues: [
-                            { customField: { uri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:ff2f15e9-8238-4691-89ee-53d780cd899a" }, number: 0 },
-                            { customField: { uri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:45c59ea2-2ceb-496a-8544-c836cbcac626" }, number: null },
-                            { customField: { uri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:ad68d557-6779-4adc-8925-a25c403f8504" }, text: "Unlimited" }
+                            {
+                                customField: {
+                                    uri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:ff2f15e9-8238-4691-89ee-53d780cd899a",
+                                    name: null,
+                                    groupUri: null
+                                },
+                                text: null,
+                                date: null,
+                                dropDownOption: null,
+                                number: "0"
+                            },
+                            {
+                                customField: {
+                                    uri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:45c59ea2-2ceb-496a-8544-c836cbcac626",
+                                    name: null,
+                                    groupUri: null
+                                },
+                                text: null,
+                                date: null,
+                                dropDownOption: null,
+                                number: null
+                            },
+                            {
+                                customField: {
+                                    uri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:ad68d557-6779-4adc-8925-a25c403f8504",
+                                    name: null,
+                                    groupUri: null
+                                },
+                                text: "unlimited",
+                                date: null,
+                                dropDownOption: null,
+                                number: null
+                            }
                         ],
-                        estimatedCost: { amount: 0, currency: { uri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:currency:8" } },
-                        timeAndExpenseEntryTypeUri: "urn:replicon:time-and-expense-entry-type:billable-and-non-billable"
+                        estimatedCost: {
+                            amount: "0",
+                            currency: {
+                                uri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:currency:8",
+                                name: null,
+                                symbol: null
+                            }
+                        },
+                        costTypeUri: null,
+                        timeAndExpenseEntryTypeUri: "urn:replicon:time-and-expense-entry-type:billable-and-non-billable",
+                        assignedResources: [],
+                        keyValues: [],
+                        historicalKeyValues: [],
+                        extensionFieldValues: []
                     },
                     unitOfWorkId: `batch_${Date.now()}_${i}`
                 };
