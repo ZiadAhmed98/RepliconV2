@@ -1,3 +1,27 @@
+############# .env #############
+
+AdminPWD=7b=90{6;D,it[z>%@<
+GMPWD=7b=90{6;D,it[z>%@<
+ModPWD=7b=90{6;D,it[z>%@<
+REPLICON_COMPANY=LiveRoute
+REPLICON_TOKEN=ntfwG6EOa0+ELDH1f8KInQEANjc2YTEzYzMzYWY5NGQyZmJiMDc4NzY0YWM5NzZiNmU
+
+############# Server Files #############
+/var/www/replicon/
+This is your main base of operations. Your entire React/Node codebase lives here.
+
+/var/www/replicon/deploy.sh
+The Engine: The bash script that actually pulls from GitHub, stops Docker, rebuilds your app, and forces all the terminal text into your log file.
+
+/var/www/replicon/deploy.log
+The Tape Drive: A simple, dumb text file. The deploy script dumps text into it, and your web UI reads text out of it.
+
+/var/www/replicon/logServer.js
+The Broadcaster: The Node.js Express server running on PM2. It serves the beautiful dark-mode UI on port 8080 and constantly reads deploy.log.
+
+/etc/webhook.conf
+The Bouncer: The configuration file for the port 9000 listener. It verifies GitHub's secret password and pulls the trigger on deploy.sh.
+
 ############# Global API calls #############
 https://ap1.replicon.com/services/help/all
 
