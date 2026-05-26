@@ -45,8 +45,8 @@ export default function Login({ onLoginSuccess }) {
         <div className={styles.logoWrap}>
           <i className='bx bx-hive' style={{ fontSize: '3rem', color: 'var(--accent-primary)' }}></i>
         </div>
-        <h2 className={styles.title}>MDS Premium Analytics</h2>
-        <p className={styles.subtitle}>Enter your analytics credentials.</p>
+        <h2 className={styles.title}>Liveroute Analytics</h2>
+        <p className={styles.subtitle}>Enter your credentials.</p>
         
         <form onSubmit={handleLogin}>
           <input 

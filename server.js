@@ -52,7 +52,7 @@ app.post('/api/login', async (req, res) => {
     const token = (process.env.REPLICON_TOKEN || "").trim();
     const company = (process.env.REPLICON_COMPANY || "").trim();
 
-    if (!token || !company) return res.status(500).json({ error: "Server config error." });
+    if (!token || !company) return res.status(500).json({ error: "Token / Company config error." });
 
     const ALLOWED_USERS = { "ziad": process.env.AdminPWD, "mod": process.env.ModPWD, "gm": process.env.GMPWD };
     const REPLICON_LOGINS = { "ziad": "z.shafik", "mod": "i.najmi", "gm": "H.matta" };
