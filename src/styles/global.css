@@ -46,6 +46,25 @@ body {
 * { box-sizing: border-box; }
 
 /* -------------------------------------
+   KILL DEFAULT REACT/VITE WRAPPERS
+-------------------------------------- */
+html, body, #root, #app {
+  width: 100%;
+  max-width: 100% !important;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+/* Ensure our dashboard container takes advantage of the newly freed space */
+.dashboard-container { 
+  padding: 40px; 
+  width: 100%; 
+  max-width: none !important; /* Forces it to ignore any old rules */
+  box-sizing: border-box; 
+}
+
+/* -------------------------------------
    UNIVERSAL APP SHELL (Nav & Header)
 -------------------------------------- */
 .top-ribbon { 
@@ -122,11 +141,6 @@ body {
 .dropdown-menu a:hover { background: rgba(255,255,255,0.05); color: var(--text-main); }
 .dropdown-divider { height: 1px; background: var(--border-color); margin: 4px 0; }
 .text-danger { color: var(--accent-red) !important; }
-
-/* -------------------------------------
-   UNIVERSAL COMPONENTS (Cards, Badges)
--------------------------------------- */
-.dashboard-container { padding: 40px; max-width: 1800px; margin: 0 auto; overflow: hidden; }
 
 .badges-container { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 28px; }
 .badge-base { padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; height: 24px; letter-spacing: 0.03em; }
