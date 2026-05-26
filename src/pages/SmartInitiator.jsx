@@ -19,7 +19,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
       programs: getArray('programs'),
       clients: getArray('clients'),
       users: getArray('users'),
-      projectManagers: getArray('projectManagers') // <-- Added the strict PM dictionary here
+      projectManagers: getArray('projectManagers') 
     };
 
     // Safely sort them alphabetically without mutating the original state
@@ -30,19 +30,15 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
     return dicts;
   }, [dataMatrix]);
 
-  const roster = useMemo(() => {
-    const r = dataMatrix?.roster || [];
-    return r.filter(e => e.status === "Enabled").sort((a,b) => a.name.localeCompare(b.name));
-  }, [dataMatrix]);
-
   const fallbackAccountManagers = useMemo(() => {
       let ams = dataMatrix?.accountManagers || [];
-      if (ams.length === 0 && roster.length > 0) ams = roster.map(e => e.name);
+      // Use the users dictionary instead of roster for the fallback to ensure consistency
+      if (ams.length === 0 && dictionaries.users.length > 0) ams = dictionaries.users.map(e => e.name);
       return ams;
-  }, [dataMatrix, roster]);
+  }, [dataMatrix, dictionaries.users]);
 
   // =========================================================================
-  // 2. COMPONENT STATE (Tracking Clean Strings)
+  // 2. COMPONENT STATE
   // =========================================================================
   const fileInputRef = useRef(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -52,7 +48,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   const [newClientName, setNewClientName] = useState('');
 
   // Values track the NAMES shown in the UI. 
-  // We will map them to URIs automatically upon submission.
   const [formData, setFormData] = useState({
     projectName: '', projectCode: '', 
     clientName: '', programName: '', projectManagerName: '', departmentName: 'Service Delivery', locationName: '', 
@@ -158,26 +153,34 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
     const mappedTasks = tasks.map(t => {
       const validNames = t.assignees.filter(a => a !== "");
       
+      // CLEAN 1-to-1 MAPPING: Because the UI dropdown uses dictionaries.users, 
+      // this will match perfectly every single time.
       const assignedUserUris = validNames.map(name => {
-        // Look up the name in the dictionary to get the URN string
-        const userObj = dictionaries.users.find(u => u.name === name);
-        return userObj ? userObj.uri : null;
-      }).filter(uri => uri !== null); // Strip out any bad matches
+        return dictionaries.users.find(u => u.name === name)?.uri || null;
+      }).filter(uri => uri !== null);
 
       return {
         ...t,
-        assignedUsers: assignedUserUris // <-- Inject the key the backend is looking for!
+        assignedUsers: assignedUserUris // <-- Payload ready for backend
       };
     });
+
+    // SAFETY NET: Ensure we didn't lose anyone
+    const totalAssignedInUI = tasks.reduce((sum, t) => sum + t.assignees.filter(a => a !== "").length, 0);
+    const totalMappedURIs = mappedTasks.reduce((sum, t) => sum + t.assignedUsers.length, 0);
+
+    if (totalAssignedInUI > 0 && totalMappedURIs === 0) {
+        alert("CRITICAL ERROR: Failed to map user names to URIs. Check console.");
+        return; 
+    }
 
     // Perform the URI lookup dynamically right before sending
     const safeClientUri = dictionaries.clients.find(c => c.name === formData.clientName)?.uri || undefined;
     const safeProgramUri = dictionaries.programs.find(p => p.name === formData.programName)?.uri || undefined;
     const safeLocationUri = dictionaries.locations.find(l => l.name === formData.locationName)?.uri || undefined;
     
-    // Look up PM using the strict projectManagers list
     let safePmUri = dictionaries.projectManagers.find(u => u.name === formData.projectManagerName)?.uri;
-    if (!safePmUri) safePmUri = dictionaries.users.find(u => u.name === formData.projectManagerName)?.uri; // Fallback
+    if (!safePmUri) safePmUri = dictionaries.users.find(u => u.name === formData.projectManagerName)?.uri;
 
     const payload = { 
       ...formData, 
@@ -223,18 +226,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
       setIsSubmitting(false);
     }
   };
-
-  // =========================================================================
-  // 🚀 BROWSER CONSOLE DEBUGGER (REMOVE BEFORE PRODUCTION)
-  // =========================================================================
-  console.log("🟦 [DEBUG] 1. Raw dataMatrix from Parent:", dataMatrix);
-  console.log("🟧 [DEBUG] 2. Processed Dictionaries:", dictionaries);
-  console.log("🟩 [DEBUG] 3. Processed Roster:", roster);
-  if (roster.length === 0 && dataMatrix?.roster?.length > 0) {
-      console.warn("⚠️ [WARNING] Parent sent roster data, but the filter wiped it out! Check the 'status' field.");
-      console.log("Raw Roster Item Sample:", dataMatrix.roster[0]);
-  }
-  // =========================================================================
 
   // =========================================================================
   // 6. RENDER UI
@@ -400,7 +391,8 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
             <span>BULK ASSIGN:</span>
             <select className={styles.formControl} style={{ maxWidth: '300px' }} value={bulkAssignValue} onChange={e => setBulkAssignValue(e.target.value)}>
               <option value="">-- Select Engineer for all tasks --</option>
-              {roster.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
+              {/* UPDATED: Using dictionaries.users instead of roster */}
+              {dictionaries.users.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
             </select>
             <button className={styles.btnPrimary} style={{ padding: '10px 20px', fontSize: '0.9rem' }} onClick={applyBulkAssign}>Apply</button>
           </div>
@@ -433,7 +425,8 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
                         <div key={aIndex} className={styles.assigneeRow}>
                           <select className={styles.formControl} style={{ padding: '8px', fontSize: '0.85rem' }} value={assignee} onChange={e => handleAssigneeChange(tIndex, aIndex, e.target.value)}>
                             <option value="">-- Unassigned --</option>
-                            {roster.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
+                            {/* UPDATED: Using dictionaries.users instead of roster */}
+                            {dictionaries.users.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
                           </select>
                           {aIndex === 0 ? (
                             <button className={styles.btnIcon} onClick={() => addAssignee(tIndex)} title="Add engineer"><i className='bx bx-plus'></i></button>
