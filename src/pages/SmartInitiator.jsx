@@ -18,7 +18,8 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
       locations: getArray('locations'),
       programs: getArray('programs'),
       clients: getArray('clients'),
-      users: getArray('users')
+      users: getArray('users'),
+      projectManagers: getArray('projectManagers') // <-- Added the strict PM dictionary here
     };
 
     // Safely sort them alphabetically without mutating the original state
@@ -153,24 +154,35 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   const submitProject = async () => {
     if (!isFormValid) return; 
     
-    const mappedTasks = tasks.map(t => ({
-      ...t,
-      assignees: t.assignees.filter(a => a !== "")
-    }));
+    // Convert the plain UI names into the exact URIs the backend needs
+    const mappedTasks = tasks.map(t => {
+      const validNames = t.assignees.filter(a => a !== "");
+      
+      const assignedUserUris = validNames.map(name => {
+        // Look up the name in the dictionary to get the URN string
+        const userObj = dictionaries.users.find(u => u.name === name);
+        return userObj ? userObj.uri : null;
+      }).filter(uri => uri !== null); // Strip out any bad matches
+
+      return {
+        ...t,
+        assignedUsers: assignedUserUris // <-- Inject the key the backend is looking for!
+      };
+    });
 
     // Perform the URI lookup dynamically right before sending
     const safeClientUri = dictionaries.clients.find(c => c.name === formData.clientName)?.uri || undefined;
     const safeProgramUri = dictionaries.programs.find(p => p.name === formData.programName)?.uri || undefined;
     const safeLocationUri = dictionaries.locations.find(l => l.name === formData.locationName)?.uri || undefined;
     
-    // Fallback logic for PM: Use users dictionary if available, otherwise search roster
-    let safePmUri = dictionaries.users.find(u => u.name === formData.projectManagerName)?.uri;
-    if (!safePmUri) safePmUri = roster.find(r => r.name === formData.projectManagerName)?.uri;
+    // Look up PM using the strict projectManagers list
+    let safePmUri = dictionaries.projectManagers.find(u => u.name === formData.projectManagerName)?.uri;
+    if (!safePmUri) safePmUri = dictionaries.users.find(u => u.name === formData.projectManagerName)?.uri; // Fallback
 
     const payload = { 
       ...formData, 
       clientMode: clientMode,
-      clientName: clientMode === 'new' ? newClientName : undefined, // Only pass if generating new
+      clientName: clientMode === 'new' ? newClientName : undefined,
       clientUri: safeClientUri,
       programUri: safeProgramUri,
       locationUri: safeLocationUri,
@@ -313,9 +325,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
           <label>Project Manager *</label>
           <select className={styles.formControl} value={formData.projectManagerName} onChange={e => setFormData({...formData, projectManagerName: e.target.value})}>
             <option value="">Select a Manager...</option>
-            <option value="Ziad Shafik">Ziad Shafik</option>
-            <option value="Irfan Najmi">Irfan Najmi</option>
-            {roster.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
+            {dictionaries.projectManagers.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
           </select>
         </div>
 
