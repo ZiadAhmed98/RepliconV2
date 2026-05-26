@@ -5,7 +5,7 @@ export default function SessionManager({ onLogout }) {
   const [timeLeft, setTimeLeft] = useState(900); // 15 minutes in seconds for the warning countdown
 
   // 15 mins (900,000ms) until warning, 30 mins (1,800,000ms) total until force logout
-  const IDLE_TIMEOUT = 10; 
+  const IDLE_TIMEOUT = 900000; 
   const WARNING_DURATION = 900000; 
 
   const resetTimer = useCallback(() => {
