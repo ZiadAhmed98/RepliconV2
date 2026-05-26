@@ -25,10 +25,9 @@ export default function Login({ onLoginSuccess }) {
         const userData = { name: finalName, uri: data.uri };
         localStorage.setItem('mds_dashboard_session', JSON.stringify({
           user: userData,
-          expiresAt: new Date().getTime() + (3600000) // 1 Hour session
+          expiresAt: new Date().getTime() + (3600000) 
         }));
         
-        // This instantly triggers the App.js LoadingScreen phase!
         onLoginSuccess(userData);
       } else {
         setError(data.error || "Login failed.");
