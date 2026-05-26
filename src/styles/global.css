@@ -2,18 +2,14 @@
    GLOBAL THEME - APPLE "VISION" MESH GLASS 
    ========================================================================= */
 :root {
-  /* True black base to make the glowing orbs pop */
   --bg-main: #000000; 
-  /* Highly translucent glass for the cards */
   --bg-card: rgba(35, 35, 40, 0.4); 
-  --bg-menu: rgba(20, 20, 25, 0.6); 
+  --bg-menu: rgba(25, 25, 30, 0.65); 
   
-  /* Typography Colors */
   --text-main: #ffffff; 
-  --text-muted: #98989d; /* Apple's exact iOS Secondary Label Gray */
-  --border-color: rgba(255, 255, 255, 0.05); 
+  --text-muted: #98989d; 
+  --border-color: rgba(255, 255, 255, 0.08); 
   
-  /* Accent Colors */
   --accent-primary: #a855f7; 
   --accent-primary-dim: rgba(168, 85, 247, 0.15);
   --accent-blue: #32ade6; 
@@ -22,107 +18,80 @@
   --accent-yellow: #ffd60a; 
   --accent-red: #ff3b30;
   
-  /* Massive, smooth corner radii matching the reference */
   --radius-md: 20px; 
   --radius-lg: 32px; 
-  
-  /* Premium 3D glass shadows (Inner highlight + outer drop shadow) */
   --shadow-glass: inset 0 1px 1px rgba(255, 255, 255, 0.15), 0 24px 48px rgba(0, 0, 0, 0.4); 
 }
 
-/* -------------------------------------
-   KILL DEFAULT REACT/VITE WRAPPERS (Full Width Fix)
--------------------------------------- */
 html, body, #root, #app {
-  width: 100%;
-  max-width: 100% !important;
-  margin: 0;
-  padding: 0;
-  overflow-x: hidden;
+  width: 100%; max-width: 100% !important; margin: 0; padding: 0; overflow-x: hidden;
 }
 
-* { box-sizing: border-box; }
-
-/* -------------------------------------
-   THE BLURRY MESH BACKGROUND
--------------------------------------- */
 body { 
   font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif; 
   background-color: var(--bg-main); 
-  /* THE MAGIC: Dynamically generated blurry color orbs! */
   background-image: 
     radial-gradient(at 10% 10%, rgba(168, 85, 247, 0.18) 0px, transparent 40vw),
     radial-gradient(at 90% 20%, rgba(50, 173, 230, 0.15) 0px, transparent 40vw),
     radial-gradient(at 50% 90%, rgba(255, 214, 10, 0.08) 0px, transparent 50vw);
-  background-attachment: fixed; /* Keeps the mesh in place while scrolling */
+  background-attachment: fixed; 
   color: var(--text-main); 
   -webkit-font-smoothing: antialiased; 
   letter-spacing: -0.01em; 
 }
 
+* { box-sizing: border-box; }
+
 /* -------------------------------------
-   FIX NATIVE BROWSER DROPDOWNS
+   FIX NATIVE CALENDARS & DROPDOWNS
 -------------------------------------- */
-select { color-scheme: dark; }
+select, input[type="date"], input[type="time"] { 
+  color-scheme: dark !important; 
+}
 select option { 
-  background-color: #1c1c1e !important; 
-  color: #ffffff !important; 
-  padding: 12px; 
-  font-weight: 500;
+  background-color: #1c1c1e !important; color: #ffffff !important; padding: 12px; font-weight: 500;
+}
+/* Force Date inputs to be dark glass */
+input[type="date"] {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: #ffffff !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 12px;
+}
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1); opacity: 0.6; cursor: pointer;
 }
 
 /* -------------------------------------
-   UNIVERSAL APP SHELL (Nav & Header)
+   THE FLOATING GLASS ISLAND (Header + Nav)
 -------------------------------------- */
+.sticky-header-group { 
+  position: sticky; 
+  top: 20px; /* Floats down from the top edge */
+  z-index: 1000; 
+  margin: 0 40px 20px 40px; /* Detaches it from the sides */
+  background: var(--bg-menu);
+  backdrop-filter: blur(40px) saturate(150%);
+  -webkit-backdrop-filter: blur(40px) saturate(150%);
+  border: 1px solid var(--border-color);
+  border-radius: 24px; /* Perfectly rounded */
+  box-shadow: var(--shadow-glass);
+  overflow: hidden; 
+}
+
 .top-ribbon { 
-  background: var(--bg-menu); 
-  backdrop-filter: blur(40px); 
-  -webkit-backdrop-filter: blur(40px);
-  color: var(--text-main); 
-  padding: 16px 40px; 
-  display: flex; 
-  justify-content: space-between; 
-  align-items: center; 
+  padding: 16px 30px; 
+  display: flex; justify-content: space-between; align-items: center; 
   border-bottom: 1px solid var(--border-color); 
 }
 
-.sticky-header-group { 
-  position: sticky; 
-  top: 0; 
-  z-index: 1000; 
-  background: var(--bg-menu);
-  backdrop-filter: blur(40px);
-  -webkit-backdrop-filter: blur(40px);
-  border-bottom: 1px solid var(--border-color);
-}
-
-.user-controls { display: flex; align-items: center; gap: 20px; font-size: 0.95rem; font-weight: 500; position: relative; }
-.user-profile { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 6px 12px; border-radius: 16px; border: 1px solid transparent; transition: all 0.3s ease; }
-.user-profile:hover { background: rgba(255,255,255,0.05); border-color: var(--border-color); }
-
-.user-avatar { 
-  width: 36px; 
-  height: 36px; 
-  border-radius: 50%; 
-  background: linear-gradient(135deg, var(--accent-primary), #d8b4fe); 
-  display: flex; 
-  justify-content: center; 
-  align-items: center; 
-  color: #fff; 
-  font-weight: 700; 
-  font-size: 0.9rem; 
-  box-shadow: 0 4px 15px rgba(168, 85, 247, 0.4);
-}
-
-.user-info { display: flex; flex-direction: column; }
-.user-name { font-size: 0.9rem; font-weight: 600; color: var(--text-main); letter-spacing: -0.01em; }
-.user-role { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
-
-.horizontal-menu { padding: 0 40px; display: flex; align-items: center; }
+.horizontal-menu { padding: 0 30px; display: flex; align-items: center; }
 .horizontal-menu ul { list-style: none; display: flex; gap: 35px; margin: 0; padding: 12px 0; }
 .horizontal-menu a { color: var(--text-muted); text-decoration: none; font-size: 0.9rem; font-weight: 500; display: flex; align-items: center; gap: 8px; transition: 0.2s; padding-bottom: 12px; margin-bottom: -13px; border-bottom: 2px solid transparent; }
 .horizontal-menu a:hover { color: var(--text-main); }
 .horizontal-menu a.active { color: var(--text-main); border-bottom: 2px solid var(--text-main); }
+
+/* ... (Keep your existing User Controls, Dropdown Menu, Dashboard Container, KPI Cards, and Chart overrides exactly as they were in the previous step) ... */
 
 /* Glassmorphic Profile Dropdown Menu */
 .dropdown-menu { 
