@@ -1,87 +1,98 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import Login from './components/Login';
-import Dashboard from './pages/Dashboard';
-import SmartInitiator from './pages/SmartInitiator';
+import { Routes, Route } from 'react-router-dom';
+
+// Global UI Components
 import Ribbon from './components/Ribbon';
 import Navbar from './components/Navbar';
-import SessionManager from './components/SessionManager';
-import LoadingScreen from './components/LoadingScreen';
+import SessionManager from './components/SessionManager'; // NEW: Added Session Manager
+import LoadingScreen from './components/LoadingScreen';   // UPGRADE: Swapped to Apple Loading Screen
+import Login from './components/Login';                   // UPGRADE: Swapped to the new Login component
+
+// Pages
+import Dashboard from './pages/Dashboard';
+import Employee from './pages/Employee';
+import ProjectDeepDive from './pages/ProjectDeepDive';
+import TimesheetOps from './pages/TimesheetOps';
+import SmartInitiator from './pages/SmartInitiator';
+
+// Data Engine
+import { useRepliconData } from './hooks/useRepliconData';
 
 export default function App() {
+  // 1. Session State
   const [sessionUser, setSessionUser] = useState(null);
-  const [dataMatrix, setDataMatrix] = useState(null); 
-  const [isFetching, setIsFetching] = useState(false);
-  const [isAppReady, setIsAppReady] = useState(false); // Prevents flashing the login screen
+  const [isAppReady, setIsAppReady] = useState(false); // Safely holds the UI until local storage is checked
 
-  const performSync = async () => {
-    setIsFetching(true);
-    try {
-      const response = await fetch('/api/dashboard');
-      const data = await response.json();
-      setDataMatrix(data);
-    } catch (error) {
-      alert("Failed to sync data from server.");
-    } finally {
-      setTimeout(() => setIsFetching(false), 500); 
-    }
-  };
-
-  // Check for existing session on page load
+  // Check local storage for an active session when the app loads
   useEffect(() => {
-    const storedSession = localStorage.getItem('mds_dashboard_session');
-    if (storedSession) {
-      const parsed = JSON.parse(storedSession);
-      if (parsed.expiresAt > Date.now()) {
-        setSessionUser(parsed.user);
-        performSync(); // Fetch data instantly if logged in!
-      } else {
-        localStorage.removeItem('mds_dashboard_session');
+    const session = localStorage.getItem('mds_dashboard_session');
+    if (session) {
+      try {
+        const parsed = JSON.parse(session);
+        if (new Date().getTime() < parsed.expiresAt) {
+          setSessionUser(parsed.user);
+        } else {
+          localStorage.removeItem('mds_dashboard_session');
+        }
+      } catch (e) { 
+        // Catch corrupt JSON and wipe it to prevent crashes
+        localStorage.removeItem('mds_dashboard_session'); 
       }
     }
     setIsAppReady(true);
   }, []);
 
-  const handleLoginSuccess = (userData) => {
-    setSessionUser(userData);
-    performSync(); // Fetch data instantly after a fresh login!
-  };
-
   const handleLogout = () => {
-    setSessionUser(null);
-    setDataMatrix(null);
     localStorage.removeItem('mds_dashboard_session');
+    setSessionUser(null);
   };
 
-  // Wait until we check local storage before rendering anything
+  // 2. The Data Engine (Only fires if we actually have a logged-in user)
+  // This is your North Star. We are leaving it completely untouched!
+  const { dataMatrix, loading, statusText, syncMatrixData } = useRepliconData(sessionUser);
+
+  // Prevent UI flash before storage check is complete
   if (!isAppReady) return null;
 
-  if (!sessionUser) {
-    return <Login onLoginSuccess={handleLoginSuccess} />;
-  }
-
+  // 4. Main Application Render
   return (
-    <Router>
-      <SessionManager onLogout={handleLogout} />
-      
-      {/* The Loading Screen will cover the UI while performSync is running */}
-      <LoadingScreen isVisible={isFetching} />
+    <div className="app-container">
+      {/* 1. If not logged in, show the NEW premium Login screen */}
+      {!sessionUser && <Login onLoginSuccess={(user) => setSessionUser(user)} />}
 
-      <div className="sticky-header-group">
-        <Ribbon sessionUser={sessionUser} onLogout={handleLogout} onSync={performSync} />
-        <Navbar />
-      </div>
+      {/* 2. Only render the Router block when logged in */}
+      {sessionUser && (
+        <>
+          {/* Security: 15-minute idle timeout warning */}
+          <SessionManager onLogout={handleLogout} />
+          
+          {/* The Apple Vision Loading Screen tied to your original loading state */}
+          <LoadingScreen isVisible={loading} />
+          
+          {/* THE STICKY HEADER WRAPPER (Your new Floating Glass Island) */}
+          <div className="sticky-header-group">
+            <Ribbon 
+              sessionUser={sessionUser} 
+              onLogout={handleLogout} 
+              onSync={() => syncMatrixData(true)} 
+            />
+            <Navbar />
+          </div>
 
-      <div className="dashboard-container">
-        {/* Only render the pages once the data has successfully downloaded */}
-        {dataMatrix && (
-          <Routes>
-            <Route path="/" element={<Dashboard dataMatrix={dataMatrix} />} />
-            <Route path="/new-project" element={<SmartInitiator dataMatrix={dataMatrix} syncMatrixData={performSync} />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        )}
-      </div>
-    </Router>
+          <main className="dashboard-container">
+            {/* Safe rendering: Only mount routes if dataMatrix isn't null to prevent child component crashes */}
+            {dataMatrix && (
+              <Routes>
+                <Route path="/" element={<Dashboard dataMatrix={dataMatrix} />} />
+                <Route path="/employee" element={<Employee dataMatrix={dataMatrix} sessionUser={sessionUser} />} />
+                <Route path="/projects" element={<ProjectDeepDive dataMatrix={dataMatrix} />} />
+                <Route path="/timesheets" element={<TimesheetOps dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} />} />
+                <Route path="/new-project" element={<SmartInitiator dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} />} />
+              </Routes>
+            )}
+          </main>
+        </>
+      )}
+    </div>
   );
 }
