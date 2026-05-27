@@ -161,7 +161,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   };
 
   // =========================================================================
-  // 5. STAGED FORM SUBMISSION (WITH GRANULAR UI PROGRESS)
+  // 5. REAL-TIME STREAMING FORM SUBMISSION
   // =========================================================================
   const submitProject = async () => {
     if (!isFormValid) return; 
@@ -175,14 +175,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
 
       return { ...t, assignedUsers: assignedUserUris };
     });
-
-    const totalAssignedInUI = tasks.reduce((sum, t) => sum + t.assignees.filter(a => a !== "").length, 0);
-    const totalMappedURIs = mappedTasks.reduce((sum, t) => sum + t.assignedUsers.length, 0);
-
-    if (totalAssignedInUI > 0 && totalMappedURIs === 0) {
-        alert("CRITICAL ERROR: Failed to map user names to URIs. Check console.");
-        return; 
-    }
 
     const safeClientUri = dictionaries.clients.find(c => c.name === formData.clientName)?.uri || undefined;
     const safeProgramUri = dictionaries.programs.find(p => p.name === formData.programName)?.uri || undefined;
@@ -208,73 +200,78 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
       tasks: mappedTasks 
     };
 
-    // ==============================================================
-    // THE OPTIMISTIC DEPLOYMENT SEQUENCE
-    // ==============================================================
     setIsDeploying(true);
+    setCurrentStep('initializing');
 
     try {
-      // Step 1: Client Setup
-      setCurrentStep('client');
-      await new Promise(r => setTimeout(r, 600)); // Artificial delay for UX
-
-      // Step 2: Project Base
-      setCurrentStep('project');
-      await new Promise(r => setTimeout(r, 600));
-
-      // Step 3: Tasks Progress Bar (Using REAL numbers from XML)
-      setCurrentStep('tasks');
-      setTotalCount(mappedTasks.length);
-      for (let i = 1; i <= mappedTasks.length; i++) {
-        setCurrentCount(i);
-        // Fast increment for effect
-        await new Promise(r => setTimeout(r, 40)); 
-      }
-
-      // Step 4: Resource Assignment Bar (Using REAL resource numbers)
-      setCurrentStep('resources');
-      setTotalCount(totalMappedURIs);
-      for (let i = 1; i <= totalMappedURIs; i++) {
-        setCurrentCount(i);
-        await new Promise(r => setTimeout(r, 80));
-      }
-
-      // Step 5: Final Server Call
-      setCurrentStep('finalizing');
-
-      // The Actual Backend Request
+      // We use a standard fetch, but we do NOT await response.json() yet
       const response = await fetch('/api/projects/new', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream' // Tells the server we want a stream
+        },
         body: JSON.stringify(payload)
       });
-      const result = await response.json();
-      
-      if(response.ok) {
-        // Hide loader to show alert
-        setIsDeploying(false);
-        alert(`SUCCESS: ${result.message}`);
+
+      if (!response.body) throw new Error("Readable streams not supported.");
+
+      // Attach a reader to the incoming data stream
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        // Decode the incoming data chunk from the server
+        const chunk = decoder.decode(value, { stream: true });
         
-        // Reset Form
-        setTasks([]); 
-        setNewClientName('');
-        setClientMode('existing');
-        setFormData({
-            projectName: '', projectCode: '', clientName: '', programName: '', 
-            projectManagerName: '', departmentName: '', employeeTypeName: '', locationName: '', 
-            startDate: '', endDate: '', status: 'Planning', percentCompleted: '0', 
-            billingType: 'Time & Materials', allowTimeEntry: 'Yes', 
-            clientBillingRateCopy: 'Keep Existing Billing Rates', timeAndExpenseEntry: 'Billable & Non-Billable',
-            accountManager: '', quotedHours: ''
-        });
-        syncMatrixData(true); 
-      } else {
-        setIsDeploying(false);
-        alert(`ERROR: ${result.error}\n\nCheck Docker Terminal for exact Payload and API errors.`);
+        // The server might send multiple updates rapidly, split by newlines
+        const events = chunk.split('\n').filter(Boolean);
+
+        for (const ev of events) {
+          try {
+            const data = JSON.parse(ev);
+            
+            // 1. UPDATE THE UI STATES IN REAL TIME
+            if (data.step) setCurrentStep(data.step);
+            if (data.current !== undefined) setCurrentCount(data.current);
+            if (data.total !== undefined) setTotalCount(data.total);
+
+            // 2. HANDLE SUCCESS
+            if (data.status === 'success') {
+              setIsDeploying(false);
+              alert(`SUCCESS: ${data.message}`);
+              
+              setTasks([]); 
+              setNewClientName('');
+              setClientMode('existing');
+              setFormData({
+                  projectName: '', projectCode: '', clientName: '', programName: '', 
+                  projectManagerName: '', departmentName: '', employeeTypeName: '', locationName: '', 
+                  startDate: '', endDate: '', status: 'Planning', percentCompleted: '0', 
+                  billingType: 'Time & Materials', allowTimeEntry: 'Yes', 
+                  clientBillingRateCopy: 'Keep Existing Billing Rates', timeAndExpenseEntry: 'Billable & Non-Billable',
+                  accountManager: '', quotedHours: ''
+              });
+              syncMatrixData(true);
+              return; // Exit the loop completely
+            }
+
+            // 3. HANDLE SERVER ERRORS
+            if (data.status === 'error') {
+              throw new Error(data.error);
+            }
+
+          } catch (err) {
+            console.error("Stream parse error:", err);
+          }
+        }
       }
-    } catch (e) { 
+    } catch (error) { 
       setIsDeploying(false);
-      alert("Failed to reach server."); 
+      alert("Deployment Failed: " + error.message); 
     }
   };
 

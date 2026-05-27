@@ -114,9 +114,6 @@ app.get('/api/dashboard', async (req, res) => {
             } catch (err) { return []; }
         };
 
-        // =========================================================================
-        // NEW: POLICY DATA ACCESS ENDPOINT PARSER (For Depts, Locations, EmpTypes)
-        // =========================================================================
         const fetchPolicyData = async (dictName, serviceName, methodName, searchKey) => {
             const url = `https://ap1.replicon.com/${company}/services/${serviceName}.svc/${methodName}`;
             const payload = {
@@ -140,7 +137,6 @@ app.get('/api/dashboard', async (req, res) => {
                 
                 items.forEach(item => {
                     let target = item;
-                    // Dynamically dig out the nested object containing displayText (e.g., item.location)
                     Object.values(item).forEach(val => {
                         if (val && typeof val === 'object' && val.displayText && val.uri) {
                             target = val;
@@ -152,7 +148,6 @@ app.get('/api/dashboard', async (req, res) => {
                     }
                 });
 
-                // Per Requirements: Exclude Row 0 (Company/LiveRoute) from Departments
                 if (dictName === 'Departments' && parsed.length > 0) {
                     parsed.shift(); 
                 }
@@ -166,14 +161,10 @@ app.get('/api/dashboard', async (req, res) => {
         dictionaries.clients = await fetchListData('Clients', 'ClientListService1', 'urn:replicon:client-list-column:client');
         dictionaries.programs = await fetchListData('Programs', 'ProgramListService1', 'urn:replicon:program-list-column:program');
         
-        // Use New Policy Scope Functions
         dictionaries.locations = await fetchPolicyData('Locations', 'LocationService1', 'GetPageOfLocationsInPolicyDataAccessScope', 'locationSearch');
         dictionaries.departments = await fetchPolicyData('Departments', 'DepartmentGroupService1', 'GetPageOfDepartmentGroupsInPolicyDataAccessScope', 'departmentGroupSearch');
         dictionaries.employeeTypes = await fetchPolicyData('EmployeeTypes', 'EmployeeTypeGroupService1', 'GetPageOfEmployeeTypeGroupsInPolicyDataAccessScope', 'employeeTypeGroupSearch');
         
-        // =========================================================================
-        // FETCH CUSTOM FIELD: ACCOUNT MANAGERS
-        // =========================================================================
         try {
             const amData = await wcfRequest('Fetch Account Managers', `https://ap1.replicon.com/${company}/services/CustomFieldService1.svc/GetEnabledCustomFieldDropDownOptions`, {
                 customFieldUri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:fc1a8ce8-7e33-4683-bdd3-c08387b82b58"
@@ -300,19 +291,27 @@ app.get('/api/dashboard', async (req, res) => {
 });
 
 // ============================================================================
-// PROJECT CREATION WORKFLOW (STRICT SEQUENCE USING REPLICON DRAFT PATTERN)
+// REAL-TIME STREAMING PROJECT CREATION WORKFLOW (SSE)
 // ============================================================================
 app.post('/api/projects/new', async (req, res) => {
+    // 1. OPEN THE STREAM (CRITICAL)
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Transfer-Encoding', 'chunked');
+    res.setHeader('Cache-Control', 'no-cache');
+
     const payload = req.body;
     const token = (process.env.REPLICON_TOKEN || "").trim();
     const company = (process.env.REPLICON_COMPANY || "").trim();
 
-    if (!token || !company) return res.status(500).json({ error: "Server configuration error. Tokens missing." });
+    if (!token || !company) {
+        res.write(JSON.stringify({ status: 'error', error: "Server configuration error. Tokens missing." }) + '\n');
+        return res.end();
+    }
 
     const headers = { 'Authorization': `Bearer ${token}`, 'X-Replicon-Security-Context': 'User', 'Content-Type': 'application/json' };
 
     console.log(`\n========================================================`);
-    console.log(`[WORKFLOW START] SEQUENTIAL PROJECT PROVISIONING`);
+    console.log(`[WORKFLOW START] REAL-TIME SEQUENTIAL PROVISIONING`);
     console.log(`========================================================`);
 
     const parseDateForReplicon = (dateStr) => {
@@ -333,11 +332,13 @@ app.post('/api/projects/new', async (req, res) => {
 
     try {
         // ------------------------------------------------------------------------
-        // STEP 1: CREATE NEW CLIENT (Using Draft Sequence)
+        // STEP 1: CREATE NEW CLIENT 
         // ------------------------------------------------------------------------
         let activeClientUri = payload.clientUri;
 
         if (payload.clientMode === 'new' && payload.clientName) {
+            // STREAM UPDATE: Adding Client
+            res.write(JSON.stringify({ step: 'client' }) + '\n');
             console.log(`\n[STEP 1] Creating New Client Draft: ${payload.clientName}`);
             
             let clientDraftRes = await wcfRequest("Create Client Draft", `https://ap1.replicon.com/${company}/services/ClientService1.svc/CreateNewDraft`, {}, headers);
@@ -345,25 +346,25 @@ app.post('/api/projects/new', async (req, res) => {
 
             await wcfRequest("Update Client Name", `https://ap1.replicon.com/${company}/services/ClientService1.svc/UpdateName`, { clientUri: clientDraftUri, name: payload.clientName }, headers);
 
-            if (payload.clientDraftUri) {
-            await wcfRequest("Update Account Manager Custom Field", `https://ap1.replicon.com/${company}/services/CustomFieldService1.svc/UpdateDropdownValue`, {
-                objectUri: clientDraftUri,
-                customFieldUri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:fc1a8ce8-7e33-4683-bdd3-c08387b82b58",
-                customFieldDropDownOptionUri: payload.accountManagerUri
-            }, headers);
-        }            
+            if (payload.accountManagerUri) {
+                await wcfRequest("Update Account Manager Custom Field", `https://ap1.replicon.com/${company}/services/CustomFieldService1.svc/UpdateDropdownValue`, {
+                    objectUri: clientDraftUri,
+                    customFieldUri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:fc1a8ce8-7e33-4683-bdd3-c08387b82b58",
+                    customFieldDropDownOptionUri: payload.accountManagerUri
+                }, headers);
+            }            
             let clientPubRes = await wcfRequest("Publish Client", `https://ap1.replicon.com/${company}/services/ClientService1.svc/PublishDraft`, { draftUri: clientDraftUri }, headers);
             activeClientUri = clientPubRes.Value || clientPubRes.d || clientPubRes.uri;
-        } else {
-            console.log(`\n[STEP 1] SKIPPED: Using existing client URI (${activeClientUri})`);
         }
 
         if (!activeClientUri) throw new Error("Pipeline aborted: Client URI is missing.");
 
         // ------------------------------------------------------------------------
-        // STEP 2: CREATE PROJECT SHELL (Using Draft Sequence)
+        // STEP 2: CREATE PROJECT SHELL
         // ------------------------------------------------------------------------
-        console.log(`\n[STEP 2] Creating Project Draft Sequence`);
+        // STREAM UPDATE: Generating Project Structure
+        res.write(JSON.stringify({ step: 'project' }) + '\n');
+        console.log(`\n[STEP 2] Creating Project Shell`);
 
         let projDraftRes = await wcfRequest("Create Project Draft", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/CreateNewDraft`, {}, headers);
         let projDraftUri = projDraftRes.Value || projDraftRes.d || projDraftRes.uri;
@@ -382,9 +383,6 @@ app.post('/api/projects/new', async (req, res) => {
             }, headers);
         }
 
-        // =========================================================================
-        // INJECTING NEW FIELDS (Dept, Emp Type, Location, Time Entry Toggle, Account Manager)
-        // =========================================================================
         if (payload.departmentUri) {
             await wcfRequest("Update Department", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateDepartmentGroup2`, {
                 projectUri: projDraftUri,
@@ -410,7 +408,6 @@ app.post('/api/projects/new', async (req, res) => {
             projectUri: projDraftUri,
             allowTimeEntryAgainstTasksOnly: payload.allowTimeEntry === 'Yes'
         }, headers);
-        // =========================================================================
 
         const safeClientUriString = typeof activeClientUri === 'object' ? activeClientUri.uri : activeClientUri;
 
@@ -445,31 +442,29 @@ app.post('/api/projects/new', async (req, res) => {
         const safeProjectUriString = typeof finalProjectUri === 'object' ? finalProjectUri.uri : finalProjectUri;
 
         // ------------------------------------------------------------------------
-        // STEP 3: ADD TASKS SEQUENTIALLY WITH NESTING, BALANCE, & CLEAN JSON TYPES
+        // STEP 3: ADD TASKS & STREAM THE PROGRESS TO THE UI
         // ------------------------------------------------------------------------
         console.log(`\n[STEP 3] Adding ${payload.tasks.length} Tasks`);
+        
         let successfulTasks = 0;
         let capturedTasks = []; 
         let levelUriMap = {}; 
 
         if (safeProjectUriString && payload.tasks && payload.tasks.length > 0) {
-            for (let i = 0; i < payload.tasks.length; i++) {
+            const totalTasks = payload.tasks.length;
+            
+            // STREAM UPDATE: Tasks initializing
+            res.write(JSON.stringify({ step: 'tasks', current: 0, total: totalTasks }) + '\n');
+
+            for (let i = 0; i < totalTasks; i++) {
                 const t = payload.tasks[i];
                 const level = t.outlineLevel || 1;
                 
                 let parentUri = null; 
-                if (level > 1 && levelUriMap[level - 1]) {
-                    parentUri = levelUriMap[level - 1];
-                }
+                if (level > 1 && levelUriMap[level - 1]) parentUri = levelUriMap[level - 1];
 
-                let targetBlock = {
-                    uri: null, 
-                    name: t.name
-                };
-
-                if (parentUri) {
-                    targetBlock.parent = { uri: parentUri };
-                }
+                let targetBlock = { uri: null, name: t.name };
+                if (parentUri) targetBlock.parent = { uri: parentUri };
 
                 const taskPayload = {
                     project: { uri: safeProjectUriString },
@@ -502,7 +497,7 @@ app.post('/api/projects/new', async (req, res) => {
                 };
 
                 try {
-                    let taskRes = await wcfRequest(`Add Task ${i+1}/${payload.tasks.length} (Level ${level})`, `https://ap1.replicon.com/${company}/services/ProjectService1.svc/AddTask`, taskPayload, headers);
+                    let taskRes = await wcfRequest(`Add Task ${i+1}/${totalTasks}`, `https://ap1.replicon.com/${company}/services/ProjectService1.svc/AddTask`, taskPayload, headers);
                     successfulTasks++;
 
                     let newTaskUri = taskRes.Value || taskRes.d || taskRes.uri;
@@ -510,13 +505,14 @@ app.post('/api/projects/new', async (req, res) => {
                         newTaskUri = newTaskUri.uri || newTaskUri.Value || newTaskUri.d;
                     }
 
-                    if (newTaskUri) {
-                        levelUriMap[level] = newTaskUri;
-                    }
-
+                    if (newTaskUri) levelUriMap[level] = newTaskUri;
+                    
                     if (newTaskUri && t.assignedUsers && t.assignedUsers.length > 0) {
                         capturedTasks.push({ taskUri: newTaskUri, assignedUris: t.assignedUsers });
                     }
+                    
+                    // STREAM UPDATE: Task successfully created! Ping the frontend progress bar!
+                    res.write(JSON.stringify({ step: 'tasks', current: i + 1, total: totalTasks }) + '\n');
                 } catch (error) {
                     console.error(`[XXX] TASK ${i+1} SKIPPED DUE TO ERROR`);
                 }
@@ -524,14 +520,23 @@ app.post('/api/projects/new', async (req, res) => {
         }
 
         // ------------------------------------------------------------------------
-        // STEP 4: ASSIGN UNIQUE USERS TO PROJECT SHELL
+        // STEP 4 & 5: RESOURCE ASSIGNMENT & STREAMING PROGRESS
         // ------------------------------------------------------------------------
-        console.log(`\n[STEP 4] Assigning Unique Users to Project Shell`);
+        console.log(`\n[STEP 4 & 5] Assigning Users`);
         const uniqueUsers = new Set();
+        let totalResourceAssignments = 0;
+
         capturedTasks.forEach(ct => {
             ct.assignedUris.forEach(u => uniqueUsers.add(u));
+            totalResourceAssignments += ct.assignedUris.length; // Calculate total operations for the progress bar
         });
 
+        // STREAM UPDATE: Resources initializing
+        res.write(JSON.stringify({ step: 'resources', current: 0, total: totalResourceAssignments }) + '\n');
+        
+        let completedAssignments = 0;
+
+        // Add to Project Shell First (Quick background loop)
         for (const userUri of uniqueUsers) {
             try {
                 await wcfRequest(`Assign User to Project`, `https://ap1.replicon.com/${company}/services/ProjectService1.svc/AssignResourceToProject`, {
@@ -539,15 +544,10 @@ app.post('/api/projects/new', async (req, res) => {
                     resourceUri: userUri,
                     resourceToReplaceUri: null
                 }, headers);
-            } catch (error) {
-                console.error(`[XXX] Failed to assign user ${userUri} to project`);
-            }
+            } catch (error) {}
         }
 
-        // ------------------------------------------------------------------------
-        // STEP 5: BULK ASSIGN USERS TO SPECIFIC TASKS
-        // ------------------------------------------------------------------------
-        console.log(`\n[STEP 5] Bulk Assigning Users to Specific Tasks`);
+        // Bulk Assign to Specific Tasks (This moves the progress bar)
         for (let i = 0; i < capturedTasks.length; i++) {
             const ct = capturedTasks[i];
             try {
@@ -556,24 +556,38 @@ app.post('/api/projects/new', async (req, res) => {
                     resourceUris: ct.assignedUris,
                     isAssigned: true
                 }, headers);
+                
+                completedAssignments += ct.assignedUris.length;
+                
+                // STREAM UPDATE: Resource successfully assigned! Ping the frontend progress bar!
+                res.write(JSON.stringify({ step: 'resources', current: completedAssignments, total: totalResourceAssignments }) + '\n');
             } catch (error) {
                 console.error(`[XXX] Failed to assign users to task ${ct.taskUri}`);
             }
         }
 
+        // STREAM UPDATE: Finalizing
+        res.write(JSON.stringify({ step: 'finalizing' }) + '\n');
+
         console.log(`\n=============================================================`);
         console.log(`✅ [WORKFLOW COMPLETE] Provisioning finished!`);
         console.log(`=============================================================\n`);
         
-        res.status(200).json({ 
-            success: true, 
+        // FINAL STREAM RESPONSE
+        res.write(JSON.stringify({ 
+            status: 'success', 
             message: `Successfully created project ${payload.projectCode}, injected ${successfulTasks} tasks, and completed team assignments!`,
             projectUri: safeProjectUriString
-        });
+        }) + '\n');
+        
+        // CRITICAL: Close the stream connection!
+        res.end();
 
     } catch (error) {
         console.error("❌ [SERVER] WCF Flow Failed:", error);
-        res.status(500).json({ error: error.message || "An error occurred during project creation." });
+        // CRITICAL: Stream the error back and close the connection!
+        res.write(JSON.stringify({ status: 'error', error: error.message || "An error occurred during project creation." }) + '\n');
+        res.end();
     }
 });
 
