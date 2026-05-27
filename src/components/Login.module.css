@@ -71,11 +71,11 @@
 
 .loginBtn {
   width: 100%;
-  padding: 14px;
+  padding: 14px; /* Perfectly matches the input height */
   background: var(--accent-primary);
   color: #ffffff;
   border: none;
-  border-radius: 100px; /* Apple pill shape */
+  border-radius: 12px; /* Changed from 100px pill to match inputs */
   font-weight: 600;
   cursor: pointer;
   font-size: 1rem;

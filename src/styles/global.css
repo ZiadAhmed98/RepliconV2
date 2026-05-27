@@ -43,11 +43,10 @@ body {
 * { box-sizing: border-box; }
 
 /* =========================================================================
-   PREMIUM FORM INPUTS (Dates, Text, Selects)
-   Matches the large, padded, dark-glass style
+   PREMIUM FORM INPUTS (Dates, Text, Passwords, Selects)
    ========================================================================= */
 select, input[type="date"], input[type="time"] { 
-  color-scheme: dark !important; /* Forces native popup menus into dark mode */
+  color-scheme: dark !important; 
 }
 
 select option { 
@@ -59,30 +58,34 @@ select option {
 
 input[type="date"], 
 input[type="text"], 
+input[type="password"], /* FIX: Added password fields */
+input[type="email"],    /* FIX: Added email fields */
 input[type="number"], 
 select {
-  background-color: rgba(20, 20, 25, 0.6) !important; /* Deep sleek dark background */
+  background-color: rgba(20, 20, 25, 0.6) !important;
   color: #ffffff !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  border-radius: 8px !important;
-  padding: 12px 16px !important; /* Massive padding to match your photo */
+  border-radius: 12px !important; /* FIX: Bumped to 12px for softer corners */
+  padding: 14px 16px !important;  /* FIX: Matched the height to your login fields */
   font-family: inherit;
   font-size: 0.95rem;
   outline: none;
   transition: all 0.2s ease;
   box-sizing: border-box;
-  min-width: 160px; /* Prevents the date box from getting squished */
+  min-width: 160px; 
 }
 
 input[type="date"]:focus, 
 input[type="text"]:focus, 
+input[type="password"]:focus, 
+input[type="email"]:focus, 
+input[type="number"]:focus, 
 select:focus {
   border-color: var(--accent-primary) !important;
   background-color: rgba(168, 85, 247, 0.05) !important;
   box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.2) !important;
 }
 
-/* Custom styling for the little calendar icon */
 input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(1);
   opacity: 0.4;
@@ -92,14 +95,6 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 input[type="date"]::-webkit-calendar-picker-indicator:hover {
   opacity: 0.8;
-}
-
-/* Clean label styling for "From" and "To" text */
-.filter-label {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  margin-right: 10px;
 }
 
 /* =========================================================================
