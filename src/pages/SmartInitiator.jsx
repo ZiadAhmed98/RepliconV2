@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import styles from './SmartInitiator.module.css';
+import ProjectLoader from '../components/ProjectLoader'; // ADDED: The new Apple Loader
 
 export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   // =========================================================================
@@ -34,9 +35,14 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   // 2. COMPONENT STATE
   // =========================================================================
   const fileInputRef = useRef(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [bulkAssignValue, setBulkAssignValue] = useState('');
   
+  // NEW: Granular Deployment States
+  const [isDeploying, setIsDeploying] = useState(false);
+  const [currentStep, setCurrentStep] = useState('');
+  const [currentCount, setCurrentCount] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+
+  const [bulkAssignValue, setBulkAssignValue] = useState('');
   const [clientMode, setClientMode] = useState('existing'); 
   const [newClientName, setNewClientName] = useState('');
 
@@ -155,11 +161,12 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   };
 
   // =========================================================================
-  // 5. FORM SUBMISSION
+  // 5. STAGED FORM SUBMISSION (WITH GRANULAR UI PROGRESS)
   // =========================================================================
   const submitProject = async () => {
     if (!isFormValid) return; 
     
+    // Map tasks and calculate resources
     const mappedTasks = tasks.map(t => {
       const validNames = t.assignees.filter(a => a !== "");
       const assignedUserUris = validNames.map(name => {
@@ -201,9 +208,41 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
       tasks: mappedTasks 
     };
 
-    setIsSubmitting(true);
+    // ==============================================================
+    // THE OPTIMISTIC DEPLOYMENT SEQUENCE
+    // ==============================================================
+    setIsDeploying(true);
 
     try {
+      // Step 1: Client Setup
+      setCurrentStep('client');
+      await new Promise(r => setTimeout(r, 600)); // Artificial delay for UX
+
+      // Step 2: Project Base
+      setCurrentStep('project');
+      await new Promise(r => setTimeout(r, 600));
+
+      // Step 3: Tasks Progress Bar (Using REAL numbers from XML)
+      setCurrentStep('tasks');
+      setTotalCount(mappedTasks.length);
+      for (let i = 1; i <= mappedTasks.length; i++) {
+        setCurrentCount(i);
+        // Fast increment for effect
+        await new Promise(r => setTimeout(r, 40)); 
+      }
+
+      // Step 4: Resource Assignment Bar (Using REAL resource numbers)
+      setCurrentStep('resources');
+      setTotalCount(totalMappedURIs);
+      for (let i = 1; i <= totalMappedURIs; i++) {
+        setCurrentCount(i);
+        await new Promise(r => setTimeout(r, 80));
+      }
+
+      // Step 5: Final Server Call
+      setCurrentStep('finalizing');
+
+      // The Actual Backend Request
       const response = await fetch('/api/projects/new', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -212,7 +251,11 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
       const result = await response.json();
       
       if(response.ok) {
+        // Hide loader to show alert
+        setIsDeploying(false);
         alert(`SUCCESS: ${result.message}`);
+        
+        // Reset Form
         setTasks([]); 
         setNewClientName('');
         setClientMode('existing');
@@ -226,12 +269,12 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
         });
         syncMatrixData(true); 
       } else {
+        setIsDeploying(false);
         alert(`ERROR: ${result.error}\n\nCheck Docker Terminal for exact Payload and API errors.`);
       }
     } catch (e) { 
+      setIsDeploying(false);
       alert("Failed to reach server."); 
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -240,15 +283,24 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   // =========================================================================
   return (
     <div className={styles.container}>
+      
+      {/* THE NEW DEPLOYMENT LOADER */}
+      <ProjectLoader 
+        isVisible={isDeploying} 
+        step={currentStep} 
+        currentItem={currentCount} 
+        totalItems={totalCount} 
+      />
+
       <div className={styles.headerArea}>
         <h2 className={styles.title}>Project Initialization</h2>
         
         <button 
           className={`${styles.btnPrimary} ${isFormValid ? styles.active : ''}`}
-          disabled={!isFormValid || isSubmitting} 
+          disabled={!isFormValid || isDeploying} 
           onClick={submitProject}
         >
-          {isSubmitting ? 'Submitting...' : 'Add Project'}
+          {isDeploying ? 'Deploying...' : 'Add Project'}
         </button>
       </div>
 
@@ -423,7 +475,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
               {tasks.map((task, tIndex) => (
                 <tr key={tIndex} className={task.isMilestone ? styles.milestoneRow : ''}>
                   <td>10{tIndex + 1}</td>
-                  {/* VISUAL INDENTATION BASED ON OUTLINE LEVEL */}
                   <td style={{ paddingLeft: `${Math.max(0, (task.outlineLevel - 1) * 20)}px` }}>
                     {task.isMilestone && <i className={`bx bxs-flag-alt ${styles.milestoneIcon}`}></i>}
                     {task.name}
