@@ -344,7 +344,14 @@ app.post('/api/projects/new', async (req, res) => {
             let clientDraftUri = clientDraftRes.Value || clientDraftRes.d || clientDraftRes.uri;
 
             await wcfRequest("Update Client Name", `https://ap1.replicon.com/${company}/services/ClientService1.svc/UpdateName`, { clientUri: clientDraftUri, name: payload.clientName }, headers);
-            
+
+            if (payload.clientDraftUri) {
+            await wcfRequest("Update Account Manager Custom Field", `https://ap1.replicon.com/${company}/services/CustomFieldService1.svc/UpdateDropdownValue`, {
+                objectUri: clientDraftUri,
+                customFieldUri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:fc1a8ce8-7e33-4683-bdd3-c08387b82b58",
+                customFieldDropDownOptionUri: payload.accountManagerUri
+            }, headers);
+        }            
             let clientPubRes = await wcfRequest("Publish Client", `https://ap1.replicon.com/${company}/services/ClientService1.svc/PublishDraft`, { draftUri: clientDraftUri }, headers);
             activeClientUri = clientPubRes.Value || clientPubRes.d || clientPubRes.uri;
         } else {
@@ -396,14 +403,6 @@ app.post('/api/projects/new', async (req, res) => {
             await wcfRequest("Update Location", `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateLocation`, {
                 projectUri: projDraftUri,
                 location: { uri: payload.locationUri, parentUri: null, name: null }
-            }, headers);
-        }
-
-        if (payload.accountManagerUri) {
-            await wcfRequest("Update Account Manager Custom Field", `https://ap1.replicon.com/${company}/services/CustomFieldService1.svc/UpdateDropdownValue`, {
-                objectUri: projDraftUri,
-                customFieldUri: "urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:fc1a8ce8-7e33-4683-bdd3-c08387b82b58",
-                customFieldDropDownOptionUri: payload.accountManagerUri
             }, headers);
         }
 
