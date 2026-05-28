@@ -53,7 +53,7 @@ export default function Ribbon({ sessionUser, onLogout, onSync }) {
           {/* Bulletproof User Text */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
             <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'white', lineHeight: '1.2' }}>{userName}</span>
-            <span style={{ fontSize: '0.65rem', color: '#98989d', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, lineHeight: '1.2', marginTop: '2px' }}>Executive</span>
+            <span style={{ fontSize: '0.65rem', color: '#98989d', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, lineHeight: '1.2', marginTop: '2px' }}>Owner</span>
           </div>
           
           <i className='bx bx-chevron-down' style={{ color: '#98989d', marginLeft: '4px' }}></i>
