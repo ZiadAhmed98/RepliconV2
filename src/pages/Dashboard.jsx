@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import Chart from 'react-apexcharts';
 import ApexCharts from 'apexcharts';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import styles from './Dashboard.module.css';
 import ComplianceModal from '../components/ComplianceModal';
 
@@ -189,13 +189,9 @@ export default function Dashboard({ dataMatrix }) {
   // =========================================================================
   const exportChartToPDF = async (chartId, title, tableHeaders, tableRows) => {
     try {
-      // 1. Hook into ApexCharts API to grab a clean Base64 image
       const { imgURI } = await ApexCharts.exec(chartId, 'dataURI');
-      
-      // 2. Initialize PDF Document (A4 Portrait)
       const doc = new jsPDF('p', 'pt', 'a4');
       
-      // 3. Document Styling & Title
       doc.setFontSize(18);
       doc.setTextColor(40, 40, 40);
       doc.text(title, 40, 45);
@@ -204,16 +200,14 @@ export default function Dashboard({ dataMatrix }) {
       doc.setTextColor(120, 120, 120);
       doc.text(`Generated on: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`, 40, 60);
 
-      // 4. Draw Chart Image
       if (imgURI) {
-        // Black background box to make Apple Glass charts pop in the PDF
         doc.setFillColor(20, 20, 25);
         doc.rect(40, 80, 515, 230, 'F');
         doc.addImage(imgURI, 'PNG', 40, 80, 515, 230);
       }
 
-      // 5. Draw the Dynamic Data Table underneath the image
-      doc.autoTable({
+      // FIX: Use the standalone autoTable function instead of doc.autoTable
+      autoTable(doc, {
         startY: 330,
         head: [tableHeaders],
         body: tableRows,
@@ -224,7 +218,6 @@ export default function Dashboard({ dataMatrix }) {
         margin: { left: 40, right: 40 }
       });
 
-      // 6. Output Download
       doc.save(`${title.replace(/\s+/g, '_')}_Executive_Report.pdf`);
     } catch (err) {
       console.error("PDF Generation Error: ", err);
@@ -239,13 +232,12 @@ export default function Dashboard({ dataMatrix }) {
     return {
       chart: {
         id: id,
-        background: '#141419', // Ensures exported PNGs have a dark backing, not transparent messes
+        background: 'transparent', // FIX: Restored to transparent glass
         toolbar: {
           show: true,
           tools: {
-            download: true, // Native PNG, SVG, CSV
+            download: true, 
             selection: true, zoom: true, pan: true,
-            // OUR CUSTOM EXECUTIVE PDF BUTTON
             customIcons: [{
               icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#98989d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`,
               index: 0,
@@ -595,7 +587,8 @@ export default function Dashboard({ dataMatrix }) {
           </div>
           
           <div className={styles.scrollWrapper}>
-            <div style={{ width: Math.max(1200, Math.min(metrics.deepEffort.labels.length, localFilters.deepEffortLimit) * 80) + 'px' }}>
+            {/* FIX: Smart Width Distribution */}
+            <div style={{ width: Math.min(metrics.deepEffort.labels.length, localFilters.deepEffortLimit) > 15 ? Math.max(1200, Math.min(metrics.deepEffort.labels.length, localFilters.deepEffortLimit) * 80) + 'px' : '100%' }}>
               <Chart type="bar" width="100%" height={450}
                 series={[ 
                   { name: 'Actual', data: metrics.deepEffort.act.slice(0, localFilters.deepEffortLimit).map(v => Math.max(0.1, v)) }, 
