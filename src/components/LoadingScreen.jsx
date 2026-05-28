@@ -5,10 +5,14 @@ export default function LoadingScreen({ isVisible }) {
   const [phase, setPhase] = useState(0);
 
   const loadingTexts = [
-    "Establishing secure connection to Replicon...",
-    "Pulling Data Matrix & Timesheets...",
-    "Processing Project Hierarchies...",
-    "Finalizing Interface..."
+    "Establishing secure connection to Replicon",
+    "Authenticating user credentials",
+    "Fetching project data and timesheets",
+    "Analyzing project hierarchies",
+    "Pulling Data Matrix & Timesheets",
+    "Calculating optimal task assignments",
+    "Finalizing Interface",
+    "Almost there",
   ];
 
   // Cycles through text phases while loading is active
