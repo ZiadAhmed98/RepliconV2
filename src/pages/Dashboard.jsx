@@ -4,6 +4,7 @@ import ApexCharts from 'apexcharts';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+// Ensures the bundler securely exposes this to the window for the fallback
 import html2canvas from 'html2canvas';
 window.html2canvas = html2canvas;
 
@@ -18,7 +19,6 @@ export default function Dashboard({ dataMatrix }) {
   const [isCompModalOpen, setIsCompModalOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   
-  // Localized Chart Slicing
   const [localFilters, setLocalFilters] = useState({
     trendMonths: 12, 
     deepEffortLimit: 9999 
@@ -193,17 +193,35 @@ export default function Dashboard({ dataMatrix }) {
   };
 
   // =========================================================================
-  // 4. THE EXECUTIVE PDF REPORT GENERATOR (SAFE NO-DESTRUCTURING METHOD)
+  // 4. THE BULLETPROOF PDF EXPORTER (NATIVE + DOM CAPTURE FALLBACK)
   // =========================================================================
   const exportChartToPDF = async (chartId, title, tableHeaders, tableRows) => {
     try {
-      // FIX 1: 100% Safe Extraction without destructuring `{ imgURI }`
-      const response = await ApexCharts.exec(chartId, 'dataURI');
-      const imgURI = response ? response.imgURI : null;
+      let imgURI = null;
+      
+      // Strategy 1: Attempt native ApexCharts Vector Extraction
+      try {
+        const response = await ApexCharts.exec(chartId, 'dataURI');
+        if (response && response.imgURI) imgURI = response.imgURI;
+      } catch (err) {
+        console.warn(`Native export for ${chartId} bypassed, utilizing DOM capture fallback.`);
+      }
 
-      // FIX 2: Graceful fallback if html2canvas is missing from environment
+      // Strategy 2: If Donut/Log charts block the native engine, take a high-res DOM screenshot of the wrapper!
       if (!imgURI) {
-        alert("The PDF Engine requires 'html2canvas' to capture charts. Please run: npm install html2canvas");
+        const chartNode = document.getElementById(`wrap-${chartId}`);
+        if (chartNode) {
+          const canvas = await window.html2canvas(chartNode, {
+            backgroundColor: '#141419', // Fills the transparent glass with dark theme for PDF reading
+            scale: 2, // Retina resolution
+            logging: false
+          });
+          imgURI = canvas.toDataURL('image/png');
+        }
+      }
+
+      if (!imgURI) {
+        alert("The chart is hidden or still animating. Please wait a second and click export again.");
         return;
       }
 
@@ -239,9 +257,6 @@ export default function Dashboard({ dataMatrix }) {
     }
   };
 
-  // =========================================================================
-  // MODERN ADOBE-STYLE PDF BUTTON COMPONENT
-  // =========================================================================
   const PdfButton = ({ onClick }) => (
     <button 
       style={{ 
@@ -270,18 +285,16 @@ export default function Dashboard({ dataMatrix }) {
     </button>
   );
 
-  // =========================================================================
-  // 5. APEXCHARTS CONFIGURATION FACTORY
-  // =========================================================================
   const getChartOptions = (id, customOptions = {}) => {
+    const mergedChart = {
+      id: id,
+      background: 'transparent',
+      toolbar: { show: true }, 
+      ...(customOptions.chart || {})
+    };
+
     return {
-      chart: {
-        id: id,
-        background: 'transparent',
-        toolbar: { show: true }, 
-        ...(customOptions.chart || {})
-      },
-      theme: { mode: 'dark' },
+      chart: mergedChart,
       grid: { borderColor: 'rgba(255,255,255,0.05)', strokeDashArray: 4 },
       tooltip: { theme: 'dark' }, 
       ...customOptions
@@ -299,14 +312,12 @@ export default function Dashboard({ dataMatrix }) {
     }
   };
 
-  // FIX: Dynamic Min-Width ensures perfect distribution for small lists, and scrolling for massive lists
   const activeLimit = Math.min(metrics.deepEffort.labels.length, localFilters.deepEffortLimit);
   const deepChartMinWidth = activeLimit > 15 ? `${activeLimit * 60}px` : '100%';
 
   return (
     <div ref={dashboardRef}>
       
-      {/* GLOBAL FIX: This forcefully overrides ApexCharts' aggressive grey background injections */}
       <style>{`
         .apexcharts-svg, .apexcharts-canvas { background: transparent !important; }
       `}</style>
@@ -410,7 +421,8 @@ export default function Dashboard({ dataMatrix }) {
             <h4 style={{ margin: 0 }}><i className='bx bx-pie-chart-alt-2' style={{ color: 'var(--accent-purple)' }}></i> Total Portfolio Burn</h4>
             <PdfButton onClick={() => exportChartToPDF('portfolioBurnChart', 'Total Portfolio Burn', ['Project Name', 'Actual Hrs', 'Est Hrs', 'Quoted Hrs'], metrics.deepEffort.labels.map((lbl, i) => [lbl, metrics.deepEffort.act[i], metrics.deepEffort.est[i], metrics.deepEffort.quoted[i]]))} />
           </div>
-          <div className={styles.chartWrapper}>
+          {/* FALLBACK ID ATTACHED */}
+          <div className={styles.chartWrapper} id="wrap-portfolioBurnChart">
             <Chart type="area" width="100%" height={320}
               series={[ { name: 'Quoted', data: metrics.deepEffort.quoted }, { name: 'Estimated', data: metrics.deepEffort.est }, { name: 'Actual', data: metrics.deepEffort.act } ]}
               options={getChartOptions('portfolioBurnChart', {
@@ -432,7 +444,7 @@ export default function Dashboard({ dataMatrix }) {
             <h4 style={{ margin: 0 }}><i className='bx bx-bar-chart-alt-2' style={{ color: 'var(--accent-blue)' }}></i> All-Time Top Clients</h4>
             <PdfButton onClick={() => exportChartToPDF('topClientsChart', 'Top Clients by Volume', ['Client Name', 'Total Hours'], metrics.topClients.map(c => [c.name, Math.round(c.val)]))} />
           </div>
-          <div className={styles.chartWrapper}>
+          <div className={styles.chartWrapper} id="wrap-topClientsChart">
             <Chart type="bar" width="100%" height={320} 
               series={[{ name: 'Hours', data: metrics.topClients.map(c => Math.round(c.val)) }]} 
               options={getChartOptions('topClientsChart', { 
@@ -471,7 +483,7 @@ export default function Dashboard({ dataMatrix }) {
             </div>
           </div>
           
-          <div className={styles.chartWrapper}>
+          <div className={styles.chartWrapper} id="wrap-burnTrendChart">
             <Chart type="line" width="100%" height={320} 
               series={[ 
                 { name: 'Capacity', type: 'line', data: metrics.trend.cap.slice(-localFilters.trendMonths) }, 
@@ -494,7 +506,7 @@ export default function Dashboard({ dataMatrix }) {
             <h4 style={{ margin: 0 }}><i className='bx bx-doughnut-chart' style={{ color: 'var(--accent-blue)' }}></i> Billable vs Non-Billable</h4>
             <PdfButton onClick={() => exportChartToPDF('billableRatioChart', 'Billable vs Overhead Ratio', ['Classification', 'Total Hours'], [['Billable Hours', metrics.billable], ['Non-Billable (Overhead)', metrics.overhead]])} />
           </div>
-          <div className={styles.chartWrapper}>
+          <div className={styles.chartWrapper} id="wrap-billableRatioChart">
             <Chart type="donut" width="100%" height={320} 
               series={[metrics.billable, metrics.overhead]} 
               options={getChartOptions('billableRatioChart', { 
@@ -517,7 +529,7 @@ export default function Dashboard({ dataMatrix }) {
             <h4 style={{ margin: 0 }}><i className='bx bx-error-circle' style={{ color: 'var(--accent-red)' }}></i> Revenue Leakage</h4>
             <PdfButton onClick={() => exportChartToPDF('leakageChart', 'Project Overburn & Leakage', ['Project Name', 'Original Estimate', 'Actual Burn', 'Overage Hours'], metrics.overburn.map(p => [p.name, p.est, p.act, p.overburn]))} />
           </div>
-          <div className={styles.chartWrapper}>
+          <div className={styles.chartWrapper} id="wrap-leakageChart">
             <Chart type="bar" width="100%" height={300} 
               series={[ { name: 'Est Budget', data: metrics.overburn.map(p => -p.est) }, { name: 'Act Burn', data: metrics.overburn.map(p => p.act) } ]} 
               options={getChartOptions('leakageChart', { 
@@ -538,7 +550,7 @@ export default function Dashboard({ dataMatrix }) {
             <h4 style={{ margin: 0 }}><i className='bx bx-radar' style={{ color: 'var(--accent-coral)' }}></i> At-Risk Projects</h4>
             <PdfButton onClick={() => exportChartToPDF('atRiskChart', 'At-Risk Projects by Burn Rate', ['Project Name', 'Burn Percentage'], metrics.atRisk.map(r => [r.name, r.burn + '%']))} />
           </div>
-          <div className={styles.chartWrapper}>
+          <div className={styles.chartWrapper} id="wrap-atRiskChart">
             <Chart type="bar" width="100%" height={300} 
               series={[{ name: 'Burn %', data: metrics.atRisk.map(r => r.burn) }]} 
               options={getChartOptions('atRiskChart', { 
@@ -558,7 +570,7 @@ export default function Dashboard({ dataMatrix }) {
             <h4 style={{ margin: 0 }}><i className='bx bx-task' style={{ color: 'var(--accent-green)' }}></i> Active Projects</h4>
             <PdfButton onClick={() => exportChartToPDF('statusChart', 'Project Volume by Status', ['Status Stage', 'Number of Projects'], metrics.statusLabels.map((s, i) => [s, metrics.statusData[i]]))} />
           </div>
-          <div className={styles.chartWrapper}>
+          <div className={styles.chartWrapper} id="wrap-statusChart">
             <Chart type="donut" width="100%" height={300} 
               series={metrics.statusData.length ? metrics.statusData : [1]} 
               options={getChartOptions('statusChart', { 
@@ -610,8 +622,7 @@ export default function Dashboard({ dataMatrix }) {
           </div>
           
           <div className={styles.scrollWrapper} style={{ overflowX: 'auto', width: '100%' }}>
-            {/* FIX: Smart width ensures perfect layout for 1 project, or perfect scrolling for 100 projects */}
-            <div style={{ minWidth: deepChartMinWidth, width: '100%' }}>
+            <div id="wrap-deepEffortLogChart" style={{ minWidth: deepChartMinWidth, width: '100%' }}>
               <Chart type="bar" width="100%" height={450}
                 series={[ 
                   { name: 'Actual', data: metrics.deepEffort.act.slice(0, localFilters.deepEffortLimit).map(v => Math.max(0.1, v)) }, 
@@ -641,6 +652,8 @@ export default function Dashboard({ dataMatrix }) {
           </div>
         </div>
       </div>
+
+      <div id="pdf-table-container" style={{ display: 'none', padding: '20px', background: '#0a0a0c' }}></div>
     </div>
   );
 }
