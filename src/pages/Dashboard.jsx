@@ -14,10 +14,10 @@ export default function Dashboard({ dataMatrix }) {
   const [isCompModalOpen, setIsCompModalOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   
-  // Localized Chart Slicing (Independent of Global State)
+  // Localized Chart Slicing
   const [localFilters, setLocalFilters] = useState({
-    trendMonths: 12, // Default to Last 12 Months
-    deepEffortLimit: 20 // Default to Top 20 Projects
+    trendMonths: 12, 
+    deepEffortLimit: 9999 // Default to showing all projects
   });
   
   const dashboardRef = useRef(null); 
@@ -182,7 +182,11 @@ export default function Dashboard({ dataMatrix }) {
   }, [dataMatrix, filters]);
 
   const fmtInt = (num) => Math.round(num || 0).toLocaleString('en-US');
-  const fmtK = (num) => num > 999 ? (num/1000).toFixed(1) + 'k' : num;
+  const fmtK = (num) => {
+    if (!num) return 0;
+    const n = Math.round(num);
+    return n > 999 ? (n/1000).toFixed(1) + 'k' : n;
+  };
 
   // =========================================================================
   // 4. THE EXECUTIVE PDF REPORT GENERATOR
@@ -206,7 +210,7 @@ export default function Dashboard({ dataMatrix }) {
         doc.addImage(imgURI, 'PNG', 40, 80, 515, 230);
       }
 
-      // FIX: Use the standalone autoTable function instead of doc.autoTable
+      // FIX: Uses standalone autoTable function to prevent bundler prototyping crashes
       autoTable(doc, {
         startY: 330,
         head: [tableHeaders],
@@ -228,36 +232,23 @@ export default function Dashboard({ dataMatrix }) {
   // =========================================================================
   // 5. APEXCHARTS CONFIGURATION FACTORY
   // =========================================================================
-  const getChartOptions = (id, title, headers, dataRows, customOptions = {}) => {
+  const getChartOptions = (id, customOptions = {}) => {
+    const mergedChart = {
+      id: id,
+      background: 'transparent',
+      toolbar: { show: true }, 
+      ...(customOptions.chart || {})
+    };
+
     return {
-      chart: {
-        id: id,
-        background: 'transparent', // FIX: Restored to transparent glass
-        toolbar: {
-          show: true,
-          tools: {
-            download: true, 
-            selection: true, zoom: true, pan: true,
-            customIcons: [{
-              icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#98989d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`,
-              index: 0,
-              title: 'Export to Executive PDF',
-              class: 'custom-icon',
-              click: function () {
-                exportChartToPDF(id, title, headers, dataRows);
-              }
-            }]
-          }
-        },
-        ...customOptions.chart
-      },
-      theme: { mode: 'dark' },
+      chart: mergedChart,
+      // FIX: Removed theme: { mode: 'dark' } which was injecting the ugly grey background!
       grid: { borderColor: 'rgba(255,255,255,0.05)', strokeDashArray: 4 },
+      tooltip: { theme: 'dark' }, // Keeps tooltips dark without ruining the canvas
       ...customOptions
     };
   };
 
-  // Full Dashboard PDF Backup Handler
   const handlePrintFullDashboardPDF = async () => {
     if (!window.html2pdf) return alert("Full Dashboard PDF Engine loading. Try again in a moment.");
     const pdfContainer = document.getElementById('pdf-table-container');
@@ -268,6 +259,10 @@ export default function Dashboard({ dataMatrix }) {
       if (pdfContainer) pdfContainer.style.display = 'none'; 
     }
   };
+
+  // Math variables to control smart width for the bottom graph
+  const activeLimit = Math.min(metrics.deepEffort.labels.length, localFilters.deepEffortLimit);
+  const deepChartWidth = activeLimit > 15 ? `${activeLimit * 60}px` : '100%';
 
   return (
     <div ref={dashboardRef}>
@@ -366,15 +361,16 @@ export default function Dashboard({ dataMatrix }) {
       {/* --- CHART ROW 1: PORTFOLIO & RANKINGS --- */}
       <div className={styles.chartRow}>
         <div className="chart-card">
-          <h4><i className='bx bx-pie-chart-alt-2' style={{ color: 'var(--accent-purple)' }}></i> Total Portfolio Burn</h4>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h4 style={{ margin: 0 }}><i className='bx bx-pie-chart-alt-2' style={{ color: 'var(--accent-purple)' }}></i> Total Portfolio Burn</h4>
+            <button className="btn-ghost" style={{ padding: '6px 12px', fontSize: '0.75rem', borderRadius: '8px' }} onClick={() => exportChartToPDF('portfolioBurnChart', 'Total Portfolio Burn', ['Project Name', 'Actual Hrs', 'Est Hrs', 'Quoted Hrs'], metrics.deepEffort.labels.map((lbl, i) => [lbl, metrics.deepEffort.act[i], metrics.deepEffort.est[i], metrics.deepEffort.quoted[i]]))}>
+              <i className='bx bxs-file-pdf'></i> Export
+            </button>
+          </div>
           <div className={styles.chartWrapper}>
             <Chart type="area" width="100%" height={320}
               series={[ { name: 'Quoted', data: metrics.deepEffort.quoted }, { name: 'Estimated', data: metrics.deepEffort.est }, { name: 'Actual', data: metrics.deepEffort.act } ]}
-              options={getChartOptions(
-                'portfolioBurnChart', 'Total Portfolio Burn', 
-                ['Project Name', 'Actual Hrs', 'Est Hrs', 'Quoted Hrs'], 
-                metrics.deepEffort.labels.map((lbl, i) => [lbl, metrics.deepEffort.act[i], metrics.deepEffort.est[i], metrics.deepEffort.quoted[i]]),
-                {
+              options={getChartOptions('portfolioBurnChart', {
                   chart: { stacked: true },
                   colors: ['rgba(255,255,255,0.05)', '#6366f1', '#a855f7'], 
                   stroke: { curve: 'smooth', width: [1, 2, 2] }, 
@@ -382,37 +378,35 @@ export default function Dashboard({ dataMatrix }) {
                   dataLabels: { enabled: false }, 
                   xaxis: { categories: metrics.deepEffort.labels, labels: { show: false }, axisBorder: { show: false }, axisTicks: { show: false } },
                   yaxis: { labels: { formatter: (v) => fmtK(v), style: { colors: '#8e8e93' } } }, 
-                  legend: { position: 'top', labels: { colors: '#8e8e93' } }, 
-                  tooltip: { theme: 'dark' }
-                }
-              )} 
+                  legend: { position: 'top', labels: { colors: '#8e8e93' } }
+              })} 
             />
           </div>
         </div>
         
         <div className="chart-card">
-          <h4><i className='bx bx-bar-chart-alt-2' style={{ color: 'var(--accent-blue)' }}></i> All-Time Top Clients</h4>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h4 style={{ margin: 0 }}><i className='bx bx-bar-chart-alt-2' style={{ color: 'var(--accent-blue)' }}></i> All-Time Top Clients</h4>
+            <button className="btn-ghost" style={{ padding: '6px 12px', fontSize: '0.75rem', borderRadius: '8px' }} onClick={() => exportChartToPDF('topClientsChart', 'Top Clients by Volume', ['Client Name', 'Total Hours'], metrics.topClients.map(c => [c.name, Math.round(c.val)]))}>
+              <i className='bx bxs-file-pdf'></i> Export
+            </button>
+          </div>
           <div className={styles.chartWrapper}>
             <Chart type="bar" width="100%" height={320} 
               series={[{ name: 'Hours', data: metrics.topClients.map(c => Math.round(c.val)) }]} 
-              options={getChartOptions(
-                'topClientsChart', 'Top Clients by Volume', 
-                ['Client Name', 'Total Hours'], 
-                metrics.topClients.map(c => [c.name, Math.round(c.val)]),
-                { 
+              options={getChartOptions('topClientsChart', { 
                   colors: ['#a855f7'], 
                   plotOptions: { bar: { horizontal: false, borderRadius: 6, distributed: true, columnWidth: '45%' } }, 
                   dataLabels: { enabled: false }, 
                   xaxis: { categories: metrics.topClients.map(c => c.name), labels: { style: { colors: '#8e8e93' }, rotate: -45, trim: true } }, 
                   legend: { show: false } 
-                }
-              )} 
+              })} 
             />
           </div>
         </div>
         
         <div className="chart-card">
-          <h4><i className='bx bx-trophy' style={{ color: 'var(--accent-yellow)' }}></i> Top Employees</h4>
+          <h4 style={{ marginBottom: '20px' }}><i className='bx bx-trophy' style={{ color: 'var(--accent-yellow)' }}></i> Top Employees</h4>
           <div className={styles.chartWrapper}>
             <ul className={styles.insightList}>
               {metrics.topEmployees.map((e, i) => <li key={i} className={styles.insightItem}><div className={styles.insightInfo}><div className={styles.insightRank}>{i + 1}</div><span className={styles.insightName}>{e.name}</span></div><span className={styles.insightVal}>{fmtInt(e.val)} hrs</span></li>)}
@@ -425,13 +419,17 @@ export default function Dashboard({ dataMatrix }) {
       <div className={styles.chartRowHalf}>
         <div className="chart-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-            <h4 style={{ margin: 0 }}><i className='bx bx-line-chart' style={{ color: 'var(--accent-purple)' }}></i> Burn Trend vs Capacity</h4>
-            {/* LOCAL FILTER: Modifies only this chart */}
-            <select className={styles.formControl} style={{ width: 'auto', padding: '4px 10px', fontSize: '0.8rem' }} value={localFilters.trendMonths} onChange={e => setLocalFilters({...localFilters, trendMonths: parseInt(e.target.value)})}>
-              <option value={6}>Last 6 Months</option>
-              <option value={12}>Last 12 Months</option>
-              <option value={999}>All Time</option>
-            </select>
+            <h4 style={{ margin: 0 }}><i className='bx bx-line-chart' style={{ color: 'var(--accent-purple)' }}></i> Burn vs Capacity</h4>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <select className={styles.formControl} style={{ width: 'auto', padding: '4px 10px', fontSize: '0.8rem', borderRadius: '8px' }} value={localFilters.trendMonths} onChange={e => setLocalFilters({...localFilters, trendMonths: parseInt(e.target.value)})}>
+                <option value={6}>Last 6 Months</option>
+                <option value={12}>Last 12 Months</option>
+                <option value={9999}>All Time</option>
+              </select>
+              <button className="btn-ghost" style={{ padding: '6px 12px', fontSize: '0.75rem', borderRadius: '8px', margin: 0 }} onClick={() => exportChartToPDF('burnTrendChart', 'Historical Burn vs Capacity', ['Month', 'Actual Burn', 'Team Capacity'], metrics.trend.labels.slice(-localFilters.trendMonths).map((l, i) => [l, metrics.trend.act.slice(-localFilters.trendMonths)[i], metrics.trend.cap.slice(-localFilters.trendMonths)[i]]))}>
+                <i className='bx bxs-file-pdf'></i> Export
+              </button>
+            </div>
           </div>
           
           <div className={styles.chartWrapper}>
@@ -440,42 +438,36 @@ export default function Dashboard({ dataMatrix }) {
                 { name: 'Capacity', type: 'line', data: metrics.trend.cap.slice(-localFilters.trendMonths) }, 
                 { name: 'Actual Burn', type: 'area', data: metrics.trend.act.slice(-localFilters.trendMonths) } 
               ]} 
-              options={getChartOptions(
-                'burnTrendChart', 'Historical Burn vs Capacity', 
-                ['Month', 'Actual Burn', 'Team Capacity'], 
-                metrics.trend.labels.slice(-localFilters.trendMonths).map((l, i) => [l, metrics.trend.act.slice(-localFilters.trendMonths)[i], metrics.trend.cap.slice(-localFilters.trendMonths)[i]]),
-                { 
+              options={getChartOptions('burnTrendChart', { 
                   colors: ['#8e8e93', '#a855f7'], 
                   stroke: { curve: 'smooth', width: [3, 2] }, 
                   fill: { type: ['solid', 'gradient'], gradient: { shadeIntensity: 1, opacityFrom: 0.5, opacityTo: 0.05, stops: [0, 100] } }, 
                   xaxis: { categories: metrics.trend.labels.slice(-localFilters.trendMonths), labels: { style: { colors: '#8e8e93' } }, axisBorder: { show: false }, axisTicks: { show: false } }, 
                   yaxis: { labels: { formatter: (v) => fmtInt(v), style: { colors: '#8e8e93' } } }, 
-                  legend: { position: 'top', labels: { colors: '#8e8e93' } }, 
-                  tooltip: { theme: 'dark' } 
-                }
-              )} 
+                  legend: { position: 'top', labels: { colors: '#8e8e93' } }
+              })} 
             />
           </div>
         </div>
         
         <div className="chart-card">
-          <h4><i className='bx bx-doughnut-chart' style={{ color: 'var(--accent-blue)' }}></i> Billable vs Non-Billable</h4>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <h4 style={{ margin: 0 }}><i className='bx bx-doughnut-chart' style={{ color: 'var(--accent-blue)' }}></i> Billable vs Non-Billable</h4>
+            <button className="btn-ghost" style={{ padding: '6px 12px', fontSize: '0.75rem', borderRadius: '8px' }} onClick={() => exportChartToPDF('billableRatioChart', 'Billable vs Overhead Ratio', ['Classification', 'Total Hours'], [['Billable Hours', metrics.billable], ['Non-Billable (Overhead)', metrics.overhead]])}>
+              <i className='bx bxs-file-pdf'></i> Export
+            </button>
+          </div>
           <div className={styles.chartWrapper}>
             <Chart type="donut" width="100%" height={320} 
               series={[metrics.billable, metrics.overhead]} 
-              options={getChartOptions(
-                'billableRatioChart', 'Billable vs Overhead Ratio', 
-                ['Classification', 'Total Hours'], 
-                [['Billable Hours', metrics.billable], ['Non-Billable (Overhead)', metrics.overhead]],
-                { 
+              options={getChartOptions('billableRatioChart', { 
                   labels: ['Billable', 'Non-Billable'], 
                   colors: ['#a855f7', 'rgba(255,255,255,0.05)'], 
                   stroke: { width: 0 }, 
                   plotOptions: { pie: { donut: { size: '75%' } } }, 
                   dataLabels: { enabled: false }, 
                   legend: { position: 'bottom', labels: { colors: '#8e8e93' } } 
-                }
-              )} 
+              })} 
             />
           </div>
         </div>
@@ -484,70 +476,68 @@ export default function Dashboard({ dataMatrix }) {
       {/* --- CHART ROW 3: RISKS & STATUS --- */}
       <div className={styles.chartRow}>
         <div className="chart-card">
-          <h4><i className='bx bx-error-circle' style={{ color: 'var(--accent-red)' }}></i> Revenue Leakage</h4>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h4 style={{ margin: 0 }}><i className='bx bx-error-circle' style={{ color: 'var(--accent-red)' }}></i> Revenue Leakage</h4>
+            <button className="btn-ghost" style={{ padding: '6px 12px', fontSize: '0.75rem', borderRadius: '8px' }} onClick={() => exportChartToPDF('leakageChart', 'Project Overburn & Leakage', ['Project Name', 'Original Estimate', 'Actual Burn', 'Overage Hours'], metrics.overburn.map(p => [p.name, p.est, p.act, p.overburn]))}>
+              <i className='bx bxs-file-pdf'></i> Export
+            </button>
+          </div>
           <div className={styles.chartWrapper}>
             <Chart type="bar" width="100%" height={300} 
               series={[ { name: 'Est Budget', data: metrics.overburn.map(p => -p.est) }, { name: 'Act Burn', data: metrics.overburn.map(p => p.act) } ]} 
-              options={getChartOptions(
-                'leakageChart', 'Project Overburn & Leakage', 
-                ['Project Name', 'Original Estimate', 'Actual Burn', 'Overage Hours'], 
-                metrics.overburn.map(p => [p.name, p.est, p.act, p.overburn]),
-                { 
+              options={getChartOptions('leakageChart', { 
                   chart: { stacked: true }, 
                   colors: ['rgba(255,255,255,0.1)', '#ff3b30'], 
                   plotOptions: { bar: { horizontal: true, borderRadius: 4 } }, 
                   xaxis: { categories: metrics.overburn.map(p => p.name), min: -metrics.bfMax, max: metrics.bfMax, labels: { style: { colors: '#8e8e93' }, formatter: (v) => fmtK(Math.abs(v)) } }, 
                   yaxis: { labels: { style: { colors: '#8e8e93' }, maxWidth: 150 } }, 
                   dataLabels: { enabled: false }, 
-                  legend: { show: false }, 
-                  tooltip: { theme: 'dark' } 
-                }
-              )} 
+                  legend: { show: false }
+              })} 
             />
           </div>
         </div>
         
         <div className="chart-card">
-          <h4><i className='bx bx-radar' style={{ color: 'var(--accent-coral)' }}></i> At-Risk Projects (Burn %)</h4>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h4 style={{ margin: 0 }}><i className='bx bx-radar' style={{ color: 'var(--accent-coral)' }}></i> At-Risk Projects</h4>
+            <button className="btn-ghost" style={{ padding: '6px 12px', fontSize: '0.75rem', borderRadius: '8px' }} onClick={() => exportChartToPDF('atRiskChart', 'At-Risk Projects by Burn Rate', ['Project Name', 'Burn Percentage'], metrics.atRisk.map(r => [r.name, r.burn + '%']))}>
+              <i className='bx bxs-file-pdf'></i> Export
+            </button>
+          </div>
           <div className={styles.chartWrapper}>
             <Chart type="bar" width="100%" height={300} 
               series={[{ name: 'Burn %', data: metrics.atRisk.map(r => r.burn) }]} 
-              options={getChartOptions(
-                'atRiskChart', 'At-Risk Projects by Burn Rate', 
-                ['Project Name', 'Burn Percentage'], 
-                metrics.atRisk.map(r => [r.name, r.burn + '%']),
-                { 
+              options={getChartOptions('atRiskChart', { 
                   colors: ['#ff3b30'], 
                   plotOptions: { bar: { horizontal: true, borderRadius: 6, barHeight: '40%' } }, 
                   dataLabels: { enabled: true, formatter: (val) => Math.round(val) + "%", textAnchor: 'start', style: { colors: ['#fff'] } }, 
                   xaxis: { categories: metrics.atRisk.map(r => r.name), max: 100, labels: { style: { colors: '#8e8e93' } } }, 
                   yaxis: { labels: { style: { colors: '#8e8e93' }, maxWidth: 150 } }, 
-                  grid: { show: false }, 
-                  tooltip: { theme: 'dark' } 
-                }
-              )} 
+                  grid: { show: false }
+              })} 
             />
           </div>
         </div>
         
         <div className="chart-card">
-          <h4><i className='bx bx-task' style={{ color: 'var(--accent-green)' }}></i> Active Projects by Status</h4>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h4 style={{ margin: 0 }}><i className='bx bx-task' style={{ color: 'var(--accent-green)' }}></i> Active Projects</h4>
+            <button className="btn-ghost" style={{ padding: '6px 12px', fontSize: '0.75rem', borderRadius: '8px' }} onClick={() => exportChartToPDF('statusChart', 'Project Volume by Status', ['Status Stage', 'Number of Projects'], metrics.statusLabels.map((s, i) => [s, metrics.statusData[i]]))}>
+              <i className='bx bxs-file-pdf'></i> Export
+            </button>
+          </div>
           <div className={styles.chartWrapper}>
             <Chart type="donut" width="100%" height={300} 
               series={metrics.statusData.length ? metrics.statusData : [1]} 
-              options={getChartOptions(
-                'statusChart', 'Project Volume by Status', 
-                ['Status Stage', 'Number of Projects'], 
-                metrics.statusLabels.map((s, i) => [s, metrics.statusData[i]]),
-                { 
+              options={getChartOptions('statusChart', { 
                   labels: metrics.statusLabels.length ? metrics.statusLabels : ['No Data'], 
                   colors: ['#a855f7', '#32ade6', '#34c759', '#ffcc00', '#ff3b30'], 
                   stroke: { width: 0 }, 
                   plotOptions: { pie: { donut: { size: '75%' } } }, 
                   dataLabels: { enabled: false }, 
                   legend: { position: 'bottom', labels: { colors: '#8e8e93' } } 
-                }
-              )} 
+              })} 
             />
           </div>
         </div>
@@ -556,7 +546,7 @@ export default function Dashboard({ dataMatrix }) {
       {/* --- CHART ROW 4: FORECASTING --- */}
       <div className={styles.chartRowHalf}>
         <div className="chart-card">
-          <h4><i className='bx bx-calendar-event' style={{ color: 'var(--text-main)' }}></i> Deployment Availability Forecasting</h4>
+          <h4 style={{ marginBottom: '20px' }}><i className='bx bx-calendar-event' style={{ color: 'var(--text-main)' }}></i> Deployment Availability Forecasting</h4>
           <div className={styles.chartWrapper} style={{ overflowY: 'auto' }}>
             <table className={styles.premiumTable}>
               <thead><tr><th>Project Ending</th><th>Date</th><th>Engineers Rolling Off</th></tr></thead>
@@ -565,7 +555,7 @@ export default function Dashboard({ dataMatrix }) {
           </div>
         </div>
         <div className="chart-card">
-          <h4><i className='bx bx-map' style={{ color: 'var(--accent-blue)' }}></i> Locations Overview</h4>
+          <h4 style={{ marginBottom: '20px' }}><i className='bx bx-map' style={{ color: 'var(--accent-blue)' }}></i> Locations Overview</h4>
           <div className={styles.chartWrapper} style={{ overflowY: 'auto' }}>
             <div className={styles.locationList}>{metrics.locations.map((loc, idx) => { const maxLoc = metrics.locations[0]?.val || 1; return <div key={idx} className={styles.locItem}><div className={styles.locHeader}><span>{loc.name}</span><span className={styles.locVal}>{fmtInt(loc.val)} hrs</span></div><div className={styles.progress}><div className={styles.progressBar} style={{ width: `${(loc.val / maxLoc) * 100}%` }}></div></div></div> })}</div>
           </div>
@@ -577,73 +567,55 @@ export default function Dashboard({ dataMatrix }) {
         <div className={`chart-card ${styles.fullWidth}`}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
             <h4 style={{ margin: 0 }}><i className='bx bx-bar-chart-square' style={{ color: 'var(--text-main)' }}></i> Deep Project Delivery Analysis</h4>
-            {/* LOCAL FILTER: Limits amount of projects shown to prevent clutter */}
-            <select className={styles.formControl} style={{ width: 'auto', padding: '4px 10px', fontSize: '0.8rem' }} value={localFilters.deepEffortLimit} onChange={e => setLocalFilters({...localFilters, deepEffortLimit: parseInt(e.target.value)})}>
-              <option value={10}>Top 10 Active Projects</option>
-              <option value={20}>Top 20 Active Projects</option>
-              <option value={50}>Top 50 Active Projects</option>
-              <option value={9999}>View All Projects</option>
-            </select>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <select className={styles.formControl} style={{ width: 'auto', padding: '4px 10px', fontSize: '0.8rem', borderRadius: '8px' }} value={localFilters.deepEffortLimit} onChange={e => setLocalFilters({...localFilters, deepEffortLimit: parseInt(e.target.value)})}>
+                <option value={10}>Top 10 Active Projects</option>
+                <option value={20}>Top 20 Active Projects</option>
+                <option value={50}>Top 50 Active Projects</option>
+                <option value={9999}>View All Projects</option>
+              </select>
+              <button className="btn-ghost" style={{ padding: '6px 12px', fontSize: '0.75rem', borderRadius: '8px', margin: 0 }} onClick={() => exportChartToPDF('deepEffortLogChart', 'Logarithmic Project Analysis', ['Project Name', 'Actual', 'Estimated', 'Quoted'], metrics.deepEffort.labels.slice(0, localFilters.deepEffortLimit).map((lbl, i) => [lbl, metrics.deepEffort.act[i], metrics.deepEffort.est[i], metrics.deepEffort.quoted[i]]))}>
+                <i className='bx bxs-file-pdf'></i> Export
+              </button>
+            </div>
           </div>
           
-          <div className={styles.scrollWrapper}>
-            {/* FIX: Smart Width Distribution */}
-            <div style={{ width: Math.min(metrics.deepEffort.labels.length, localFilters.deepEffortLimit) > 15 ? Math.max(1200, Math.min(metrics.deepEffort.labels.length, localFilters.deepEffortLimit) * 80) + 'px' : '100%' }}>
+          <div className={styles.scrollWrapper} style={{ overflowX: 'auto', width: '100%' }}>
+            {/* FIX: Smart width perfectly centers small lists, but allows scrolling for massive ones */}
+            <div style={{ minWidth: '100%', width: deepChartWidth }}>
               <Chart type="bar" width="100%" height={450}
                 series={[ 
                   { name: 'Actual', data: metrics.deepEffort.act.slice(0, localFilters.deepEffortLimit).map(v => Math.max(0.1, v)) }, 
                   { name: 'Estimated', data: metrics.deepEffort.est.slice(0, localFilters.deepEffortLimit).map(v => Math.max(0.1, v)) }, 
                   { name: 'Quoted', data: metrics.deepEffort.quoted.slice(0, localFilters.deepEffortLimit).map(v => Math.max(0.1, v)) } 
                 ]}
-                options={getChartOptions(
-                  'deepEffortLogChart', 'Logarithmic Project Analysis', 
-                  ['Project Name', 'Actual', 'Estimated', 'Quoted'], 
-                  metrics.deepEffort.labels.slice(0, localFilters.deepEffortLimit).map((lbl, i) => [lbl, metrics.deepEffort.act[i], metrics.deepEffort.est[i], metrics.deepEffort.quoted[i]]),
-                  { 
+                options={getChartOptions('deepEffortLogChart', { 
                     chart: { stacked: false, animations: { enabled: false } }, 
                     colors: ['#a855f7', '#32ade6', 'rgba(255,255,255,0.1)'], 
                     plotOptions: { bar: { horizontal: false, columnWidth: '70%', borderRadius: 4 } }, 
                     xaxis: { categories: metrics.deepEffort.labels.slice(0, localFilters.deepEffortLimit), labels: { style: { colors: '#8e8e93' }, rotate: -45, trim: true, maxHeight: 160 } },
-                    yaxis: { logarithmic: true, labels: { style: { colors: '#8e8e93' }, formatter: (val) => val <= 0.1 ? "0" : fmtK(val) } },
+                    yaxis: { 
+                        logarithmic: true, 
+                        labels: { 
+                            style: { colors: '#8e8e93' }, 
+                            // FIX: Force strict rounding on logarithmic ticks so they don't decimal out!
+                            formatter: (val) => {
+                                if (!val || val <= 0.1) return "0";
+                                return fmtK(val);
+                            }
+                        } 
+                    },
                     dataLabels: { enabled: false },
-                    legend: { position: 'top', horizontalAlign: 'left', labels: { colors: '#8e8e93' } }, 
-                    tooltip: { theme: 'dark', y: { formatter: (val) => val <= 0.1 ? "0" : fmtInt(val) } }
-                  }
-                )} 
+                    legend: { position: 'top', horizontalAlign: 'left', labels: { colors: '#8e8e93' } }
+                })} 
               />
             </div>
           </div>
         </div>
       </div>
 
-      {/* --- HIDDEN PDF EXPORT TABLE (Used only by the massive global button) --- */}
-      <div id="pdf-table-container" className={styles.pdfContainer}>
-        <div className={`chart-card ${styles.fullWidth}`} style={{ background: 'var(--bg-card)', border: 'none', boxShadow: 'none' }}>
-          <h4 style={{ marginBottom: '20px', fontSize: '1.2rem', color: 'var(--accent-blue)' }}>Detailed Filtered Report</h4>
-          <table className={styles.premiumTable}>
-            <thead><tr><th>Project Name</th><th>Client</th><th>Status</th><th style={{textAlign:'right'}}>Actual Hrs</th><th style={{textAlign:'right'}}>Est. Hrs</th><th style={{textAlign:'right'}}>Quoted Hrs</th></tr></thead>
-            <tbody>
-              {Object.keys(metrics.dimensionTable).map(pName => {
-                const pData = metrics.dimensionTable[pName];
-                const actHrs = metrics.deepEffort.labels.includes(pName) ? metrics.deepEffort.act[metrics.deepEffort.labels.indexOf(pName)] : 0;
-                if (actHrs > 0 || pData.est > 0) {
-                  return (
-                    <tr key={pName} style={{ breakInside: 'avoid' }}>
-                      <td style={{ color: '#fff', fontWeight: 500 }}>{pName}</td>
-                      <td>{pData.client}</td>
-                      <td style={{ color: pData.status === 'In Progress' ? 'var(--accent-blue)' : 'var(--text-muted)' }}>{pData.status}</td>
-                      <td style={{ color: '#fff', textAlign: 'right', fontWeight: 600 }}>{fmtInt(actHrs)}</td>
-                      <td style={{ textAlign: 'right' }}>{fmtInt(pData.est)}</td>
-                      <td style={{ color: 'var(--accent-yellow)', textAlign: 'right' }}>{fmtInt(pData.quoted)}</td>
-                    </tr>
-                  )
-                }
-                return null;
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* FIX: This background container is now completely hidden from the DOM so it doesn't leave a grey block! */}
+      <div id="pdf-table-container" style={{ display: 'none' }}></div>
     </div>
   );
 }
