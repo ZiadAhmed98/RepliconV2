@@ -3,6 +3,10 @@ import Chart from 'react-apexcharts';
 import ApexCharts from 'apexcharts';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+
+import html2canvas from 'html2canvas';
+window.html2canvas = html2canvas;
+
 import styles from './Dashboard.module.css';
 import ComplianceModal from '../components/ComplianceModal';
 
