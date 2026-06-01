@@ -19,10 +19,10 @@ COPY package*.json ./
 RUN npm install --omit=dev
 
 # Copy ONLY the built frontend from the builder stage
-COPY --from=builder /app/dist ./dist
+COPY --from=builder --chown=node:node /app/dist ./dist
 # Copy the server files
-COPY server.js .
-COPY server/ ./server/
+COPY --chown=node:node server.js .
+COPY --chown=node:node server/ ./server/
 
 # Run as non-root user
 USER node
