@@ -1,88 +1,73 @@
 import React, { useState, useMemo, useRef } from 'react';
 import styles from './SmartInitiator.module.css';
+import ProjectLoader from '../components/ProjectLoader'; // ADDED: The new Apple Loader
 
 export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   // =========================================================================
-  // 1. DATA EXTRACTION & FAIL-SAFES (Restored)
+  // 1. DYNAMIC DICTIONARY BINDING
   // =========================================================================
-  const dropdowns = useMemo(() => {
-    let clients = new Set();
-    let programs = new Set();
-    let locations = new Set();
-    
-    if (dataMatrix && dataMatrix.dimensionTable) {
-      Object.values(dataMatrix.dimensionTable).forEach(p => {
-        if (p.client && p.client !== "Unknown") clients.add(p.client);
-        if (p.program && p.program !== "Unknown" && p.program !== "Unassigned") programs.add(p.program);
-      });
-    }
-
-    if (dataMatrix && dataMatrix.factTable) {
-        dataMatrix.factTable.forEach(row => {
-            if (row.client && row.client !== "Unknown") clients.add(row.client);
-            if (row.program && row.program !== "Unknown" && row.program !== "Unassigned") programs.add(row.program);
-            if (row.location && row.location !== "Unknown" && row.location.trim() !== "") {
-                locations.add(row.location);
-            }
-        });
-    }
-
-    const roster = dataMatrix?.roster || [];
-    const activeEngineers = roster.filter(e => e.status === "Enabled").sort((a,b) => a.name.localeCompare(b.name));
-    
-    let ams = dataMatrix?.accountManagers || [];
-    if (ams.length === 0 && activeEngineers.length > 0) {
-        ams = activeEngineers.map(e => e.name);
-    }
-
-    return {
-      clients: Array.from(clients).sort(),
-      programs: Array.from(programs).sort(),
-      locations: Array.from(locations).sort(),
-      engineers: activeEngineers,
-      accountManagers: ams
+  const dictionaries = useMemo(() => {
+    const getArray = (key) => {
+      if (dataMatrix?.[key] && dataMatrix[key].length > 0) return dataMatrix[key];
+      if (dataMatrix?.dictionaries?.[key]) return dataMatrix.dictionaries[key];
+      return [];
     };
+
+    const dicts = {
+      departments: getArray('departments'),
+      locations: getArray('locations'),
+      programs: getArray('programs'),
+      clients: getArray('clients'),
+      users: getArray('users'),
+      projectManagers: getArray('projectManagers'),
+      employeeTypes: getArray('employeeTypes'),
+      accountManagers: getArray('accountManagers')
+    };
+
+    Object.keys(dicts).forEach(key => {
+      dicts[key] = [...dicts[key]].sort((a, b) => a.name.localeCompare(b.name));
+    });
+
+    return dicts;
   }, [dataMatrix]);
 
   // =========================================================================
   // 2. COMPONENT STATE
   // =========================================================================
   const fileInputRef = useRef(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [bulkAssignValue, setBulkAssignValue] = useState('');
   
+  // NEW: Granular Deployment States
+  const [isDeploying, setIsDeploying] = useState(false);
+  const [currentStep, setCurrentStep] = useState('');
+  const [currentCount, setCurrentCount] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+
+  const [bulkAssignValue, setBulkAssignValue] = useState('');
   const [clientMode, setClientMode] = useState('existing'); 
   const [newClientName, setNewClientName] = useState('');
 
-  // Reverted to using standard names
   const [formData, setFormData] = useState({
-    projectName: '', projectCode: '', clientName: '', programName: '', 
-    projectManager: '', department: 'Service Delivery', location: '', 
+    projectName: '', projectCode: '', 
+    clientName: '', programName: '', projectManagerName: '', 
+    departmentName: '', employeeTypeName: '', locationName: '', 
     startDate: '', endDate: '', status: 'Planning', percentCompleted: '0',
     billingType: 'Time & Materials', allowTimeEntry: 'Yes', 
     clientBillingRateCopy: 'Keep Existing Billing Rates', timeAndExpenseEntry: 'Billable & Non-Billable',
-    accountManager: '', quotedHours: '', internalRemarks: ''
+    accountManager: '', quotedHours: ''
   });
 
   const [tasks, setTasks] = useState([]);
 
-  const actualClientName = clientMode === 'existing' ? formData.clientName : newClientName;
-
   // STRICT VALIDATION
   const isFormValid = formData.projectName.trim() !== '' &&
                       formData.projectCode.trim() !== '' &&
-                      actualClientName.trim() !== '' &&
-                      formData.programName !== '' &&
-                      formData.projectManager !== '' &&
-                      formData.department !== '' &&
-                      formData.location !== '' &&
+                      (clientMode === 'existing' ? formData.clientName !== '' : newClientName.trim() !== '') &&
                       formData.startDate !== '' &&
                       formData.endDate !== '' &&
-                      (clientMode === 'existing' || formData.accountManager !== '') && 
                       tasks.length > 0;
 
   // =========================================================================
-  // 3. XML PARSER & ASSIGNMENT LOGIC
+  // 3. XML PARSER (WITH HIERARCHY & RUNNING HOUR BALANCE)
   // =========================================================================
   const handleXMLUpload = (e) => {
     const file = e.target.files[0];
@@ -93,43 +78,58 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
       try {
         const parser = new DOMParser();
         const xml = parser.parseFromString(evt.target.result, "text/xml");
-        
         if (xml.getElementsByTagName("parsererror").length > 0) return alert("Invalid XML Format.");
 
         const taskNodes = xml.getElementsByTagName('Task');
         let parsedTasks = [];
+        
+        let runningExactHours = 0;
+        let runningRoundedHours = 0;
 
         for (let i = 0; i < taskNodes.length; i++) {
           const t = taskNodes[i];
-          const isSummary = t.getElementsByTagName('Summary')[0]?.textContent === "1";
+          
+          const idNode = t.getElementsByTagName('ID')[0]?.textContent;
+          if (idNode === "0") continue; 
+
           const nameNode = t.getElementsByTagName('Name')[0]?.textContent;
           if (!nameNode) continue; 
           
+          const isSummary = t.getElementsByTagName('Summary')[0]?.textContent === "1";
+          
+          const outlineLevelNode = t.getElementsByTagName('OutlineLevel')[0]?.textContent;
+          const outlineLevel = outlineLevelNode ? parseInt(outlineLevelNode, 10) : 1;
+
           const startStr = t.getElementsByTagName('Start')[0]?.textContent || '';
           const endStr = t.getElementsByTagName('Finish')[0]?.textContent || '';
           const durationNode = t.getElementsByTagName('Duration')[0]?.textContent || '';
           
-          let hours = 0;
+          let exactHours = 0;
           const hMatch = durationNode.match(/(\d+)H/);
           const mMatch = durationNode.match(/(\d+)M/);
           
-          if (hMatch) hours += parseInt(hMatch[1], 10);
-          if (mMatch) hours += parseInt(mMatch[1], 10) / 60; 
+          if (hMatch) exactHours += parseInt(hMatch[1], 10);
+          if (mMatch) exactHours += parseInt(mMatch[1], 10) / 60; 
           
+          runningExactHours += exactHours;
+          const targetTotalRounded = Math.round(runningExactHours);
+          const currentRoundedHours = targetTotalRounded - runningRoundedHours;
+          runningRoundedHours += currentRoundedHours;
+
           parsedTasks.push({
-            id: `task_${i}`,
+            id: `task_${idNode}`,
             name: nameNode,
             start: startStr.split('T')[0] || '-',
             end: endStr.split('T')[0] || '-',
-            duration: durationNode ? `${hours} hrs` : '-',
+            duration: durationNode ? `${currentRoundedHours} hrs` : '-',
+            roundedHours: currentRoundedHours, 
+            outlineLevel: outlineLevel,        
             isMilestone: isSummary, 
             assignees: isSummary ? [] : ['']
           });
         }
         setTasks(parsedTasks);
-      } catch (error) {
-        alert("Error parsing file.");
-      }
+      } catch (error) { alert("Error parsing file."); }
     };
     reader.readAsText(file);
   };
@@ -139,19 +139,16 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
     newTasks[taskIndex].assignees[assigneeIndex] = value;
     setTasks(newTasks);
   };
-
   const addAssignee = (taskIndex) => {
     const newTasks = [...tasks];
     newTasks[taskIndex].assignees.push('');
     setTasks(newTasks);
   };
-
   const removeAssignee = (taskIndex, assigneeIndex) => {
     const newTasks = [...tasks];
     newTasks[taskIndex].assignees.splice(assigneeIndex, 1);
     setTasks(newTasks);
   };
-
   const applyBulkAssign = () => {
     if (!bulkAssignValue) return;
     const newTasks = tasks.map(task => {
@@ -164,54 +161,117 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   };
 
   // =========================================================================
-  // 5. FORM SUBMISSION
+  // 5. REAL-TIME STREAMING FORM SUBMISSION
   // =========================================================================
   const submitProject = async () => {
     if (!isFormValid) return; 
     
-    const mappedTasks = tasks.map(t => ({
-      ...t,
-      assignees: t.assignees.filter(a => a !== "")
-    }));
+    // Map tasks and calculate resources
+    const mappedTasks = tasks.map(t => {
+      const validNames = t.assignees.filter(a => a !== "");
+      const assignedUserUris = validNames.map(name => {
+        return dictionaries.users.find(u => u.name === name)?.uri || null;
+      }).filter(uri => uri !== null);
+
+      return { ...t, assignedUsers: assignedUserUris };
+    });
+
+    const safeClientUri = dictionaries.clients.find(c => c.name === formData.clientName)?.uri || undefined;
+    const safeProgramUri = dictionaries.programs.find(p => p.name === formData.programName)?.uri || undefined;
+    const safeLocationUri = dictionaries.locations.find(l => l.name === formData.locationName)?.uri || undefined;
+    const safeDepartmentUri = dictionaries.departments.find(d => d.name === formData.departmentName)?.uri || undefined;
+    const safeEmployeeTypeUri = dictionaries.employeeTypes.find(e => e.name === formData.employeeTypeName)?.uri || undefined;
+    const safeAccountManagerUri = dictionaries.accountManagers.find(am => am.name === formData.accountManager)?.uri || undefined;
+    
+    let safePmUri = dictionaries.projectManagers.find(u => u.name === formData.projectManagerName)?.uri;
+    if (!safePmUri) safePmUri = dictionaries.users.find(u => u.name === formData.projectManagerName)?.uri;
 
     const payload = { 
       ...formData, 
-      clientName: actualClientName,
       clientMode: clientMode,
+      clientName: clientMode === 'new' ? newClientName : undefined,
+      clientUri: safeClientUri,
+      programUri: safeProgramUri,
+      locationUri: safeLocationUri,
+      departmentUri: safeDepartmentUri,
+      employeeTypeUri: safeEmployeeTypeUri,
+      accountManagerUri: safeAccountManagerUri,
+      pmUri: safePmUri,
       tasks: mappedTasks 
     };
 
-    setIsSubmitting(true);
+    setIsDeploying(true);
+    setCurrentStep('initializing');
 
     try {
+      // We use a standard fetch, but we do NOT await response.json() yet
       const response = await fetch('/api/projects/new', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream' // Tells the server we want a stream
+        },
         body: JSON.stringify(payload)
       });
-      const result = await response.json();
-      
-      if(response.ok) {
-        alert(`SUCCESS: ${result.message}`);
-        setTasks([]); 
-        setNewClientName('');
-        setClientMode('existing');
-        setFormData({
-            projectName: '', projectCode: '', clientName: '', programName: '',
-            projectManager: '', department: 'Service Delivery', location: '', startDate: '', endDate: '',
-            status: 'Planning', percentCompleted: '0', billingType: 'Time & Materials',
-            allowTimeEntry: 'Yes', clientBillingRateCopy: 'Keep Existing Billing Rates',
-            timeAndExpenseEntry: 'Billable & Non-Billable', accountManager: '',
-            quotedHours: '', internalRemarks: ''
-        });
-        syncMatrixData(true); 
-      } else {
-        alert(`ERROR: ${result.error}`);
+
+      if (!response.body) throw new Error("Readable streams not supported.");
+
+      // Attach a reader to the incoming data stream
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        // Decode the incoming data chunk from the server
+        const chunk = decoder.decode(value, { stream: true });
+        
+        // The server might send multiple updates rapidly, split by newlines
+        const events = chunk.split('\n').filter(Boolean);
+
+        for (const ev of events) {
+          try {
+            const data = JSON.parse(ev);
+            
+            // 1. UPDATE THE UI STATES IN REAL TIME
+            if (data.step) setCurrentStep(data.step);
+            if (data.current !== undefined) setCurrentCount(data.current);
+            if (data.total !== undefined) setTotalCount(data.total);
+
+            // 2. HANDLE SUCCESS
+            if (data.status === 'success') {
+              setIsDeploying(false);
+              alert(`SUCCESS: ${data.message}`);
+              
+              setTasks([]); 
+              setNewClientName('');
+              setClientMode('existing');
+              setFormData({
+                  projectName: '', projectCode: '', clientName: '', programName: '', 
+                  projectManagerName: '', departmentName: '', employeeTypeName: '', locationName: '', 
+                  startDate: '', endDate: '', status: 'Planning', percentCompleted: '0', 
+                  billingType: 'Time & Materials', allowTimeEntry: 'Yes', 
+                  clientBillingRateCopy: 'Keep Existing Billing Rates', timeAndExpenseEntry: 'Billable & Non-Billable',
+                  accountManager: '', quotedHours: ''
+              });
+              syncMatrixData(true);
+              return; // Exit the loop completely
+            }
+
+            // 3. HANDLE SERVER ERRORS
+            if (data.status === 'error') {
+              throw new Error(data.error);
+            }
+
+          } catch (err) {
+            console.error("Stream parse error:", err);
+          }
+        }
       }
-    } catch (e) { 
-      alert("Failed to reach server."); 
-    } finally {
-      setIsSubmitting(false);
+    } catch (error) { 
+      setIsDeploying(false);
+      alert("Deployment Failed: " + error.message); 
     }
   };
 
@@ -220,15 +280,24 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   // =========================================================================
   return (
     <div className={styles.container}>
+      
+      {/* THE NEW DEPLOYMENT LOADER */}
+      <ProjectLoader 
+        isVisible={isDeploying} 
+        step={currentStep} 
+        currentItem={currentCount} 
+        totalItems={totalCount} 
+      />
+
       <div className={styles.headerArea}>
         <h2 className={styles.title}>Project Initialization</h2>
         
         <button 
           className={`${styles.btnPrimary} ${isFormValid ? styles.active : ''}`}
-          disabled={!isFormValid || isSubmitting} 
+          disabled={!isFormValid || isDeploying} 
           onClick={submitProject}
         >
-          {isSubmitting ? 'Submitting...' : 'Add Project'}
+          {isDeploying ? 'Deploying...' : 'Add Project'}
         </button>
       </div>
 
@@ -272,8 +341,8 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
           <div className={styles.formGroup}>
             <label>Client Name *</label>
             <select className={styles.formControl} value={formData.clientName} onChange={e => setFormData({...formData, clientName: e.target.value})}>
-              <option value="">Select a Client...</option>
-              {dropdowns.clients.map(c => <option key={c} value={c}>{c}</option>)}
+              <option value="">Select Client</option>
+              {dictionaries.clients.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
             </select>
           </div>
         ) : (
@@ -283,39 +352,44 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
               <input type="text" className={styles.formControl} value={newClientName} onChange={e => setNewClientName(e.target.value)} placeholder="Type new client name..." />
             </div>
             <div className={styles.formGroup}>
-              <label>Account Manager *</label>
+              <label>Select Account Manager</label>
               <select className={styles.formControl} value={formData.accountManager} onChange={e => setFormData({...formData, accountManager: e.target.value})}>
-                <option value="">Select Account Manager...</option>
-                {dropdowns.accountManagers.map(am => <option key={am} value={am}>{am}</option>)}
+                <option value="">Select Account Manager</option>
+                {dictionaries.accountManagers?.map(am => <option key={am.name} value={am.name}>{am.name}</option>)}
               </select>
             </div>
           </>
         )}
 
         <div className={styles.formGroup}>
-          <label>Program Name *</label>
+          <label>Program Name</label>
           <select className={styles.formControl} value={formData.programName} onChange={e => setFormData({...formData, programName: e.target.value})}>
-            <option value="">Select a Program...</option>
-            {dropdowns.programs.map(p => <option key={p} value={p}>{p}</option>)}
+            <option value="">Select Program</option>
+            {dictionaries.programs.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
           </select>
         </div>
 
         <div className={styles.formGroup}>
           <label>Project Manager *</label>
-          <select className={styles.formControl} value={formData.projectManager} onChange={e => setFormData({...formData, projectManager: e.target.value})}>
-            <option value="">Select a Manager...</option>
-            <option value="Ziad Shafik">Ziad Shafik</option>
-            <option value="Irfan Najmi">Irfan Najmi</option>
+          <select className={styles.formControl} value={formData.projectManagerName} onChange={e => setFormData({...formData, projectManagerName: e.target.value})}>
+            <option value="">Select Project Manager</option>
+            {dictionaries.projectManagers.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
           </select>
         </div>
 
         <div className={styles.formGroup}>
-          <label>Department *</label>
-          <select className={styles.formControl} value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})}>
-            <option value="LiveRoute">LiveRoute</option>
-            <option value="Management">Management</option>
-            <option value="Pre Sales">Pre Sales</option>
-            <option value="Service Delivery">Service Delivery</option>
+          <label>Department</label>
+          <select className={styles.formControl} value={formData.departmentName} onChange={e => setFormData({...formData, departmentName: e.target.value})}>
+            <option value="">Select Department</option>
+            {dictionaries.departments.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
+          </select>
+        </div>
+
+        <div className={styles.formGroup}>
+          <label>Employee Type</label>
+          <select className={styles.formControl} value={formData.employeeTypeName} onChange={e => setFormData({...formData, employeeTypeName: e.target.value})}>
+            <option value="">Select Employee Type</option>
+            {dictionaries.employeeTypes?.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
           </select>
         </div>
 
@@ -323,10 +397,10 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
         <div className={styles.formGroup}><label>End Date *</label><input type="date" className={styles.formControl} value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} /></div>
         
         <div className={styles.formGroup}>
-          <label>Location *</label>
-          <select className={styles.formControl} value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})}>
-            <option value="">Select Location...</option>
-            {dropdowns.locations.map(l => <option key={l} value={l}>{l}</option>)}
+          <label>Location</label>
+          <select className={styles.formControl} value={formData.locationName} onChange={e => setFormData({...formData, locationName: e.target.value})}>
+            <option value="">Select Location</option>
+            {dictionaries.locations.map(l => <option key={l.name} value={l.name}>{l.name}</option>)}
           </select>
         </div>
 
@@ -340,7 +414,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
         </div>
 
         <div className={styles.formGroup}>
-          <label>Allow Time Entry</label>
+          <label>Time Entry on Tasks</label>
           <div className={styles.segmentControl}>
             <button className={formData.allowTimeEntry === 'Yes' ? styles.active : ''} onClick={() => setFormData({...formData, allowTimeEntry: 'Yes'})}>Yes</button>
             <button className={formData.allowTimeEntry === 'No' ? styles.active : ''} onClick={() => setFormData({...formData, allowTimeEntry: 'No'})}>No</button>
@@ -365,7 +439,6 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
         </div>
 
         <div className={styles.formGroup}><label>Quoted Hours</label><input type="number" className={styles.formControl} value={formData.quotedHours} onChange={e => setFormData({...formData, quotedHours: e.target.value})} /></div>
-        <div className={styles.formGroup}><label>Remarks</label><input type="text" className={styles.formControl} value={formData.internalRemarks} onChange={e => setFormData({...formData, internalRemarks: e.target.value})} /></div>
       </div>
 
       {tasks.length === 0 ? (
@@ -380,7 +453,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
             <span>BULK ASSIGN:</span>
             <select className={styles.formControl} style={{ maxWidth: '300px' }} value={bulkAssignValue} onChange={e => setBulkAssignValue(e.target.value)}>
               <option value="">-- Select Engineer for all tasks --</option>
-              {dropdowns.engineers.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
+              {dictionaries.users.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
             </select>
             <button className={styles.btnPrimary} style={{ padding: '10px 20px', fontSize: '0.9rem' }} onClick={applyBulkAssign}>Apply</button>
           </div>
@@ -399,7 +472,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
               {tasks.map((task, tIndex) => (
                 <tr key={tIndex} className={task.isMilestone ? styles.milestoneRow : ''}>
                   <td>10{tIndex + 1}</td>
-                  <td>
+                  <td style={{ paddingLeft: `${Math.max(0, (task.outlineLevel - 1) * 20)}px` }}>
                     {task.isMilestone && <i className={`bx bxs-flag-alt ${styles.milestoneIcon}`}></i>}
                     {task.name}
                   </td>
@@ -413,7 +486,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
                         <div key={aIndex} className={styles.assigneeRow}>
                           <select className={styles.formControl} style={{ padding: '8px', fontSize: '0.85rem' }} value={assignee} onChange={e => handleAssigneeChange(tIndex, aIndex, e.target.value)}>
                             <option value="">-- Unassigned --</option>
-                            {dropdowns.engineers.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
+                            {dictionaries.users.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
                           </select>
                           {aIndex === 0 ? (
                             <button className={styles.btnIcon} onClick={() => addAssignee(tIndex)} title="Add engineer"><i className='bx bx-plus'></i></button>

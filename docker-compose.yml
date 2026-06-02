@@ -8,6 +8,6 @@ services:
     restart: always
     ports:
       # This binds your unique host port (3000, 3001, 3002) to the container's internal port 3000
-      - "${PORT}:3000"
+      - "${PORT}:${PORT}"
     env_file:
       - .env

@@ -1,222 +1,311 @@
 /* =========================================================================
-   SMART INITIATOR - FLAT DARK THEME
+   SMART INITIATOR - APPLE "GLASS" DARK THEME
+   Scoped locally to avoid breaking other pages.
    ========================================================================= */
+
 .container {
-  color: #e5e5e5;
-  font-family: 'Inter', 'Segoe UI', sans-serif;
-  padding: 20px;
+  /* Local Apple-inspired variables */
+  --si-bg: transparent; 
+  --si-card-bg: rgba(24, 24, 27, 0.5); /* Translucent Glass */
+  --si-card-border: rgba(255, 255, 255, 0.08); /* Ultra-thin Apple border */
+  --si-accent: #a855f7; /* Vibrant Purple from Inspo */
+  --si-accent-glow: rgba(168, 85, 247, 0.3);
+  --si-accent-dim: rgba(168, 85, 247, 0.12);
+  --si-text-main: #fbfbfc;
+  --si-text-muted: #8e8e93; /* Classic iOS Gray */
+  --si-radius-lg: 24px;
+  --si-radius-md: 14px;
+  --si-radius-sm: 10px;
+
+  color: var(--si-text-main);
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+  padding: 40px;
+  
+  /* THE FIX: Let it stretch page-wide! */
+  width: 100%;
+  box-sizing: border-box;
 }
 
+/* =========================================================================
+   HEADER AREA
+   ========================================================================= */
 .headerArea {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 30px;
+  margin-bottom: 40px;
 }
 
 .title {
-  font-size: 1.8rem;
-  font-weight: 400;
-  color: #9ca3af;
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--si-text-main);
   margin: 0;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.04em; /* Tight letter spacing (Apple style) */
 }
 
 /* =========================================================================
-   FORM GRID (TOP SECTION)
+   TOP SECTION: GLASS-MORPHIC FORM GRID
    ========================================================================= */
 .formGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  column-gap: 60px;
-  row-gap: 24px;
+  column-gap: 50px;
+  row-gap: 30px;
   margin-bottom: 50px;
+  
+  /* The Glass Card Effect */
+  background: var(--si-card-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-radius: var(--si-radius-lg);
+  padding: 45px;
+  border: 1px solid var(--si-card-border);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
 }
 
+/* Stacked Inputs (Modern layout) */
 .formGroup {
-  display: grid;
-  grid-template-columns: 160px 1fr;
-  align-items: center;
-  gap: 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
 }
 
 .formGroup label {
-  font-size: 0.95rem;
-  color: #ffffff;
-  font-weight: 400;
-}
-
-.formControl {
-  background: #121212;
-  color: #ffffff;
-  border: 1px solid #222;
-  padding: 10px 14px;
-  border-radius: 6px;
-  font-family: inherit;
-  font-size: 0.95rem;
-  outline: none;
-  width: 100%;
-}
-
-.formControl:focus {
-  border-color: #3b82f6;
-}
-
-input[type="date"].formControl::-webkit-calendar-picker-indicator {
-  filter: invert(1);
-  opacity: 0.7;
+  font-size: 0.8rem;
+  color: var(--si-text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .spanAll {
   grid-column: 1 / -1;
-  grid-template-columns: 160px 1fr; 
 }
 
-/* Custom Controls */
+/* Float Inputs */
+.formControl {
+  background: rgba(0, 0, 0, 0.2); /* Deeper inset feel */
+  color: var(--si-text-main);
+  border: 1px solid var(--si-card-border);
+  padding: 14px 16px;
+  border-radius: var(--si-radius-md);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 500;
+  outline: none;
+  width: 100%;
+  transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  box-sizing: border-box;
+}
+
+.formControl:focus {
+  border-color: var(--si-accent);
+  background: rgba(168, 85, 247, 0.03);
+  box-shadow: 0 0 0 4px var(--si-accent-dim);
+}
+
+/* Custom Calendar Icon Color */
+input[type="date"].formControl::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.5;
+  cursor: pointer;
+}
+
+/* =========================================================================
+   CUSTOM CONTROLS (Toggles & Counters)
+   ========================================================================= */
 .counterControl {
   display: flex;
-  background: #121212;
-  border: 1px solid #222;
-  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--si-card-border);
+  border-radius: var(--si-radius-md);
   overflow: hidden;
-  height: 40px;
+  height: 48px;
+  width: 100%;
 }
 
 .counterControl button {
   background: transparent;
   border: none;
-  color: #fff;
-  padding: 0 20px;
+  color: var(--si-text-muted);
+  padding: 0 24px;
   cursor: pointer;
-  font-size: 1.2rem;
-  transition: background 0.2s;
+  font-size: 1.4rem;
+  transition: all 0.2s;
 }
 
 .counterControl button:hover {
-  background: #222;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--si-text-main);
 }
 
 .counterControl input {
   flex-grow: 1;
   background: transparent;
   border: none;
-  color: #fff;
+  color: var(--si-text-main);
   text-align: center;
-  font-size: 1rem;
+  font-size: 1.1rem;
+  font-weight: 600;
   outline: none;
   -moz-appearance: textfield;
-}
-.counterControl input::-webkit-outer-spin-button,
-.counterControl input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
 }
 
 .segmentControl {
   display: flex;
-  border: 1px solid #222;
-  border-radius: 6px;
-  overflow: hidden;
-  height: 40px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--si-card-border);
+  border-radius: var(--si-radius-md);
+  padding: 4px; /* Creates the internal floating pill effect */
+  height: 48px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .segmentControl button {
   flex: 1;
-  background: #121212;
+  background: transparent;
   border: none;
-  color: #fff;
-  font-size: 0.95rem;
+  color: var(--si-text-muted);
+  font-size: 0.9rem;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s ease;
+  border-radius: var(--si-radius-sm);
 }
 
 .segmentControl button.active {
-  background: #2b4088;
+  background: var(--si-accent-dim);
+  color: #e9d5ff; /* Soft purple text */
   font-weight: 600;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
 }
 
 /* =========================================================================
-   TASK TABLE & UPLOAD (BOTTOM SECTION)
+   BOTTOM SECTION: TASK UPLOAD & TABLE
    ========================================================================= */
 .uploadZone {
-  border: 1px dashed #333;
-  padding: 40px;
+  background: var(--si-card-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 2px dashed rgba(255, 255, 255, 0.15);
+  padding: 80px 40px;
   text-align: center;
   cursor: pointer;
-  color: #666;
-  border-radius: 8px;
-  transition: border-color 0.2s;
+  color: var(--si-text-muted);
+  border-radius: var(--si-radius-lg);
+  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.uploadZone h3 {
+  font-weight: 500;
+  letter-spacing: -0.01em;
 }
 
 .uploadZone:hover {
-  border-color: #3b82f6;
-  color: #888;
+  border-color: var(--si-accent);
+  background: rgba(168, 85, 247, 0.03);
+  color: var(--si-accent);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
 }
 
 .tasksTableWrapper {
   width: 100%;
+  background: var(--si-card-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-radius: var(--si-radius-lg);
+  border: 1px solid var(--si-card-border);
+  overflow: hidden;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
 }
 
 .bulkAssignBar {
   display: flex;
   align-items: center;
   gap: 15px;
-  background: #121212;
-  border: 1px solid #222;
-  padding: 12px 16px;
-  border-radius: 6px;
-  margin-bottom: 20px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--si-card-border);
+  padding: 20px 30px;
 }
 
 .bulkAssignBar span {
-  font-size: 0.9rem;
-  color: #9ca3af;
+  font-size: 0.8rem;
+  color: var(--si-text-muted);
   font-weight: 600;
+  letter-spacing: 0.05em;
 }
 
 .tasksTableWrapper table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
 }
 
 .tasksTableWrapper th {
   text-align: left;
-  padding: 12px 16px;
-  color: #ffffff;
+  padding: 16px 30px;
+  color: var(--si-text-muted);
+  font-size: 0.8rem;
   font-weight: 600;
-  border-bottom: 1px solid #333;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--si-card-border);
 }
 
+/* Eliminate internal borders for seamless row flow */
 .tasksTableWrapper td {
-  padding: 12px 16px;
-  background: #121212;
-  border-bottom: 1px solid #1a1a1a;
+  padding: 16px 30px;
+  background: transparent;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
   vertical-align: middle;
 }
 
-/* Milestones */
+.tasksTableWrapper tbody tr {
+  transition: background 0.2s ease;
+}
+
+.tasksTableWrapper tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* =========================================================================
+   MILESTONES (The Vibrant Purple Accent)
+   ========================================================================= */
 .milestoneRow td {
-  background: #2b4088 !important; 
-  color: #ffffff;
+  /* Rich gradient fade instead of solid block */
+  background: linear-gradient(90deg, var(--si-accent-dim) 0%, transparent 100%) !important;
+  color: var(--si-text-main);
   font-weight: 600;
-  border-bottom: 1px solid #2b4088;
+  border-bottom: none !important;
+}
+
+.milestoneRow td:first-child {
+  border-left: 3px solid var(--si-accent);
 }
 
 .milestoneIcon {
-  color: #ef4444; 
-  margin-right: 8px;
+  color: var(--si-accent);
+  margin-right: 10px;
 }
 
 .milestoneBadge {
-  color: #93c5fd;
-  font-size: 0.85rem;
-  font-weight: 600;
-  letter-spacing: 0.5px;
+  background: var(--si-accent-dim);
+  color: #d8b4fe;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
-/* Assignee Rows & Buttons */
+/* =========================================================================
+   ASSIGNEE CONTROLS & MINI BUTTONS
+   ========================================================================= */
 .assigneeRow {
   display: flex;
   align-items: center;
@@ -229,51 +318,56 @@ input[type="date"].formControl::-webkit-calendar-picker-indicator {
 }
 
 .btnIcon {
-  background: transparent;
-  color: #9ca3af;
-  border: 1px solid #333;
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--si-text-muted);
+  border: 1px solid var(--si-card-border);
+  width: 38px;
+  height: 38px;
+  border-radius: var(--si-radius-sm);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: 0.2s;
+  transition: all 0.2s;
 }
 
 .btnIcon:hover {
-  background: #222;
-  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--si-text-main);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .btnDanger:hover {
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
-  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.1) !important;
+  color: #ff453a !important;
+  border-color: rgba(239, 68, 68, 0.3) !important;
 }
 
 /* =========================================================================
-   TOP SUBMIT BUTTON
+   PRIMARY BUTTON (Sleek Apple Pill)
    ========================================================================= */
 .btnPrimary {
-  background: #1a1a1a;
-  color: #444;
-  border: 1px solid #333;
-  padding: 10px 30px;
-  border-radius: 8px;
-  font-size: 1rem;
+  background: var(--si-accent);
+  color: #ffffff;
+  border: none;
+  padding: 12px 32px;
+  border-radius: 100px; /* Full pill shape */
+  font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
-  transition: 0.2s;
+  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  box-shadow: 0 4px 15px var(--si-accent-glow);
 }
 
-.btnPrimary.active {
-  background: #2b4088;
-  color: #fff;
-  border-color: #2b4088;
+.btnPrimary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(168, 85, 247, 0.5);
+  background: #b666ff; /* Slightly brighter on hover */
 }
 
 .btnPrimary:disabled {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--si-text-muted);
+  box-shadow: none;
   cursor: not-allowed;
 }

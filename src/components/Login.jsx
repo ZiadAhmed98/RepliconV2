@@ -25,7 +25,7 @@ export default function Login({ onLoginSuccess }) {
         const userData = { name: finalName, uri: data.uri };
         localStorage.setItem('mds_dashboard_session', JSON.stringify({
           user: userData,
-          expiresAt: new Date().getTime() + (3600000) // 1 Hour session
+          expiresAt: new Date().getTime() + (3600000) 
         }));
         
         onLoginSuccess(userData);
@@ -43,14 +43,10 @@ export default function Login({ onLoginSuccess }) {
     <div className={styles.loginContainer}>
       <div className={styles.loginBox}>
         <div className={styles.logoWrap}>
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-            <line x1="12" y1="22.08" x2="12" y2="12"></line>
-          </svg>
+          <i className='bx bx-hive' style={{ fontSize: '3rem', color: 'var(--accent-primary)' }}></i>
         </div>
-        <h2 className={styles.title}>MDS Premium Analytics</h2>
-        <p className={styles.subtitle}>Enter your analytics credentials.</p>
+        <h2 className={styles.title}>Liveroute Analytics</h2>
+        <p className={styles.subtitle}>Enter your credentials.</p>
         
         <form onSubmit={handleLogin}>
           <input 

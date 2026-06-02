@@ -1,38 +1,50 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import Chart from 'react-apexcharts';
+import ApexCharts from 'apexcharts';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+// Ensures the bundler securely exposes this to the window for the fallback
+import html2canvas from 'html2canvas';
+window.html2canvas = html2canvas;
+
 import styles from './Dashboard.module.css';
 import ComplianceModal from '../components/ComplianceModal';
 
 export default function Dashboard({ dataMatrix }) {
   // =========================================================================
-  // 1. COMPONENT STATE
-  // Manages what the user sees (modals, filters, and current views)
+  // 1. COMPONENT STATE & LOCAL CHART FILTERS
   // =========================================================================
   const [compView, setCompView] = useState('daily');
   const [isCompModalOpen, setIsCompModalOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const dashboardRef = useRef(null); // Used to capture the screen for PDF export
+  
+  const [localFilters, setLocalFilters] = useState({
+    trendMonths: 12, 
+    deepEffortLimit: 9999 
+  });
+  
+  const dashboardRef = useRef(null); 
+  const filterPanelRef = useRef(null);
 
-  // =========================================================================
-  // 2. FILTER ENGINE STATE
-  // Stores the current selections for the interactive filter panel
-  // =========================================================================
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (filterPanelRef.current && !filterPanelRef.current.contains(event.target)) setShowFilters(false);
+    };
+    if (showFilters) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showFilters]);
+
   const [filters, setFilters] = useState({ 
     client: 'All', project: 'All', program: 'All', 
     timePreset: 'All Time', dateFrom: '', dateTo: '' 
   });
 
-  // Resets all filters back to default
-  const handleClearFilters = () => setFilters({ 
-    client: 'All', project: 'All', program: 'All', 
-    timePreset: 'All Time', dateFrom: '', dateTo: '' 
-  });
+  const handleClearFilters = () => setFilters({ client: 'All', project: 'All', program: 'All', timePreset: 'All Time', dateFrom: '', dateTo: '' });
 
-  // Handles dropdown changes for Time Periods and auto-fills the calendar dates
   const handlePresetChange = (e) => {
     const preset = e.target.value;
     let newFrom = '', newTo = '';
-    
     if (preset === 'This Week') {
       const d = new Date(); const day = d.getDay(); const diff = d.getDate() - day + (day === 0 ? -6 : 1);
       newFrom = new Date(d.setDate(diff)).toISOString().split('T')[0];
@@ -41,24 +53,20 @@ export default function Dashboard({ dataMatrix }) {
       newFrom = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
       newTo = new Date().toISOString().split('T')[0];
     }
-
     setFilters({ ...filters, timePreset: preset, dateFrom: newFrom, dateTo: newTo });
   };
 
   // =========================================================================
-  // 3. THE CALCULATION ENGINE (FILTER-AWARE)
-  // This massive block recalculates the charts ONLY when data or filters change.
+  // 3. THE CALCULATION ENGINE
   // =========================================================================
   const metrics = useMemo(() => {
     let tAct = 0, tEst = 0, tQuoted = 0, activeStatus = 0, compStatus = 0, billableHrs = 0, overheadHrs = 0;
     let overburnData = [], atRiskData = [], rolloffArray = [], timeTrendMap = {}, statusCounts = {};
     let empHoursMap = {}, locMap = {}, activeClientsSet = new Set(), activeProjectsSet = new Set(), activeProgramsSet = new Set();
 
-    // Safely extract data
     const { factTable = [], dimensionTable = {}, topClients = [], compliance = {}, roster = [] } = dataMatrix || {};
     const nowTs = Date.now();
 
-    // --- A. Apply Date Boundaries based on Filters ---
     let tsFrom = 0, tsTo = Infinity;
     if (filters.timePreset === 'This Week') {
       const d = new Date(); const day = d.getDay(); const diff = d.getDate() - day + (day === 0 ? -6 : 1);
@@ -67,10 +75,9 @@ export default function Dashboard({ dataMatrix }) {
       tsFrom = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
     } else if (filters.timePreset === 'Custom') {
       if (filters.dateFrom) tsFrom = new Date(filters.dateFrom).getTime();
-      if (filters.dateTo) tsTo = new Date(filters.dateTo).getTime() + 86400000; // Add 1 day to include end date fully
+      if (filters.dateTo) tsTo = new Date(filters.dateTo).getTime() + 86400000; 
     }
 
-    // --- B. Filter the Fact Table (Timesheets) ---
     const filteredFacts = factTable.filter(row => {
       if (row.date > 0 && (row.date < tsFrom || row.date > tsTo)) return false;
       if (filters.client !== 'All' && row.client !== filters.client) return false;
@@ -79,21 +86,16 @@ export default function Dashboard({ dataMatrix }) {
       return true;
     });
 
-    // --- C. Calculate General Metrics from Filtered Facts ---
     filteredFacts.forEach(row => {
-      // Track active dropdown options based on current filter state
       if (row.client && row.client !== "Unknown") activeClientsSet.add(row.client);
       if (row.project && row.project !== "Unknown") activeProjectsSet.add(row.project);
       if (row.program && row.program !== "Unknown" && row.program !== "Unassigned") activeProgramsSet.add(row.program);
 
-      // Billable vs Overhead
       if ((row.program || "").toLowerCase().includes("internal")) overheadHrs += row.act; else billableHrs += row.act;
       
-      // Top Employees & Locations
       if (row.user && row.user !== "Unknown") empHoursMap[row.user] = (empHoursMap[row.user] || 0) + row.act;
       if (row.location && row.location !== "Unknown") locMap[row.location] = (locMap[row.location] || 0) + row.act;
       
-      // Trend Data Prep
       if (row.date > 0) {
         let d = new Date(row.date);
         let key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
@@ -103,11 +105,8 @@ export default function Dashboard({ dataMatrix }) {
 
     let projLabels = [], projAct = [], projEst = [], projQuoted = [];
     
-    // --- D. Process Dimension Table (Projects) against filters ---
     Object.keys(dimensionTable).forEach(pName => {
       const pData = dimensionTable[pName];
-      
-      // Skip projects that don't match our drop-down filters
       if (filters.client !== 'All' && pData.client !== filters.client) return;
       if (filters.program !== 'All' && pData.program !== filters.program) return;
       if (filters.project !== 'All' && pName !== filters.project) return;
@@ -117,7 +116,6 @@ export default function Dashboard({ dataMatrix }) {
       tAct += periodActual; tEst += pData.est; tQuoted += pData.quoted;
       projLabels.push(pName); projAct.push(periodActual); projEst.push(pData.est); projQuoted.push(pData.quoted);
 
-      // Status Tracking
       let statStr = (pData.status || "Unknown").toLowerCase();
       let isCompleted = statStr.includes('completed') || statStr.includes('archived');
       let isActive = periodActual > 0 || statStr.includes('in progress') || statStr.includes('active');
@@ -125,17 +123,14 @@ export default function Dashboard({ dataMatrix }) {
       if (isCompleted) compStatus++; else if (isActive) activeStatus++;
       if (periodActual > 0 || pData.est > 0) statusCounts[pData.status || "Unknown"] = (statusCounts[pData.status || "Unknown"] || 0) + 1;
 
-      // At-Risk
       if (isActive && pData.est > 0 && (pData.program || "").toLowerCase().includes("deployment")) {
         atRiskData.push({ name: pName, burn: Math.round((periodActual / pData.est) * 100) });
       }
 
-      // Overburn (Revenue Leakage)
       if (periodActual > pData.est && pData.est > 0) {
         overburnData.push({ name: pName, act: periodActual, est: pData.est, overburn: periodActual - pData.est });
       }
 
-      // Rolloffs: STRICTLY limited to Deployment programs per your instruction
       if (isActive && (pData.program || "").toLowerCase().includes("deployment")) {
         let engs = new Set();
         filteredFacts.forEach(r => { if(r.project === pName && r.date > (nowTs - 30*86400000) && r.act > 0) engs.add(r.user); });
@@ -146,7 +141,6 @@ export default function Dashboard({ dataMatrix }) {
       }
     });
 
-    // --- E. Process Trend Capacity ---
     let trendLabels = [], trendActuals = [], trendCapacity = [];
     Object.keys(timeTrendMap).sort().forEach(k => {
       let [year, month] = k.split('-'); let mStart = new Date(year, parseInt(month)-1, 1).getTime(); let mEnd = new Date(year, parseInt(month), 0).getTime();
@@ -165,7 +159,6 @@ export default function Dashboard({ dataMatrix }) {
       trendCapacity.push(Math.round(mCap));
     });
 
-    // Generate Global Dropdown Options (unfiltered so the user can always see choices)
     let allClients = new Set(), allProjects = new Set(), allPrograms = new Set();
     factTable.forEach(r => {
         if(r.client && r.client !== "Unknown") allClients.add(r.client);
@@ -176,7 +169,6 @@ export default function Dashboard({ dataMatrix }) {
     const sortedOverburn = overburnData.sort((a, b) => b.overburn - a.overburn).slice(0, 10);
     const maxBf = Math.ceil(Math.max(0, ...sortedOverburn.map(p => Math.max(p.act, p.est))) * 1.1) || 10;
     
-    // Pack everything up for the UI
     return {
       kpis: { totalProjects: activeProjectsSet.size, activeProjects: activeStatus, completedProjects: compStatus, actual: Math.round(tAct), estimated: Math.round(tEst), quoted: Math.round(tQuoted) },
       billable: Math.round(billableHrs), overhead: Math.round(overheadHrs), overburn: sortedOverburn, bfMax: maxBf, topClients,
@@ -189,57 +181,151 @@ export default function Dashboard({ dataMatrix }) {
       deepEffort: { labels: projLabels, act: projAct, est: projEst, quoted: projQuoted },
       compliance: compliance, activeClientsCount: activeClientsSet.size,
       dropdowns: { clients: Array.from(allClients).sort(), projects: Array.from(allProjects).sort(), programs: Array.from(allPrograms).sort() },
-      dimensionTable // Keep access to dimensions for the PDF Table
+      dimensionTable 
     };
   }, [dataMatrix, filters]);
 
-  // Formatting Helpers
   const fmtInt = (num) => Math.round(num || 0).toLocaleString('en-US');
-  const fmtK = (num) => num > 999 ? (num/1000).toFixed(1) + 'k' : num;
-  const chartDefaults = { background: 'transparent', foreColor: '#a1a1aa', toolbar: { show: false } };
-
-  // =========================================================================
-  // 4. PDF EXPORT HANDLER
-  // =========================================================================
-  const handlePrintPDF = async () => {
-    if (!window.html2pdf) {
-      alert("PDF Engine is still loading. Please wait a moment.");
-      return;
-    }
-    
-    // Briefly display the hidden detailed table so it prints
-    const pdfContainer = document.getElementById('pdf-table-container');
-    if (pdfContainer) pdfContainer.style.display = 'block';
-
-    const opt = { 
-      margin: [0.5, 0.5, 0.5, 0.5], 
-      filename: `MDS_Premium_Report_${new Date().toISOString().split('T')[0]}.pdf`, 
-      image: { type: 'jpeg', quality: 0.98 }, 
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#09090b' }, 
-      jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' }, 
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] } 
-    };
-
-    try {
-      await window.html2pdf().set(opt).from(dashboardRef.current).save();
-    } catch (e) {
-      alert("Failed to generate PDF. Check console for errors.");
-    } finally {
-      if (pdfContainer) pdfContainer.style.display = 'none'; // Hide it again
-    }
+  const fmtK = (num) => {
+    if (!num) return 0;
+    const n = Math.round(num);
+    return n > 999 ? (n/1000).toFixed(1) + 'k' : n;
   };
 
   // =========================================================================
-  // 5. USER INTERFACE RENDER
+  // 4. THE BULLETPROOF PDF EXPORTER (NATIVE + DOM CAPTURE FALLBACK)
   // =========================================================================
+  const exportChartToPDF = async (chartId, title, tableHeaders, tableRows) => {
+    try {
+      let imgURI = null;
+      
+      // Strategy 1: Attempt native ApexCharts Vector Extraction
+      try {
+        const response = await ApexCharts.exec(chartId, 'dataURI');
+        if (response && response.imgURI) imgURI = response.imgURI;
+      } catch (err) {
+        console.warn(`Native export for ${chartId} bypassed, utilizing DOM capture fallback.`);
+      }
+
+      // Strategy 2: If Donut/Log charts block the native engine, take a high-res DOM screenshot of the wrapper!
+      if (!imgURI) {
+        const chartNode = document.getElementById(`wrap-${chartId}`);
+        if (chartNode) {
+          const canvas = await window.html2canvas(chartNode, {
+            backgroundColor: '#141419', // Fills the transparent glass with dark theme for PDF reading
+            scale: 2, // Retina resolution
+            logging: false
+          });
+          imgURI = canvas.toDataURL('image/png');
+        }
+      }
+
+      if (!imgURI) {
+        alert("The chart is hidden or still animating. Please wait a second and click export again.");
+        return;
+      }
+
+      const doc = new jsPDF('p', 'pt', 'a4');
+      
+      doc.setFontSize(18);
+      doc.setTextColor(40, 40, 40);
+      doc.text(title, 40, 45);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(120, 120, 120);
+      doc.text(`Generated on: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`, 40, 60);
+
+      doc.setFillColor(20, 20, 25);
+      doc.rect(40, 80, 515, 230, 'F');
+      doc.addImage(imgURI, 'PNG', 40, 80, 515, 230);
+
+      autoTable(doc, {
+        startY: 330,
+        head: [tableHeaders],
+        body: tableRows,
+        theme: 'striped',
+        headStyles: { fillColor: [168, 85, 247], textColor: 255, fontSize: 10, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 9, textColor: 50 },
+        alternateRowStyles: { fillColor: [245, 245, 245] },
+        margin: { left: 40, right: 40 }
+      });
+
+      doc.save(`${title.replace(/\s+/g, '_')}_Executive_Report.pdf`);
+    } catch (err) {
+      console.error("PDF Generation Error: ", err);
+      alert("Failed to export PDF. Please check the console for details.");
+    }
+  };
+
+  const PdfButton = ({ onClick }) => (
+    <button 
+      style={{ 
+        padding: '6px 14px', 
+        fontSize: '0.8rem', 
+        borderRadius: '8px', 
+        border: '1px solid rgba(255, 59, 48, 0.3)', 
+        background: 'rgba(255, 59, 48, 0.05)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        cursor: 'pointer',
+        transition: 'all 0.2s',
+        color: '#ff3b30'
+      }} 
+      onClick={onClick}
+      onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255, 59, 48, 0.15)'}
+      onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255, 59, 48, 0.05)'}
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff3b30" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <polyline points="14 2 14 8 20 8"></polyline>
+        <path d="M9 15v-6h3a2 2 0 0 1 0 4H9"></path>
+      </svg>
+      <span style={{ fontWeight: 600 }}>PDF Report</span>
+    </button>
+  );
+
+  const getChartOptions = (id, customOptions = {}) => {
+    const mergedChart = {
+      id: id,
+      background: 'transparent',
+      toolbar: { show: true }, 
+      ...(customOptions.chart || {})
+    };
+
+    return {
+      chart: mergedChart,
+      grid: { borderColor: 'rgba(255,255,255,0.05)', strokeDashArray: 4 },
+      tooltip: { theme: 'dark' }, 
+      ...customOptions
+    };
+  };
+
+  const handlePrintFullDashboardPDF = async () => {
+    if (!window.html2pdf) return alert("Full Dashboard PDF Engine loading. Try again in a moment.");
+    const pdfContainer = document.getElementById('pdf-table-container');
+    if (pdfContainer) pdfContainer.style.display = 'block';
+    try {
+      await window.html2pdf().set({ margin: 0.5, filename: `Dashboard_Export_${Date.now()}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true, backgroundColor: '#0a0a0c' }, jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' } }).from(dashboardRef.current).save();
+    } catch (e) { alert("Failed to generate PDF."); } finally {
+      if (pdfContainer) pdfContainer.style.display = 'none'; 
+    }
+  };
+
+  const activeLimit = Math.min(metrics.deepEffort.labels.length, localFilters.deepEffortLimit);
+  const deepChartMinWidth = activeLimit > 15 ? `${activeLimit * 60}px` : '100%';
+
   return (
     <div ref={dashboardRef}>
       
-      {/* Invisible Compliance Modal (Shows when triggered) */}
+      <style>{`
+        .apexcharts-svg, .apexcharts-canvas { background: transparent !important; }
+      `}</style>
+
       <ComplianceModal isOpen={isCompModalOpen} onClose={() => setIsCompModalOpen(false)} viewType={compView} dataMatrix={dataMatrix} />
 
       {/* --- HEADER & CONTROLS --- */}
-      <div className={styles.sectionHeader}>
+      <div className={styles.sectionHeader} style={{ position: 'relative' }}>
         <div className={styles.titleArea}>
           <h2 className={styles.sectionTitle}>Analytics Overview</h2>
           <div className="badges-container">
@@ -250,18 +336,18 @@ export default function Dashboard({ dataMatrix }) {
         </div>
 
         <div className={styles.actionHeader}>
-          <div className={styles.actionBtn} onClick={handlePrintPDF} title="Export PDF"><i className='bx bx-export'></i></div>
-          <div className={styles.actionBtn} onClick={() => setShowFilters(!showFilters)} title="Toggle Filters"><i className='bx bx-filter-alt'></i></div>
+          <div className={styles.actionBtn} onClick={handlePrintFullDashboardPDF} title="Export Full Dashboard"><i className='bx bx-export'></i></div>
+          <div className={styles.actionBtn} onClick={(e) => { e.stopPropagation(); setShowFilters(!showFilters); }} title="Toggle Filters"><i className='bx bx-filter-alt'></i></div>
         </div>
 
         {/* --- INTERACTIVE FILTER PANEL --- */}
         {showFilters && (
-          <div className={styles.filterPanel}>
+          <div className={styles.filterPanel} ref={filterPanelRef}>
             <h4>Global Filters <i className='bx bx-x' style={{ cursor: 'pointer' }} onClick={() => setShowFilters(false)}></i></h4>
             
             <div className={styles.filterGroup}>
               <label>Client</label>
-              <select value={filters.client} onChange={e => setFilters({...filters, client: e.target.value})}>
+              <select className={styles.formControl} value={filters.client} onChange={e => setFilters({...filters, client: e.target.value})}>
                 <option value="All">All Clients</option>
                 {metrics.dropdowns.clients.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
@@ -269,7 +355,7 @@ export default function Dashboard({ dataMatrix }) {
 
             <div className={styles.filterGroup}>
               <label>Program</label>
-              <select value={filters.program} onChange={e => setFilters({...filters, program: e.target.value})}>
+              <select className={styles.formControl} value={filters.program} onChange={e => setFilters({...filters, program: e.target.value})}>
                 <option value="All">All Programs</option>
                 {metrics.dropdowns.programs.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
@@ -277,7 +363,7 @@ export default function Dashboard({ dataMatrix }) {
 
             <div className={styles.filterGroup}>
               <label>Project</label>
-              <select value={filters.project} onChange={e => setFilters({...filters, project: e.target.value})}>
+              <select className={styles.formControl} value={filters.project} onChange={e => setFilters({...filters, project: e.target.value})}>
                 <option value="All">All Projects</option>
                 {metrics.dropdowns.projects.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
@@ -285,7 +371,7 @@ export default function Dashboard({ dataMatrix }) {
 
             <div className={styles.filterGroup} style={{ marginTop: '20px' }}>
               <label>Time Period</label>
-              <select value={filters.timePreset} onChange={handlePresetChange}>
+              <select className={styles.formControl} value={filters.timePreset} onChange={handlePresetChange}>
                 <option value="All Time">All Time</option>
                 <option value="This Week">This Week</option>
                 <option value="MTD">Month to Date (MTD)</option>
@@ -293,21 +379,14 @@ export default function Dashboard({ dataMatrix }) {
               </select>
             </div>
 
-            {/* Calendar dates are ALWAYS visible to show the user the exact filtered range */}
             <div className={styles.dateRangeRow}>
-              <div>
-                <label>From</label>
-                <input type="date" value={filters.dateFrom} onChange={e => setFilters({...filters, timePreset: 'Custom', dateFrom: e.target.value})} />
-              </div>
-              <div>
-                <label>To</label>
-                <input type="date" value={filters.dateTo} onChange={e => setFilters({...filters, timePreset: 'Custom', dateTo: e.target.value})} />
-              </div>
+              <div><label>From</label><input type="date" className={styles.formControl} value={filters.dateFrom} onChange={e => setFilters({...filters, timePreset: 'Custom', dateFrom: e.target.value})} /></div>
+              <div><label>To</label><input type="date" className={styles.formControl} value={filters.dateTo} onChange={e => setFilters({...filters, timePreset: 'Custom', dateTo: e.target.value})} /></div>
             </div>
 
             <div className={styles.filterActions}>
               <button className={styles.clearBtn} onClick={handleClearFilters}>Reset</button>
-              <button className={styles.applyBtn} onClick={() => setShowFilters(false)}>Apply Filters</button>
+              <button className={styles.applyBtn} onClick={() => setShowFilters(false)}>Apply</button>
             </div>
           </div>
         )}
@@ -321,9 +400,8 @@ export default function Dashboard({ dataMatrix }) {
         <div className="kpi-card"><div><p>Completed</p><h3 style={{ color: 'var(--accent-green)' }}>{metrics.kpis.completedProjects}</h3></div><div className="trend"><i className='bx bx-check-circle'></i> <span>Current</span></div></div>
         <div className="kpi-card"><div><p>Actual Hours</p><h3>{fmtInt(metrics.kpis.actual)}</h3></div><div className="trend"><i className='bx bx-time'></i> <span>Period Effort</span></div></div>
         <div className="kpi-card"><div><p>Estimated Hours</p><h3>{fmtInt(metrics.kpis.estimated)}</h3></div><div className="trend"><i className='bx bx-target-lock'></i> <span>Baseline</span></div></div>
-        <div className="kpi-card"><div><p>Quoted Value</p><h3>{fmtInt(metrics.kpis.quoted)}</h3></div><div className="trend"><i className='bx bx-file'></i> <span>Contracted</span></div></div>
+        <div className="kpi-card"><div><p>Quoted Hours</p><h3>{fmtInt(metrics.kpis.quoted)}</h3></div><div className="trend"><i className='bx bx-file'></i> <span>Contracted</span></div></div>
         
-        {/* Compliance Warning Card */}
         <div className={`kpi-card ${styles.complianceCard}`} onClick={() => setIsCompModalOpen(true)}>
           <div className={styles.compControls}>
             <i className='bx bx-chevron-left' onClick={(e) => { e.stopPropagation(); setCompView('daily'); }}></i>
@@ -331,7 +409,7 @@ export default function Dashboard({ dataMatrix }) {
           </div>
           <div><p>{compView === 'daily' ? "Daily Deficits" : "Weekly Deficits"}</p><h3 style={{ color: 'var(--accent-coral)' }}>{compView === 'daily' ? metrics.compliance.dailyDeficits : metrics.compliance.weeklyDeficits}</h3></div>
           <div className={styles.sparklineContainer}>
-            <Chart type="area" width="100%" height={35} series={[{ data: metrics.compliance.sparkline || [] }]} options={{ chart: { sparkline: { enabled: true } }, stroke: { curve: 'smooth', width: 2 }, colors: ['#f43f5e'], fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0, stops: [0, 100] } }, tooltip: { theme: 'dark', fixed: { enabled: false }, x: { show: false }, marker: { show: false } } }} />
+            <Chart type="area" width="100%" height={35} series={[{ name: 'Deficits', data: metrics.compliance.sparkline || [] }]} options={{ chart: { sparkline: { enabled: true }, background: 'transparent' }, stroke: { curve: 'smooth', width: 2 }, colors: ['#ff3b30'], fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0, stops: [0, 100] } }, tooltip: { enabled: true, theme: 'dark', y: { title: { formatter: () => '' } } } }} />
           </div>
         </div>
       </div>
@@ -339,25 +417,49 @@ export default function Dashboard({ dataMatrix }) {
       {/* --- CHART ROW 1: PORTFOLIO & RANKINGS --- */}
       <div className={styles.chartRow}>
         <div className="chart-card">
-          <h4><i className='bx bx-pie-chart-alt-2' style={{ color: 'var(--accent-blue)' }}></i> Total Portfolio Burn</h4>
-          <div className={styles.chartWrapper}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h4 style={{ margin: 0 }}><i className='bx bx-pie-chart-alt-2' style={{ color: 'var(--accent-purple)' }}></i> Total Portfolio Burn</h4>
+            <PdfButton onClick={() => exportChartToPDF('portfolioBurnChart', 'Total Portfolio Burn', ['Project Name', 'Actual Hrs', 'Est Hrs', 'Quoted Hrs'], metrics.deepEffort.labels.map((lbl, i) => [lbl, metrics.deepEffort.act[i], metrics.deepEffort.est[i], metrics.deepEffort.quoted[i]]))} />
+          </div>
+          {/* FALLBACK ID ATTACHED */}
+          <div className={styles.chartWrapper} id="wrap-portfolioBurnChart">
             <Chart type="area" width="100%" height={320}
               series={[ { name: 'Quoted', data: metrics.deepEffort.quoted }, { name: 'Estimated', data: metrics.deepEffort.est }, { name: 'Actual', data: metrics.deepEffort.act } ]}
-              options={{ ...chartDefaults, chart: { stacked: true }, colors: ['#f59e0b', 'rgba(255,255,255,0.1)', '#3b82f6'], stroke: { curve: 'smooth', width: 2 }, fill: { type: 'solid', opacity: [0.1, 0.4, 0.8] },
-                // FIX: Hide overlapping X-axis labels
-                xaxis: { categories: metrics.deepEffort.labels, labels: { show: false }, axisBorder: { show: false }, axisTicks: { show: false } },
-                yaxis: { labels: { formatter: (v) => fmtK(v), style: { colors: '#a1a1aa' } } }, grid: { borderColor: '#27272a', strokeDashArray: 4 }, legend: { position: 'top', labels: { colors: '#a1a1aa' } }, tooltip: { theme: 'dark' }
-              }} />
+              options={getChartOptions('portfolioBurnChart', {
+                  chart: { stacked: true },
+                  colors: ['rgba(255,255,255,0.05)', '#6366f1', '#a855f7'], 
+                  stroke: { curve: 'smooth', width: [1, 2, 2] }, 
+                  fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.6, opacityTo: 0.1, stops: [0, 100] } },
+                  dataLabels: { enabled: false }, 
+                  xaxis: { categories: metrics.deepEffort.labels, labels: { show: false }, axisBorder: { show: false }, axisTicks: { show: false } },
+                  yaxis: { labels: { formatter: (v) => fmtK(v), style: { colors: '#8e8e93' } } }, 
+                  legend: { position: 'top', labels: { colors: '#8e8e93' } }
+              })} 
+            />
           </div>
         </div>
+        
         <div className="chart-card">
-          <h4><i className='bx bx-bar-chart-alt-2' style={{ color: 'var(--accent-green)' }}></i> All-Time Top Clients</h4>
-          <div className={styles.chartWrapper}>
-            <Chart type="bar" width="100%" height={320} series={[{ name: 'Hours', data: metrics.topClients.map(c => Math.round(c.val)) }]} options={{ ...chartDefaults, colors: ['#10b981'], plotOptions: { bar: { horizontal: false, borderRadius: 4, distributed: true, columnWidth: '40%' } }, dataLabels: { enabled: false }, xaxis: { categories: metrics.topClients.map(c => c.name), labels: { style: { colors: '#a1a1aa' }, rotate: -45, trim: true } }, grid: { borderColor: '#27272a', strokeDashArray: 4 }, legend: { show: false } }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h4 style={{ margin: 0 }}><i className='bx bx-bar-chart-alt-2' style={{ color: 'var(--accent-blue)' }}></i> All-Time Top Clients</h4>
+            <PdfButton onClick={() => exportChartToPDF('topClientsChart', 'Top Clients by Volume', ['Client Name', 'Total Hours'], metrics.topClients.map(c => [c.name, Math.round(c.val)]))} />
+          </div>
+          <div className={styles.chartWrapper} id="wrap-topClientsChart">
+            <Chart type="bar" width="100%" height={320} 
+              series={[{ name: 'Hours', data: metrics.topClients.map(c => Math.round(c.val)) }]} 
+              options={getChartOptions('topClientsChart', { 
+                  colors: ['#a855f7'], 
+                  plotOptions: { bar: { horizontal: false, borderRadius: 6, distributed: true, columnWidth: '45%' } }, 
+                  dataLabels: { enabled: false }, 
+                  xaxis: { categories: metrics.topClients.map(c => c.name), labels: { style: { colors: '#8e8e93' }, rotate: -45, trim: true } }, 
+                  legend: { show: false } 
+              })} 
+            />
           </div>
         </div>
+        
         <div className="chart-card">
-          <h4><i className='bx bx-trophy' style={{ color: 'var(--accent-yellow)' }}></i> Top Employees</h4>
+          <h4 style={{ marginBottom: '20px' }}><i className='bx bx-trophy' style={{ color: 'var(--accent-yellow)' }}></i> Top Employees</h4>
           <div className={styles.chartWrapper}>
             <ul className={styles.insightList}>
               {metrics.topEmployees.map((e, i) => <li key={i} className={styles.insightItem}><div className={styles.insightInfo}><div className={styles.insightRank}>{i + 1}</div><span className={styles.insightName}>{e.name}</span></div><span className={styles.insightVal}>{fmtInt(e.val)} hrs</span></li>)}
@@ -369,15 +471,53 @@ export default function Dashboard({ dataMatrix }) {
       {/* --- CHART ROW 2: TRENDS & RATIOS --- */}
       <div className={styles.chartRowHalf}>
         <div className="chart-card">
-          <h4><i className='bx bx-line-chart' style={{ color: 'var(--accent-purple)' }}></i> Burn Trend vs Max Capacity</h4>
-          <div className={styles.chartWrapper}>
-            <Chart type="line" width="100%" height={320} series={[ { name: 'Capacity', type: 'line', data: metrics.trend.cap }, { name: 'Actual Burn', type: 'area', data: metrics.trend.act } ]} options={{ ...chartDefaults, colors: ['#a1a1aa', '#3b82f6'], stroke: { curve: 'smooth', width: [3, 2] }, fill: { type: ['solid', 'gradient'], gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.0, stops: [0, 100] } }, xaxis: { categories: metrics.trend.labels, labels: { style: { colors: '#a1a1aa' } }, axisBorder: { show: false }, axisTicks: { show: false } }, yaxis: { labels: { formatter: (v) => fmtInt(v), style: { colors: '#a1a1aa' } } }, grid: { borderColor: '#27272a', strokeDashArray: 4 }, legend: { position: 'top', labels: { colors: '#a1a1aa' } }, tooltip: { theme: 'dark' } }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <h4 style={{ margin: 0 }}><i className='bx bx-line-chart' style={{ color: 'var(--accent-purple)' }}></i> Burn vs Capacity</h4>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <select className={styles.formControl} style={{ width: 'auto', padding: '4px 10px', fontSize: '0.8rem', borderRadius: '8px' }} value={localFilters.trendMonths} onChange={e => setLocalFilters({...localFilters, trendMonths: parseInt(e.target.value)})}>
+                <option value={6}>Last 6 Months</option>
+                <option value={12}>Last 12 Months</option>
+                <option value={9999}>All Time</option>
+              </select>
+              <PdfButton onClick={() => exportChartToPDF('burnTrendChart', 'Historical Burn vs Capacity', ['Month', 'Actual Burn', 'Team Capacity'], metrics.trend.labels.slice(-localFilters.trendMonths).map((l, i) => [l, metrics.trend.act.slice(-localFilters.trendMonths)[i], metrics.trend.cap.slice(-localFilters.trendMonths)[i]]))} />
+            </div>
+          </div>
+          
+          <div className={styles.chartWrapper} id="wrap-burnTrendChart">
+            <Chart type="line" width="100%" height={320} 
+              series={[ 
+                { name: 'Capacity', type: 'line', data: metrics.trend.cap.slice(-localFilters.trendMonths) }, 
+                { name: 'Actual Burn', type: 'area', data: metrics.trend.act.slice(-localFilters.trendMonths) } 
+              ]} 
+              options={getChartOptions('burnTrendChart', { 
+                  colors: ['#8e8e93', '#a855f7'], 
+                  stroke: { curve: 'smooth', width: [3, 2] }, 
+                  fill: { type: ['solid', 'gradient'], gradient: { shadeIntensity: 1, opacityFrom: 0.5, opacityTo: 0.05, stops: [0, 100] } }, 
+                  xaxis: { categories: metrics.trend.labels.slice(-localFilters.trendMonths), labels: { style: { colors: '#8e8e93' } }, axisBorder: { show: false }, axisTicks: { show: false } }, 
+                  yaxis: { labels: { formatter: (v) => fmtInt(v), style: { colors: '#8e8e93' } } }, 
+                  legend: { position: 'top', labels: { colors: '#8e8e93' } }
+              })} 
+            />
           </div>
         </div>
+        
         <div className="chart-card">
-          <h4><i className='bx bx-doughnut-chart' style={{ color: 'var(--accent-blue)' }}></i> Billable vs Non-Billable</h4>
-          <div className={styles.chartWrapper}>
-            <Chart type="donut" width="100%" height={320} series={[metrics.billable, metrics.overhead]} options={{ ...chartDefaults, labels: ['Billable', 'Non-Billable'], colors: ['#10b981', 'rgba(255,255,255,0.1)'], stroke: { width: 0 }, plotOptions: { pie: { donut: { size: '75%' } } }, dataLabels: { enabled: false }, legend: { position: 'bottom', labels: { colors: '#a1a1aa' } } }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <h4 style={{ margin: 0 }}><i className='bx bx-doughnut-chart' style={{ color: 'var(--accent-blue)' }}></i> Billable vs Non-Billable</h4>
+            <PdfButton onClick={() => exportChartToPDF('billableRatioChart', 'Billable vs Overhead Ratio', ['Classification', 'Total Hours'], [['Billable Hours', metrics.billable], ['Non-Billable (Overhead)', metrics.overhead]])} />
+          </div>
+          <div className={styles.chartWrapper} id="wrap-billableRatioChart">
+            <Chart type="donut" width="100%" height={320} 
+              series={[metrics.billable, metrics.overhead]} 
+              options={getChartOptions('billableRatioChart', { 
+                  labels: ['Billable', 'Non-Billable'], 
+                  colors: ['#a855f7', 'rgba(255,255,255,0.05)'], 
+                  stroke: { width: 0 }, 
+                  plotOptions: { pie: { donut: { size: '75%' } } }, 
+                  dataLabels: { enabled: false }, 
+                  legend: { position: 'bottom', labels: { colors: '#8e8e93' } } 
+              })} 
+            />
           </div>
         </div>
       </div>
@@ -385,21 +525,63 @@ export default function Dashboard({ dataMatrix }) {
       {/* --- CHART ROW 3: RISKS & STATUS --- */}
       <div className={styles.chartRow}>
         <div className="chart-card">
-          <h4><i className='bx bx-error-circle' style={{ color: 'var(--accent-red)' }}></i> Revenue Leakage</h4>
-          <div className={styles.chartWrapper}>
-            <Chart type="bar" width="100%" height={300} series={[ { name: 'Est Budget', data: metrics.overburn.map(p => -p.est) }, { name: 'Act Burn', data: metrics.overburn.map(p => p.act) } ]} options={{ ...chartDefaults, chart: { stacked: true }, colors: ['#a1a1aa', '#ef4444'], plotOptions: { bar: { horizontal: true, borderRadius: 0 } }, xaxis: { categories: metrics.overburn.map(p => p.name), min: -metrics.bfMax, max: metrics.bfMax, labels: { style: { colors: '#a1a1aa' }, formatter: (v) => fmtK(Math.abs(v)) } }, yaxis: { labels: { style: { colors: '#a1a1aa' }, maxWidth: 150 } }, grid: { borderColor: '#27272a', strokeDashArray: 4 }, dataLabels: { enabled: true, formatter: (v) => fmtK(Math.abs(v)) }, legend: { show: false }, tooltip: { theme: 'dark' } }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h4 style={{ margin: 0 }}><i className='bx bx-error-circle' style={{ color: 'var(--accent-red)' }}></i> Revenue Leakage</h4>
+            <PdfButton onClick={() => exportChartToPDF('leakageChart', 'Project Overburn & Leakage', ['Project Name', 'Original Estimate', 'Actual Burn', 'Overage Hours'], metrics.overburn.map(p => [p.name, p.est, p.act, p.overburn]))} />
+          </div>
+          <div className={styles.chartWrapper} id="wrap-leakageChart">
+            <Chart type="bar" width="100%" height={300} 
+              series={[ { name: 'Est Budget', data: metrics.overburn.map(p => -p.est) }, { name: 'Act Burn', data: metrics.overburn.map(p => p.act) } ]} 
+              options={getChartOptions('leakageChart', { 
+                  chart: { stacked: true }, 
+                  colors: ['rgba(255,255,255,0.1)', '#ff3b30'], 
+                  plotOptions: { bar: { horizontal: true, borderRadius: 4 } }, 
+                  xaxis: { categories: metrics.overburn.map(p => p.name), min: -metrics.bfMax, max: metrics.bfMax, labels: { style: { colors: '#8e8e93' }, formatter: (v) => fmtK(Math.abs(v)) } }, 
+                  yaxis: { labels: { style: { colors: '#8e8e93' }, maxWidth: 150 } }, 
+                  dataLabels: { enabled: false }, 
+                  legend: { show: false }
+              })} 
+            />
           </div>
         </div>
+        
         <div className="chart-card">
-          <h4><i className='bx bx-radar' style={{ color: 'var(--accent-coral)' }}></i> At-Risk Projects (Burn %)</h4>
-          <div className={styles.chartWrapper}>
-            <Chart type="bar" width="100%" height={300} series={[{ name: 'Burn %', data: metrics.atRisk.map(r => r.burn) }]} options={{ ...chartDefaults, colors: ['#f43f5e'], plotOptions: { bar: { horizontal: true, borderRadius: 4, barHeight: '50%' } }, dataLabels: { enabled: true, formatter: (val) => Math.round(val) + "%", textAnchor: 'start', style: { colors: ['#fff'] } }, xaxis: { categories: metrics.atRisk.map(r => r.name), max: 100, labels: { style: { colors: '#a1a1aa' } } }, yaxis: { labels: { style: { colors: '#a1a1aa' }, maxWidth: 150 } }, grid: { show: false }, tooltip: { theme: 'dark' } }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h4 style={{ margin: 0 }}><i className='bx bx-radar' style={{ color: 'var(--accent-coral)' }}></i> At-Risk Projects</h4>
+            <PdfButton onClick={() => exportChartToPDF('atRiskChart', 'At-Risk Projects by Burn Rate', ['Project Name', 'Burn Percentage'], metrics.atRisk.map(r => [r.name, r.burn + '%']))} />
+          </div>
+          <div className={styles.chartWrapper} id="wrap-atRiskChart">
+            <Chart type="bar" width="100%" height={300} 
+              series={[{ name: 'Burn %', data: metrics.atRisk.map(r => r.burn) }]} 
+              options={getChartOptions('atRiskChart', { 
+                  colors: ['#ff3b30'], 
+                  plotOptions: { bar: { horizontal: true, borderRadius: 6, barHeight: '40%' } }, 
+                  dataLabels: { enabled: true, formatter: (val) => Math.round(val) + "%", textAnchor: 'start', style: { colors: ['#fff'] } }, 
+                  xaxis: { categories: metrics.atRisk.map(r => r.name), max: 100, labels: { style: { colors: '#8e8e93' } } }, 
+                  yaxis: { labels: { style: { colors: '#8e8e93' }, maxWidth: 150 } }, 
+                  grid: { show: false }
+              })} 
+            />
           </div>
         </div>
+        
         <div className="chart-card">
-          <h4><i className='bx bx-task' style={{ color: 'var(--accent-green)' }}></i> Active Projects by Status</h4>
-          <div className={styles.chartWrapper}>
-            <Chart type="donut" width="100%" height={300} series={metrics.statusData.length ? metrics.statusData : [1]} options={{ ...chartDefaults, labels: metrics.statusLabels.length ? metrics.statusLabels : ['No Data'], colors: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'], stroke: { width: 0 }, plotOptions: { pie: { donut: { size: '75%' } } }, dataLabels: { enabled: false }, legend: { position: 'bottom', labels: { colors: '#a1a1aa' } } }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h4 style={{ margin: 0 }}><i className='bx bx-task' style={{ color: 'var(--accent-green)' }}></i> Active Projects</h4>
+            <PdfButton onClick={() => exportChartToPDF('statusChart', 'Project Volume by Status', ['Status Stage', 'Number of Projects'], metrics.statusLabels.map((s, i) => [s, metrics.statusData[i]]))} />
+          </div>
+          <div className={styles.chartWrapper} id="wrap-statusChart">
+            <Chart type="donut" width="100%" height={300} 
+              series={metrics.statusData.length ? metrics.statusData : [1]} 
+              options={getChartOptions('statusChart', { 
+                  labels: metrics.statusLabels.length ? metrics.statusLabels : ['No Data'], 
+                  colors: ['#a855f7', '#32ade6', '#34c759', '#ffcc00', '#ff3b30'], 
+                  stroke: { width: 0 }, 
+                  plotOptions: { pie: { donut: { size: '75%' } } }, 
+                  dataLabels: { enabled: false }, 
+                  legend: { position: 'bottom', labels: { colors: '#8e8e93' } } 
+              })} 
+            />
           </div>
         </div>
       </div>
@@ -407,7 +589,7 @@ export default function Dashboard({ dataMatrix }) {
       {/* --- CHART ROW 4: FORECASTING --- */}
       <div className={styles.chartRowHalf}>
         <div className="chart-card">
-          <h4><i className='bx bx-calendar-event' style={{ color: 'var(--text-main)' }}></i> Deployment Availability Forecasting</h4>
+          <h4 style={{ marginBottom: '20px' }}><i className='bx bx-calendar-event' style={{ color: 'var(--text-main)' }}></i> Deployment Availability Forecasting</h4>
           <div className={styles.chartWrapper} style={{ overflowY: 'auto' }}>
             <table className={styles.premiumTable}>
               <thead><tr><th>Project Ending</th><th>Date</th><th>Engineers Rolling Off</th></tr></thead>
@@ -416,74 +598,62 @@ export default function Dashboard({ dataMatrix }) {
           </div>
         </div>
         <div className="chart-card">
-          <h4><i className='bx bx-map' style={{ color: 'var(--accent-blue)' }}></i> Locations Overview</h4>
+          <h4 style={{ marginBottom: '20px' }}><i className='bx bx-map' style={{ color: 'var(--accent-blue)' }}></i> Locations Overview</h4>
           <div className={styles.chartWrapper} style={{ overflowY: 'auto' }}>
             <div className={styles.locationList}>{metrics.locations.map((loc, idx) => { const maxLoc = metrics.locations[0]?.val || 1; return <div key={idx} className={styles.locItem}><div className={styles.locHeader}><span>{loc.name}</span><span className={styles.locVal}>{fmtInt(loc.val)} hrs</span></div><div className={styles.progress}><div className={styles.progressBar} style={{ width: `${(loc.val / maxLoc) * 100}%` }}></div></div></div> })}</div>
           </div>
         </div>
       </div>
 
-      {/* --- FINAL ROW: DEEP EFFORT ANALYSIS (LOGARITHMIC STACKED) --- */}
+      {/* --- FINAL ROW: DEEP EFFORT ANALYSIS --- */}
       <div className={styles.chartRow}>
         <div className={`chart-card ${styles.fullWidth}`}>
-          <h4><i className='bx bx-bar-chart-square' style={{ color: 'var(--text-main)' }}></i> Deep Project Delivery Analysis</h4>
-          <div className={styles.scrollWrapper}>
-            <div style={{ width: Math.max(1200, metrics.deepEffort.labels.length * 80) + 'px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <h4 style={{ margin: 0 }}><i className='bx bx-bar-chart-square' style={{ color: 'var(--text-main)' }}></i> Deep Project Delivery Analysis</h4>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <select className={styles.formControl} style={{ width: 'auto', padding: '4px 10px', fontSize: '0.8rem', borderRadius: '8px' }} value={localFilters.deepEffortLimit} onChange={e => setLocalFilters({...localFilters, deepEffortLimit: parseInt(e.target.value)})}>
+                <option value={10}>Top 10 Active Projects</option>
+                <option value={20}>Top 20 Active Projects</option>
+                <option value={50}>Top 50 Active Projects</option>
+                <option value={9999}>View All Projects</option>
+              </select>
+              <PdfButton onClick={() => exportChartToPDF('deepEffortLogChart', 'Logarithmic Project Analysis', ['Project Name', 'Actual', 'Estimated', 'Quoted'], metrics.deepEffort.labels.slice(0, localFilters.deepEffortLimit).map((lbl, i) => [lbl, metrics.deepEffort.act[i], metrics.deepEffort.est[i], metrics.deepEffort.quoted[i]]))} />
+            </div>
+          </div>
+          
+          <div className={styles.scrollWrapper} style={{ overflowX: 'auto', width: '100%' }}>
+            <div id="wrap-deepEffortLogChart" style={{ minWidth: deepChartMinWidth, width: '100%' }}>
               <Chart type="bar" width="100%" height={450}
                 series={[ 
-                  // FIX: Map actual zeros to 0.1 so the logarithmic scale doesn't break
-                  { name: 'Actual', data: metrics.deepEffort.act.map(v => Math.max(0.1, v)) }, 
-                  { name: 'Estimated', data: metrics.deepEffort.est.map(v => Math.max(0.1, v)) }, 
-                  { name: 'Quoted', data: metrics.deepEffort.quoted.map(v => Math.max(0.1, v)) } 
+                  { name: 'Actual', data: metrics.deepEffort.act.slice(0, localFilters.deepEffortLimit).map(v => Math.max(0.1, v)) }, 
+                  { name: 'Estimated', data: metrics.deepEffort.est.slice(0, localFilters.deepEffortLimit).map(v => Math.max(0.1, v)) }, 
+                  { name: 'Quoted', data: metrics.deepEffort.quoted.slice(0, localFilters.deepEffortLimit).map(v => Math.max(0.1, v)) } 
                 ]}
-                options={{ ...chartDefaults, chart: { stacked: true, animations: { enabled: false } },
-                  colors: ['#3b82f6', 'rgba(255,255,255,0.1)', '#f59e0b'],
-                  plotOptions: { bar: { horizontal: false, columnWidth: '45%', borderRadius: 0 } },
-                  xaxis: { categories: metrics.deepEffort.labels, labels: { style: { colors: '#a1a1aa' }, rotate: -45, trim: true, maxHeight: 160 } },
-                  
-                  // FIX: STRICT LOGARITHMIC SCALE
-                  yaxis: { 
-                    logarithmic: true, 
-                    labels: { style: { colors: '#a1a1aa' }, formatter: (val) => val <= 0.1 ? "0" : fmtK(val) } 
-                  },
-                  grid: { borderColor: '#27272a', strokeDashArray: 4 }, dataLabels: { enabled: false },
-                  legend: { position: 'top', horizontalAlign: 'left', labels: { colors: '#fff' } }, 
-                  tooltip: { theme: 'dark', y: { formatter: (val) => val <= 0.1 ? "0" : fmtInt(val) } }
-                }} 
+                options={getChartOptions('deepEffortLogChart', { 
+                    chart: { stacked: false, animations: { enabled: false } }, 
+                    colors: ['#a855f7', '#32ade6', 'rgba(255,255,255,0.1)'], 
+                    plotOptions: { bar: { horizontal: false, columnWidth: '70%', borderRadius: 4 } }, 
+                    xaxis: { categories: metrics.deepEffort.labels.slice(0, localFilters.deepEffortLimit), labels: { style: { colors: '#8e8e93' }, rotate: -45, trim: true, maxHeight: 160 } },
+                    yaxis: { 
+                        logarithmic: true, 
+                        labels: { 
+                            style: { colors: '#8e8e93' }, 
+                            formatter: (val) => {
+                                if (!val || val <= 0.1) return "0";
+                                return fmtK(val);
+                            }
+                        } 
+                    },
+                    dataLabels: { enabled: false },
+                    legend: { position: 'top', horizontalAlign: 'left', labels: { colors: '#8e8e93' } }
+                })} 
               />
             </div>
           </div>
         </div>
       </div>
 
-      {/* --- HIDDEN PDF EXPORT TABLE --- */}
-      <div id="pdf-table-container" className={styles.pdfContainer}>
-        <div className={`chart-card ${styles.fullWidth}`} style={{ background: 'var(--bg-card)', border: 'none', boxShadow: 'none' }}>
-          <h4 style={{ marginBottom: '20px', fontSize: '1.2rem', color: 'var(--accent-blue)' }}>Detailed Filtered Report</h4>
-          <table className={styles.premiumTable}>
-            <thead><tr><th>Project Name</th><th>Client</th><th>Status</th><th style={{textAlign:'right'}}>Actual Hrs</th><th style={{textAlign:'right'}}>Est. Hrs</th><th style={{textAlign:'right'}}>Quoted Hrs</th></tr></thead>
-            <tbody>
-              {Object.keys(metrics.dimensionTable).map(pName => {
-                const pData = metrics.dimensionTable[pName];
-                const actHrs = metrics.deepEffort.labels.includes(pName) ? metrics.deepEffort.act[metrics.deepEffort.labels.indexOf(pName)] : 0;
-                if (actHrs > 0 || pData.est > 0) {
-                  return (
-                    <tr key={pName} style={{ breakInside: 'avoid' }}>
-                      <td style={{ color: '#fff', fontWeight: 500 }}>{pName}</td>
-                      <td>{pData.client}</td>
-                      <td style={{ color: pData.status === 'In Progress' ? 'var(--accent-blue)' : 'var(--text-muted)' }}>{pData.status}</td>
-                      <td style={{ color: '#fff', textAlign: 'right', fontWeight: 600 }}>{fmtInt(actHrs)}</td>
-                      <td style={{ textAlign: 'right' }}>{fmtInt(pData.est)}</td>
-                      <td style={{ color: 'var(--accent-yellow)', textAlign: 'right' }}>{fmtInt(pData.quoted)}</td>
-                    </tr>
-                  )
-                }
-                return null;
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <div id="pdf-table-container" style={{ display: 'none', padding: '20px', background: '#0a0a0c' }}></div>
     </div>
   );
 }
