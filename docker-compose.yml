@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    # This adds 'production', 'test', or 'development' to the container name so they don't collide
+    container_name: mds_dashboard_${NODE_ENV}
+    restart: always
+    ports:
+      # This binds your unique host port (3000, 3001, 3002) to the container's internal port 3000
+      - "${PORT}:3000"
+    env_file:
+      - .env
