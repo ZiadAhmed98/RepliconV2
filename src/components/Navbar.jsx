@@ -21,11 +21,6 @@ export default function Navbar() {
           </NavLink>
         </li>
         <li>
-          <NavLink to="/capacity" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
-            <i className='bx bx-network-chart'></i> Capacity Hub
-          </NavLink>
-        </li>
-        <li>
           <NavLink to="/timesheets" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
             <i className='bx bx-time-five'></i> Timesheet Ops
           </NavLink>

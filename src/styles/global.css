@@ -1,16 +1,40 @@
+/* =========================================================================
+   GLOBAL THEME - APPLE "VISION" MESH GLASS 
+   ========================================================================= */
 :root {
-  --bg-main: #09090b; --bg-card: #18181b; --bg-menu: #09090b;
-  --text-main: #fafafa; --text-muted: #a1a1aa; --border-color: #27272a;
-  --accent-blue: #3b82f6; --accent-coral: #f43f5e; --accent-green: #10b981;
-  --accent-yellow: #f59e0b; --accent-purple: #8b5cf6; --accent-red: #ef4444;
-  --radius-md: 12px; --radius-lg: 16px;
-  --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.5); --glow-border: rgba(255, 255, 255, 0.05);
+  --bg-main: #000000; 
+  --bg-card: rgba(35, 35, 40, 0.4); 
+  --bg-menu: rgba(25, 25, 30, 0.65); 
+  
+  --text-main: #ffffff; 
+  --text-muted: #98989d; 
+  --border-color: rgba(255, 255, 255, 0.08); 
+  
+  --accent-primary: #a855f7; 
+  --accent-primary-dim: rgba(168, 85, 247, 0.15);
+  --accent-blue: #32ade6; 
+  --accent-coral: #ff453a; 
+  --accent-green: #30d158;
+  --accent-yellow: #ffd60a; 
+  --accent-red: #ff3b30;
+  
+  --radius-md: 20px; 
+  --radius-lg: 32px; 
+  --shadow-glass: inset 0 1px 1px rgba(255, 255, 255, 0.15), 0 24px 48px rgba(0, 0, 0, 0.4); 
+}
+
+html, body, #root, #app {
+  width: 100%; max-width: 100% !important; margin: 0; padding: 0; overflow-x: hidden;
 }
 
 body { 
-  margin: 0; 
-  font-family: 'Inter', -apple-system, sans-serif; 
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif; 
   background-color: var(--bg-main); 
+  background-image: 
+    radial-gradient(at 10% 10%, rgba(168, 85, 247, 0.18) 0px, transparent 40vw),
+    radial-gradient(at 90% 20%, rgba(50, 173, 230, 0.15) 0px, transparent 40vw),
+    radial-gradient(at 50% 90%, rgba(255, 214, 10, 0.08) 0px, transparent 50vw);
+  background-attachment: fixed; 
   color: var(--text-main); 
   -webkit-font-smoothing: antialiased; 
   letter-spacing: -0.01em; 
@@ -18,114 +42,284 @@ body {
 
 * { box-sizing: border-box; }
 
-/* -------------------------------------
-   UNIVERSAL APP SHELL (Nav & Header)
--------------------------------------- */
-/* Update this line (Removed position: sticky, top, and z-index) */
-.top-ribbon { background: rgba(9, 9, 11, 0.8); backdrop-filter: blur(12px); color: var(--text-main); padding: 16px 40px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); }
+/* =========================================================================
+   PREMIUM FORM INPUTS (Dates, Text, Passwords, Selects)
+   ========================================================================= */
+select, input[type="date"], input[type="time"] { 
+  color-scheme: dark !important; 
+}
 
-/* Add this brand new line underneath it */
-.sticky-header-group { position: sticky; top: 0; z-index: 1000; background: var(--bg-main); }
+select option { 
+  background-color: #1c1c1e !important; 
+  color: #ffffff !important; 
+  padding: 12px; 
+  font-weight: 500;
+}
 
-.user-controls { display: flex; align-items: center; gap: 20px; font-size: 0.95rem; font-weight: 500; position: relative; }
-.user-profile { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 6px 12px; border-radius: 8px; border: 1px solid transparent; transition: 0.2s; }
-.user-profile:hover { background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); }
-.user-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-blue), #1d4ed8); display: flex; justify-content: center; align-items: center; color: white; font-weight: 600; font-size: 0.85rem; box-shadow: 0 0 10px rgba(59, 130, 246, 0.3); }
-.user-info { display: flex; flex-direction: column; }
-.user-name { font-size: 0.85rem; font-weight: 500; color: var(--text-main); }
-.user-role { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+input[type="date"], 
+input[type="text"], 
+input[type="password"], /* FIX: Added password fields */
+input[type="email"],    /* FIX: Added email fields */
+input[type="number"], 
+select {
+  background-color: rgba(20, 20, 25, 0.6) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px !important; /* FIX: Bumped to 12px for softer corners */
+  padding: 14px 16px !important;  /* FIX: Matched the height to your login fields */
+  font-family: inherit;
+  font-size: 0.95rem;
+  outline: none;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+  min-width: 160px; 
+}
 
-.horizontal-menu { background-color: var(--bg-main); padding: 0 40px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; }
+input[type="date"]:focus, 
+input[type="text"]:focus, 
+input[type="password"]:focus, 
+input[type="email"]:focus, 
+input[type="number"]:focus, 
+select:focus {
+  border-color: var(--accent-primary) !important;
+  background-color: rgba(168, 85, 247, 0.05) !important;
+  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.2) !important;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.4;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 0.8;
+}
+
+/* =========================================================================
+   THE FLOATING GLASS ISLAND (Header + Nav)
+   ========================================================================= */
+.sticky-header-group { 
+  position: sticky; 
+  top: 20px; 
+  z-index: 1000; 
+  margin: 0 40px 20px 40px; 
+  background: var(--bg-menu);
+  backdrop-filter: blur(40px) saturate(150%);
+  -webkit-backdrop-filter: blur(40px) saturate(150%);
+  border: 1px solid var(--border-color);
+  border-radius: 24px; 
+  box-shadow: var(--shadow-glass);
+  overflow: visible; 
+}
+
+.top-ribbon { 
+  padding: 16px 30px; 
+  display: flex; justify-content: space-between; align-items: center; 
+  border-bottom: 1px solid var(--border-color); 
+}
+
+.horizontal-menu { padding: 0 30px; display: flex; align-items: center; }
 .horizontal-menu ul { list-style: none; display: flex; gap: 35px; margin: 0; padding: 12px 0; }
-.horizontal-menu a { color: var(--text-muted); text-decoration: none; font-size: 0.85rem; font-weight: 500; display: flex; align-items: center; gap: 8px; transition: 0.2s; padding-bottom: 12px; margin-bottom: -13px; border-bottom: 2px solid transparent; }
-.horizontal-menu a:hover, .horizontal-menu a.active { color: var(--text-main); }
-.horizontal-menu a.active { border-bottom: 2px solid var(--accent-blue); }
-.horizontal-menu a.active i { color: var(--accent-blue); }
+.horizontal-menu a { color: var(--text-muted); text-decoration: none; font-size: 0.9rem; font-weight: 500; display: flex; align-items: center; gap: 8px; transition: 0.2s; padding-bottom: 12px; margin-bottom: -13px; border-bottom: 2px solid transparent; }
+.horizontal-menu a:hover { color: var(--text-main); }
+.horizontal-menu a.active { color: var(--text-main); border-bottom: 2px solid var(--text-main); }
 
-.dropdown-menu { display: none; position: absolute; top: 55px; right: 0; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; box-shadow: var(--shadow-card); width: 180px; overflow: hidden; z-index: 1001; }
-.dropdown-menu a { display: flex; align-items: center; padding: 12px 20px; color: var(--text-muted); text-decoration: none; font-size: 0.85rem; transition: 0.2s; font-weight: 500; }
+/* Glassmorphic Profile Dropdown Menu */
+.dropdown-menu { 
+  display: none; 
+  position: absolute; 
+  top: 60px; 
+  right: 0; 
+  background: rgba(30, 30, 34, 0.85); 
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1px solid var(--border-color); 
+  border-radius: 16px; 
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5); 
+  width: 200px; 
+  overflow: hidden; 
+  z-index: 1001; 
+}
+.dropdown-menu a { display: flex; align-items: center; padding: 14px 20px; color: var(--text-muted); text-decoration: none; font-size: 0.85rem; transition: 0.2s; font-weight: 500; }
 .dropdown-menu a i { margin-right: 12px; font-size: 1.1rem; }
-.dropdown-menu a:hover { background: rgba(255,255,255,0.03); color: var(--text-main); }
-.dropdown-divider { height: 1px; background: var(--border-color); margin: 0; }
+.dropdown-menu a:hover { background: rgba(255,255,255,0.05); color: var(--text-main); }
+.dropdown-divider { height: 1px; background: var(--border-color); margin: 4px 0; }
 .text-danger { color: var(--accent-red) !important; }
 
-/* -------------------------------------
+/* =========================================================================
    UNIVERSAL COMPONENTS (Cards, Badges)
--------------------------------------- */
-.dashboard-container { padding: 40px; max-width: 1800px; margin: 0 auto; overflow: hidden; }
+   ========================================================================= */
+.dashboard-container { 
+  padding: 40px; 
+  width: 100%; 
+  max-width: none !important; 
+  box-sizing: border-box; 
+  overflow: hidden; 
+}
 
 .badges-container { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 28px; }
-.badge-base { padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 500; display: inline-flex; align-items: center; height: 24px; letter-spacing: 0.3px; }
-.period-badge { background: rgba(59, 130, 246, 0.1); color: var(--accent-blue); border: 1px solid rgba(59, 130, 246, 0.2); }
+.badge-base { padding: 6px 14px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; height: 26px; letter-spacing: 0.02em; }
+.period-badge { background: rgba(255, 255, 255, 0.1); color: var(--text-main); border: 1px solid var(--border-color); }
+.active-filter-badge { background: var(--accent-primary-dim); color: #d8b4fe; border: 1px solid rgba(168, 85, 247, 0.2); }
 
-.kpi-card { background: linear-gradient(180deg, rgba(24, 24, 27, 0.8) 0%, rgba(24, 24, 27, 0.4) 100%); padding: 24px; border-radius: var(--radius-md); border: 1px solid var(--border-color); border-top: 1px solid var(--glow-border); display: flex; flex-direction: column; justify-content: space-between; position: relative; transition: 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-.kpi-card p { margin: 0; font-size: 0.75rem; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
-.kpi-card h3 { margin: 12px 0 0 0; font-size: 2rem; font-weight: 600; color: var(--text-main); letter-spacing: -0.03em; }
-.trend { font-size: 0.75rem; display: flex; align-items: center; gap: 6px; margin-top: 15px; font-weight: 500; color: var(--text-muted); }
-.trend i { color: var(--text-muted); font-size: 1rem; opacity: 0.7; }
+/* EXTREME GLASS KPI CARDS */
+.kpi-card { 
+  background: var(--bg-card);
+  backdrop-filter: blur(40px) saturate(120%); 
+  -webkit-backdrop-filter: blur(40px) saturate(120%);
+  padding: 28px; 
+  border-radius: var(--radius-lg); 
+  border: 1px solid var(--border-color); 
+  display: flex; 
+  flex-direction: column; 
+  justify-content: space-between; 
+  position: relative; 
+  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); 
+  box-shadow: var(--shadow-glass); 
+}
+.kpi-card:hover { transform: translateY(-4px); background: rgba(45, 45, 50, 0.5); border-color: rgba(255,255,255,0.1); }
+.kpi-card p { margin: 0; font-size: 0.8rem; color: var(--text-muted); font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; }
+.kpi-card h3 { margin: 12px 0 0 0; font-size: 2.4rem; font-weight: 700; color: var(--text-main); letter-spacing: -0.04em; }
+.trend { font-size: 0.85rem; display: flex; align-items: center; gap: 6px; margin-top: 15px; font-weight: 500; color: var(--text-muted); }
+.trend i { color: var(--text-muted); font-size: 1.1rem; opacity: 0.8; }
 
-.chart-card { background: var(--bg-card); padding: 24px; border-radius: var(--radius-md); border: 1px solid var(--border-color); border-top: 1px solid var(--glow-border); display: flex; flex-direction: column; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-.chart-card h4 { margin: 0 0 20px 0; font-size: 0.95rem; color: var(--text-main); font-weight: 500; letter-spacing: 0.3px; display: flex; align-items: center; gap: 8px; }
+/* EXTREME GLASS CHART CARDS */
+.chart-card { 
+  background: var(--bg-card); 
+  backdrop-filter: blur(40px) saturate(120%);
+  -webkit-backdrop-filter: blur(40px) saturate(120%);
+  padding: 28px; 
+  border-radius: var(--radius-lg); 
+  border: 1px solid var(--border-color); 
+  display: flex; 
+  flex-direction: column; 
+  box-shadow: var(--shadow-glass); 
+  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.chart-card:hover { border-color: rgba(255,255,255,0.1); }
+.chart-card h4 { margin: 0 0 24px 0; font-size: 1.1rem; color: var(--text-main); font-weight: 600; letter-spacing: -0.01em; display: flex; align-items: center; gap: 10px; }
 
-.btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border-color); padding: 8px 16px; border-radius: 8px; font-weight: 500; font-size: 0.8rem; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 6px; }
-.btn-ghost:hover { color: var(--text-main); background: rgba(255,255,255,0.05); }
+/* =========================================================================
+   PREMIUM BUTTONS (Primary & Ghost)
+   ========================================================================= */
 
-/* ApexCharts Globals */
-.apexcharts-canvas { margin: 0 auto; }
+/* Primary Button (Solid, High Contrast - for "I'm Still Here" and main actions) */
+.btn-primary {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #ffffff;
+  padding: 10px 20px;
+  border-radius: 12px;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 15px rgba(255, 255, 255, 0.15);
+}
+
+.btn-primary:hover {
+  background: #e5e5ea;
+  border-color: #e5e5ea;
+  transform: scale(1.02);
+  box-shadow: 0 6px 20px rgba(255, 255, 255, 0.2);
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+/* Modern Ghost Buttons (Subtle, dark glass - for "Log Out Now") */
+.btn-ghost { 
+  background: rgba(255, 255, 255, 0.04); 
+  color: var(--text-main); 
+  border: 1px solid rgba(255, 255, 255, 0.12); 
+  padding: 10px 20px; 
+  border-radius: 12px; 
+  font-family: inherit;
+  font-weight: 500; 
+  font-size: 0.9rem; 
+  cursor: pointer; 
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1); 
+  display: flex; 
+  align-items: center; 
+  justify-content: center;
+  gap: 8px; 
+}
+
+.btn-ghost:hover { 
+  background: rgba(255, 255, 255, 0.08); 
+  border-color: rgba(255, 255, 255, 0.25); 
+  transform: scale(1.02); 
+}
+
+.btn-ghost:active {
+  transform: scale(0.98);
+}
 
 /* =========================================================================
    APEXCHARTS DARK THEME OVERRIDES
-   Forces the export menus and tooltips to match our custom UI palette.
    ========================================================================= */
+.apexcharts-canvas { margin: 0 auto; }
 
-/* The Export Dropdown Menu */
 .apexcharts-menu {
-  background-color: var(--bg-card) !important;
+  background: rgba(30, 30, 35, 0.85) !important;
+  backdrop-filter: blur(25px) !important;
   border: 1px solid var(--border-color) !important;
   color: var(--text-main) !important;
-  box-shadow: var(--shadow-card) !important;
-  border-radius: 8px !important;
-  padding: 8px 0 !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
+  border-radius: 16px !important;
 }
 
-/* Force override of their default light theme class */
 .apexcharts-theme-light .apexcharts-menu {
-  background: var(--bg-card) !important;
+  background: rgba(30, 30, 35, 0.85) !important;
   color: var(--text-main) !important;
 }
 
-/* The hover state for menu items */
 .apexcharts-menu-item {
-  padding: 8px 16px !important;
+  padding: 10px 16px !important;
   font-size: 0.85rem !important;
+  font-weight: 500 !important;
   transition: 0.2s !important;
 }
 
 .apexcharts-menu-item:hover {
-  background-color: rgba(255, 255, 255, 0.05) !important;
-  color: var(--accent-blue) !important;
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: var(--text-main) !important;
 }
 
-/* Fix Tooltips (Hover boxes) to match the premium dark theme perfectly */
+/* Glassmorphic Chart Tooltips */
 .apexcharts-tooltip {
-  background: var(--bg-card) !important;
+  background: rgba(20, 20, 25, 0.85) !important;
+  backdrop-filter: blur(25px) !important;
+  -webkit-backdrop-filter: blur(25px) !important;
   border: 1px solid var(--border-color) !important;
   color: var(--text-main) !important;
-  box-shadow: var(--shadow-card) !important;
-  border-radius: 8px !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
+  border-radius: 16px !important;
+  overflow: hidden !important;
 }
 
 .apexcharts-tooltip-title {
-  background: rgba(0, 0, 0, 0.2) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
   border-bottom: 1px solid var(--border-color) !important;
-  font-family: 'Inter', sans-serif !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif !important;
   font-weight: 600 !important;
-  padding: 8px 12px !important;
+  padding: 10px 14px !important;
+  font-size: 0.85rem !important;
+  color: var(--text-muted) !important;
 }
 
 .apexcharts-tooltip-text {
-  font-family: 'Inter', sans-serif !important;
-  font-size: 0.85rem !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif !important;
+  font-size: 0.9rem !important;
+  font-weight: 600 !important;
 }
 
 /* =========================================================================
@@ -133,5 +327,5 @@ body {
    ========================================================================= */
 ::-webkit-scrollbar { height: 8px; width: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
