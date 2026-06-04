@@ -1,81 +1,113 @@
 /* =========================================================================
-   DASHBOARD ANALYTICS - APPLE "GLASS" DARK THEME
+   DASHBOARD — Apple Glass Dark + Responsive
    ========================================================================= */
 
-/* Core Layouts */
-.sectionHeader { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; }
-.titleArea { display: flex; flex-direction: column; gap: 8px; }
-.sectionTitle { font-size: 1.8rem; margin: 0; font-weight: 700; color: #fbfbfc; letter-spacing: -0.04em; }
+/* Section header */
+.sectionHeader  { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:28px; position:relative; }
+.titleArea      { display:flex; flex-direction:column; gap:8px; }
+.sectionTitle   { font-size:1.75rem; margin:0; font-weight:700; color:var(--text-main); letter-spacing:-0.04em; }
 
-/* Grids for Cards and Charts */
-.kpiGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; margin-bottom: 30px; }
-.chartRow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 24px; }
-.chartRowHalf { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 24px; }
-.fullWidth { grid-column: 1 / -1; }
+/* Chart row shared header (title + PDF btn) */
+.chartHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.chartHeader h4 { margin: 0; }
 
-/* ApexCharts container constraint */
-.chartWrapper { flex-grow: 1; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; }
-.scrollWrapper { width: 100%; overflow-x: auto; overflow-y: hidden; padding-bottom: 10px; display: block; }
+/* PDF button */
+.pdfBtn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 12px; border-radius: 8px;
+  border: 1px solid rgba(255,59,48,0.25); background: rgba(255,59,48,0.05);
+  color: #ff3b30; font-family: inherit; font-size: 0.78rem; font-weight: 600;
+  cursor: pointer; transition: all 0.15s; flex-shrink: 0;
+}
+.pdfBtn:hover { background: rgba(255,59,48,0.15); }
 
-/* Top Employees List Styles (Glassmorphic) */
-.insightList { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; }
-.insightItem { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; background: rgba(255, 255, 255, 0.02); border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.04); transition: all 0.2s ease; }
-.insightItem:hover { background: rgba(255, 255, 255, 0.04); transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2); }
-.insightInfo { display: flex; align-items: center; gap: 14px; }
-/* Updated Rank badge to use the vibrant purple */
-.insightRank { width: 28px; height: 28px; background: rgba(168, 85, 247, 0.15); color: #c084fc; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 0.75rem; font-weight: 700; border: 1px solid rgba(168, 85, 247, 0.3); }
-.insightName { font-size: 0.9rem; color: #fbfbfc; font-weight: 600; letter-spacing: -0.01em; }
-.insightVal { font-size: 0.9rem; color: #8e8e93; font-weight: 500; }
+/* Grids */
+.kpiGrid      { display:grid; grid-template-columns:repeat(4,1fr);  gap:20px; margin-bottom:24px; }
+.chartRow     { display:grid; grid-template-columns:repeat(3,1fr);  gap:20px; margin-bottom:20px; }
+.chartRowHalf { display:grid; grid-template-columns:2fr 1fr;        gap:20px; margin-bottom:20px; }
+.fullWidth    { grid-column:1/-1; }
 
-/* Locations Progress Bars (Sleek Apple style) */
-.locationList { display: flex; flex-direction: column; gap: 20px; margin-top: 20px; }
-.locItem { display: flex; flex-direction: column; gap: 10px; }
-.locHeader { display: flex; justify-content: space-between; font-size: 0.85rem; color: #fbfbfc; font-weight: 600; letter-spacing: -0.01em; }
-.locVal { color: #8e8e93; font-size: 0.8rem; font-weight: 500; }
-.progress { height: 6px; background: rgba(255, 255, 255, 0.06); border-radius: 10px; overflow: hidden; }
-/* Gradient purple to bright lavender for a modern feel */
-.progressBar { height: 100%; background: linear-gradient(90deg, #a855f7, #d8b4fe); border-radius: 10px; box-shadow: 0 0 10px rgba(168, 85, 247, 0.4); }
+/* Chart wrapper */
+.chartWrapper { flex-grow:1; width:100%; display:flex; flex-direction:column; justify-content:center; }
+.scrollWrapper { width:100%; overflow-x:auto; overflow-y:hidden; padding-bottom:8px; display:block; }
 
-/* Compliance Controls (Glow Effects) */
-.complianceCard { cursor: pointer; border-color: rgba(255, 255, 255, 0.05); transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); position: relative; }
-.complianceCard:hover { border-color: #a855f7; transform: translateY(-4px); box-shadow: 0 12px 30px rgba(168, 85, 247, 0.15); }
-.compControls { display: flex; gap: 6px; position: absolute; top: 20px; right: 20px; z-index: 10; }
-.compControls i { background: rgba(255, 255, 255, 0.05); padding: 6px; border-radius: 8px; color: #8e8e93; cursor: pointer; transition: all 0.2s; font-size: 0.9rem; border: 1px solid transparent; } 
-.compControls i:hover { background: rgba(168, 85, 247, 0.1); color: #c084fc; border-color: rgba(168, 85, 247, 0.3); }
-.sparklineContainer { margin-top: 12px; height: 45px; width: 100%; position: relative; z-index: 1; pointer-events: none; }
+/* Top-employees list */
+.insightList  { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:10px; }
+.insightItem  { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; background:rgba(255,255,255,0.02); border-radius:14px; border:1px solid rgba(255,255,255,0.04); transition:all 0.2s ease; }
+.insightItem:hover { background:rgba(255,255,255,0.04); transform:translateY(-1px); }
+.insightInfo  { display:flex; align-items:center; gap:12px; }
+.insightRank  { width:26px; height:26px; background:rgba(168,85,247,0.12); color:#c084fc; border-radius:50%; display:flex; justify-content:center; align-items:center; font-size:0.73rem; font-weight:700; border:1px solid rgba(168,85,247,0.25); flex-shrink:0; }
+.insightName  { font-size:0.88rem; color:var(--text-main); font-weight:600; }
+.insightVal   { font-size:0.85rem; color:var(--text-muted); font-weight:500; }
 
-/* Premium Table for Rolloffs */
-.premiumTable { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.9rem; }
-.premiumTable th { text-align: left; padding: 16px 20px; color: #8e8e93; font-weight: 600; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255, 255, 255, 0.05); background: transparent; }
-.premiumTable td { padding: 18px 20px; color: #fbfbfc; border-bottom: 1px solid rgba(255, 255, 255, 0.03); vertical-align: middle; }
-.premiumTable tr:hover td { background: rgba(255, 255, 255, 0.02); }
-.teamTags { display: flex; gap: 8px; flex-wrap: wrap; }
-/* Tag style converted to Purple */
-.teamTags span { background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.2); color: #d8b4fe; padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.02em; }
+/* Location bars */
+.locationList { display:flex; flex-direction:column; gap:18px; }
+.locItem      { display:flex; flex-direction:column; gap:8px; }
+.locHeader    { display:flex; justify-content:space-between; font-size:0.85rem; color:var(--text-main); font-weight:600; }
+.locVal       { color:var(--text-muted); font-size:0.78rem; font-weight:500; }
+.progress     { height:5px; background:rgba(255,255,255,0.06); border-radius:10px; overflow:hidden; }
+.progressBar  { height:100%; background:linear-gradient(90deg,#a855f7,#d8b4fe); border-radius:10px; }
 
-/* Filter Panel & Actions */
-.actionHeader { display: flex; gap: 12px; }
-.actionBtn { display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; border-radius: 12px; cursor: pointer; transition: all 0.2s; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); color: #8e8e93; font-size: 1.2rem; }
-.actionBtn:hover { background: rgba(255, 255, 255, 0.08); color: #fbfbfc; transform: scale(1.05); }
+/* Compliance card */
+.complianceCard          { cursor:pointer; transition:all 0.3s cubic-bezier(0.2,0.8,0.2,1); }
+.complianceCard:hover    { border-color:#a855f7; transform:translateY(-3px); box-shadow:0 12px 30px rgba(168,85,247,0.15); }
+.compControls            { display:flex; gap:6px; position:absolute; top:18px; right:18px; z-index:10; }
+.compControls i          { background:rgba(255,255,255,0.04); padding:5px; border-radius:8px; color:var(--text-muted); cursor:pointer; transition:all 0.2s; font-size:0.88rem; border:1px solid transparent; }
+.compControls i:hover    { background:rgba(168,85,247,0.1); color:#c084fc; border-color:rgba(168,85,247,0.25); }
+.sparklineContainer      { margin-top:10px; height:40px; width:100%; pointer-events:none; }
 
-/* The Filter Slide-out */
-.filterPanel { position: absolute; top: 55px; right: 0; background: rgba(24, 24, 27, 0.7); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); width: 400px; padding: 30px; border-radius: 24px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5); border: 1px solid rgba(255, 255, 255, 0.08); z-index: 100; }
-.filterPanel h4 { margin-top: 0; font-size: 1.1rem; color: #fbfbfc; margin-bottom: 24px; font-weight: 600; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
-.filterGroup { margin-bottom: 20px; } 
-.filterGroup label { display: block; font-size: 0.75rem; color: #8e8e93; font-weight: 600; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
-.filterGroup select, .filterGroup input[type="date"] { width: 100%; padding: 12px 16px; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; font-family: inherit; font-size: 0.9rem; color: #fbfbfc; background: rgba(0, 0, 0, 0.2); transition: all 0.2s; outline: none; }
-.filterGroup select:focus, .filterGroup input[type="date"]:focus { border-color: #a855f7; box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.2); background: rgba(168, 85, 247, 0.03); }
-.dateRangeRow { display: flex; gap: 15px; width: 100%; }
-.dateRangeRow > div { flex: 1; min-width: 0; }
+/* Premium table */
+.premiumTable    { width:100%; border-collapse:separate; border-spacing:0; font-size:0.88rem; }
+.premiumTable th { text-align:left; padding:14px 18px; color:var(--text-muted); font-weight:600; text-transform:uppercase; font-size:0.72rem; letter-spacing:0.05em; border-bottom:1px solid rgba(255,255,255,0.05); background:transparent; }
+.premiumTable td { padding:16px 18px; color:var(--text-main); border-bottom:1px solid rgba(255,255,255,0.03); vertical-align:middle; }
+.premiumTable tr:hover td { background:rgba(255,255,255,0.015); }
+.teamTags        { display:flex; gap:6px; flex-wrap:wrap; }
+.teamTags span   { background:rgba(168,85,247,0.08); border:1px solid rgba(168,85,247,0.18); color:#d8b4fe; padding:4px 10px; border-radius:20px; font-size:0.72rem; font-weight:600; }
 
-/* Custom Calendar Icon Color */
-.filterGroup input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opacity: 0.5; cursor: pointer; }
+/* Action header */
+.actionHeader   { display:flex; gap:10px; }
+.actionBtn      { display:flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:10px; cursor:pointer; transition:all 0.15s; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); color:var(--text-muted); font-size:1.15rem; }
+.actionBtn:hover { background:rgba(255,255,255,0.08); color:var(--text-main); transform:scale(1.05); }
 
-.filterActions { margin-top: 30px; display: flex; justify-content: space-between; align-items: center; } 
-.clearBtn { background: transparent; color: #8e8e93; border: none; font-weight: 600; cursor: pointer; font-size: 0.9rem; transition: 0.2s; }
-.clearBtn:hover { color: #ff3b30; }
-.applyBtn { background: #a855f7; color: #ffffff; border: none; padding: 10px 24px; border-radius: 100px; font-weight: 600; cursor: pointer; font-size: 0.9rem; transition: all 0.2s; box-shadow: 0 4px 15px rgba(168, 85, 247, 0.3); }
-.applyBtn:hover { background: #b666ff; transform: translateY(-2px); box-shadow: 0 8px 25px rgba(168, 85, 247, 0.4); }
+/* Filter panel */
+.filterPanel    { position:absolute; top:55px; right:0; background:rgba(18,18,22,0.96); backdrop-filter:blur(30px); -webkit-backdrop-filter:blur(30px); width:380px; padding:28px; border-radius:20px; box-shadow:0 24px 60px rgba(0,0,0,0.6); border:1px solid rgba(255,255,255,0.1); z-index:200; }
+.filterPanel h4 { margin-top:0; font-size:1rem; color:var(--text-main); margin-bottom:20px; font-weight:600; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:14px; display:flex; justify-content:space-between; align-items:center; }
+.filterGroup    { margin-bottom:18px; }
+.filterGroup label { display:block; font-size:0.72rem; color:var(--text-muted); font-weight:600; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em; }
+.formControl    { width:100%; padding:10px 14px; border:1px solid rgba(255,255,255,0.08); border-radius:10px; font-family:inherit; font-size:0.88rem; color:var(--text-main); background:rgba(0,0,0,0.25); transition:all 0.15s; outline:none; }
+.formControl:focus { border-color:#a855f7; box-shadow:0 0 0 3px rgba(168,85,247,0.2); }
+.dateRangeRow   { display:flex; gap:12px; }
+.dateRangeRow>div { flex:1; min-width:0; }
+.filterActions  { margin-top:24px; display:flex; justify-content:space-between; align-items:center; }
+.clearBtn       { background:transparent; color:var(--text-muted); border:none; font-weight:600; cursor:pointer; font-size:0.88rem; transition:0.15s; }
+.clearBtn:hover { color:var(--accent-red); }
+.applyBtn       { background:#a855f7; color:#fff; border:none; padding:9px 22px; border-radius:100px; font-weight:600; cursor:pointer; font-size:0.88rem; transition:all 0.2s; }
+.applyBtn:hover { background:#b666ff; transform:translateY(-1px); }
 
-/* Hidden PDF Table */
-.pdfContainer { display: none; margin-top: 20px; }
+/* ── Responsive ── */
+@media (max-width:1300px) {
+  .kpiGrid      { grid-template-columns:repeat(4,1fr); }
+  .chartRow     { grid-template-columns:repeat(2,1fr); }
+  .chartRowHalf { grid-template-columns:1fr 1fr; }
+}
+@media (max-width:1000px) {
+  .kpiGrid      { grid-template-columns:repeat(2,1fr); }
+  .chartRow     { grid-template-columns:1fr; }
+  .chartRowHalf { grid-template-columns:1fr; }
+}
+@media (max-width:600px) {
+  .kpiGrid      { grid-template-columns:1fr; }
+  .filterPanel  { width:calc(100vw - 32px); right:-12px; }
+}
+
+/* ── Print ── */
+@media print {
+  .filterPanel, .actionHeader, .compControls, .pdfBtn { display:none !important; }
+  .kpiGrid  { grid-template-columns:repeat(4,1fr) !important; }
+  .chartRow { grid-template-columns:repeat(2,1fr) !important; break-inside:avoid; }
+}

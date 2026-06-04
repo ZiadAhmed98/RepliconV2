@@ -5,35 +5,29 @@ import styles from './Login.module.css';
 export default function Login({ onLoginSuccess }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [error,    setError]    = useState('');
+  const [isLoading,setIsLoading]= useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
-
     try {
+      // Cookie is set server-side (httpOnly); we just read the display name from the response
       const data = await repliconApi.login(username, password);
       if (data.success) {
         let finalName = data.displayName;
-        if (!finalName || finalName === "undefined") {
-          finalName = username.split('@')[0];
-          finalName = finalName.charAt(0).toUpperCase() + finalName.slice(1);
+        if (!finalName || finalName === 'undefined') {
+          finalName = username.charAt(0).toUpperCase() + username.slice(1);
         }
-        
-        const userData = { name: finalName, uri: data.uri };
-        localStorage.setItem('mds_dashboard_session', JSON.stringify({
-          user: userData,
-          expiresAt: new Date().getTime() + (3600000) 
-        }));
-        
-        onLoginSuccess(userData);
+        // No more localStorage session — the httpOnly cookie handles auth.
+        // We pass the user object up so App.jsx knows who's logged in UI-side.
+        onLoginSuccess({ name: finalName, uri: data.uri });
       } else {
-        setError(data.error || "Login failed.");
+        setError(data.error || 'Login failed.');
       }
     } catch (err) {
-      setError(err.response?.data?.error || "Network error. Server may be offline.");
+      setError(err.response?.data?.error || 'Network error. Server may be offline.');
     } finally {
       setIsLoading(false);
     }
@@ -43,34 +37,37 @@ export default function Login({ onLoginSuccess }) {
     <div className={styles.loginContainer}>
       <div className={styles.loginBox}>
         <div className={styles.logoWrap}>
-          <i className='bx bx-hive' style={{ fontSize: '3rem', color: 'var(--accent-primary)' }}></i>
+          <i className='bx bx-hive' style={{ fontSize: '3rem', color: 'var(--accent-primary)' }} />
         </div>
         <h2 className={styles.title}>Liveroute Analytics</h2>
-        <p className={styles.subtitle}>Enter your credentials.</p>
-        
+        <p className={styles.subtitle}>Enter your credentials to continue.</p>
+
         <form onSubmit={handleLogin}>
-          <input 
-            type="text" 
-            className={styles.inputField} 
-            placeholder="Username" 
-            value={username} 
-            onChange={(e) => setUsername(e.target.value)} 
-            required 
+          <input
+            type="text"
+            className={styles.inputField}
+            placeholder="Username"
+            value={username}
+            onChange={e => setUsername(e.target.value)}
+            autoComplete="username"
+            required
           />
-          <input 
-            type="password" 
-            className={styles.inputField} 
-            placeholder="Password" 
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)} 
-            required 
+          <input
+            type="password"
+            className={styles.inputField}
+            placeholder="Password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
           />
-          
           <button type="submit" className={styles.loginBtn} disabled={isLoading || !username || !password}>
-            {isLoading ? <><i className='bx bx-loader-alt bx-spin'></i> Authenticating...</> : "Secure Login"}
+            {isLoading
+              ? <><i className='bx bx-loader-alt bx-spin' /> Authenticating…</>
+              : 'Secure Login'}
           </button>
         </form>
-        
+
         {error && <div className={styles.errorMsg}>{error}</div>}
       </div>
     </div>

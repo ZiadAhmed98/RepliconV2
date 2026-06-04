@@ -64,3 +64,11 @@
 .detailTable th { text-align: left; padding: 12px 25px; color: var(--text-muted); font-weight: 500; font-size: 0.7rem; text-transform: uppercase; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border-color); }
 .detailTable td { padding: 12px 25px; border-bottom: 1px solid rgba(255,255,255,0.03); color: var(--text-main); }
 .cellDim { color: var(--text-muted); font-size: 0.75rem; }
+
+/* Responsive */
+@media (max-width: 900px) { .filterRow { flex-direction: column; gap: 12px; } .filters { width: 100%; } .actionButtons { width: 100%; justify-content: flex-end; } }
+@media (max-width: 700px) { .tabContainer { flex-wrap: wrap; } .tab { font-size: 0.78rem; padding: 6px 12px; } }
+@media (max-width: 600px) { .headerArea { flex-direction: column; align-items: flex-start; gap: 12px; } }
+
+/* Print */
+@media print { .opsRibbon, .actionButtons, .chkBox { display: none; } }

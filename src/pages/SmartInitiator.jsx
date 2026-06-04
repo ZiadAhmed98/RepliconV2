@@ -205,11 +205,12 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
 
     try {
       // We use a standard fetch, but we do NOT await response.json() yet
-      const response = await fetch('/api/projects/new', {
+      const response = await fetch('/api/v1/projects', {
         method: 'POST',
-        headers: { 
+        credentials: 'include',
+        headers: {
           'Content-Type': 'application/json',
-          'Accept': 'text/event-stream' // Tells the server we want a stream
+          'Accept': 'text/event-stream'
         },
         body: JSON.stringify(payload)
       });

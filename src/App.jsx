@@ -1,98 +1,165 @@
-import React, { useState, useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Routes, Route, useNavigate } from 'react-router-dom';
 
-// Global UI Components
-import Ribbon from './components/Ribbon';
-import Navbar from './components/Navbar';
-import SessionManager from './components/SessionManager'; // NEW: Added Session Manager
-import LoadingScreen from './components/LoadingScreen';   // UPGRADE: Swapped to Apple Loading Screen
-import Login from './components/Login';                   // UPGRADE: Swapped to the new Login component
+import Sidebar            from './components/Sidebar';
+import Ribbon             from './components/Ribbon';
+import SessionManager     from './components/SessionManager';
+import LoadingScreen      from './components/LoadingScreen';
+import Login              from './components/Login';
+import ToastStack         from './components/Toast';
+import GlobalSearch       from './components/GlobalSearch';
+import KeyboardShortcuts  from './components/KeyboardShortcuts';
 
-// Pages
-import Dashboard from './pages/Dashboard';
-import Employee from './pages/Employee';
+import Dashboard       from './pages/Dashboard';
+import Employee        from './pages/Employee';
 import ProjectDeepDive from './pages/ProjectDeepDive';
-import TimesheetOps from './pages/TimesheetOps';
-import SmartInitiator from './pages/SmartInitiator';
+import TimesheetOps    from './pages/TimesheetOps';
+import SmartInitiator  from './pages/SmartInitiator';
 
-// Data Engine
-import { useRepliconData } from './hooks/useRepliconData';
+import { useRepliconData }    from './hooks/useRepliconData';
+import { repliconApi }        from './api/replicon';
+import { ThemeProvider }      from './context/ThemeContext';
+import { ToastProvider }      from './context/ToastContext';
 
-export default function App() {
-  // 1. Session State
-  const [sessionUser, setSessionUser] = useState(null);
-  const [isAppReady, setIsAppReady] = useState(false); // Safely holds the UI until local storage is checked
+const SIDEBAR_COLLAPSED_KEY = 'mds_sidebar_collapsed';
 
-  // Check local storage for an active session when the app loads
+function AppContent() {
+  const navigate = useNavigate();
+  const [sessionUser,    setSessionUser]    = useState(null);
+  const [isAppReady,     setIsAppReady]     = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true');
+  const [searchOpen,     setSearchOpen]     = useState(false);
+  const [shortcutsOpen,  setShortcutsOpen]  = useState(false);
+
+  // Session check: try httpOnly cookie first, fall back to legacy localStorage
   useEffect(() => {
-    const session = localStorage.getItem('mds_dashboard_session');
-    if (session) {
+    const checkSession = async () => {
       try {
-        const parsed = JSON.parse(session);
-        if (new Date().getTime() < parsed.expiresAt) {
-          setSessionUser(parsed.user);
-        } else {
-          localStorage.removeItem('mds_dashboard_session');
+        const { user } = await repliconApi.me();
+        setSessionUser(user);
+      } catch {
+        // Cookie session invalid — try legacy localStorage
+        const legacy = localStorage.getItem('mds_dashboard_session');
+        if (legacy) {
+          try {
+            const parsed = JSON.parse(legacy);
+            if (Date.now() < parsed.expiresAt) setSessionUser(parsed.user);
+            else localStorage.removeItem('mds_dashboard_session');
+          } catch { localStorage.removeItem('mds_dashboard_session'); }
         }
-      } catch (e) { 
-        // Catch corrupt JSON and wipe it to prevent crashes
-        localStorage.removeItem('mds_dashboard_session'); 
+      } finally {
+        setIsAppReady(true);
       }
-    }
-    setIsAppReady(true);
+    };
+    checkSession();
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(async () => {
+    try { await repliconApi.logout(); } catch { /* ignore */ }
     localStorage.removeItem('mds_dashboard_session');
     setSessionUser(null);
+  }, []);
+
+  // Listen for unauthorized events from api layer
+  useEffect(() => {
+    const handler = () => handleLogout();
+    window.addEventListener('mds:unauthorized', handler);
+    return () => window.removeEventListener('mds:unauthorized', handler);
+  }, [handleLogout]);
+
+  const { dataMatrix, loading, statusText, syncMatrixData, lastSynced } = useRepliconData(sessionUser);
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(prev => {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(!prev));
+      return !prev;
+    });
   };
 
-  // 2. The Data Engine (Only fires if we actually have a logged-in user)
-  // This is your North Star. We are leaving it completely untouched!
-  const { dataMatrix, loading, statusText, syncMatrixData } = useRepliconData(sessionUser);
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e) => {
+      if (!sessionUser) return;
+      const isInput = ['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName);
 
-  // Prevent UI flash before storage check is complete
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); setSearchOpen(true); }
+      if (e.key === '?' && !isInput) setShortcutsOpen(true);
+      if (e.key === 'Escape') { setSearchOpen(false); setShortcutsOpen(false); }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'r' && !isInput) { e.preventDefault(); syncMatrixData(true); }
+      if (!isInput && !e.ctrlKey && !e.metaKey) {
+        if (e.key === '1') navigate('/');
+        if (e.key === '2') navigate('/employee');
+        if (e.key === '3') navigate('/projects');
+        if (e.key === '4') navigate('/timesheets');
+        if (e.key === '5') navigate('/new-project');
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [sessionUser, navigate, syncMatrixData]);
+
+  const sidebarWidth = sidebarCollapsed ? 72 : 240;
+
+  const pendingCount = (dataMatrix?.timesheets || []).filter(t => (t.status||'').toLowerCase().includes('waiting')).length;
+
   if (!isAppReady) return null;
 
-  // 4. Main Application Render
+  if (!sessionUser) {
+    return (
+      <Login onLoginSuccess={(user) => setSessionUser(user)} />
+    );
+  }
+
   return (
-    <div className="app-container">
-      {/* 1. If not logged in, show the NEW premium Login screen */}
-      {!sessionUser && <Login onLoginSuccess={(user) => setSessionUser(user)} />}
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-main)' }}>
+      <Sidebar
+        sessionUser={sessionUser}
+        onLogout={handleLogout}
+        pendingCount={pendingCount}
+        collapsed={sidebarCollapsed}
+        onToggle={toggleSidebar}
+      />
 
-      {/* 2. Only render the Router block when logged in */}
-      {sessionUser && (
-        <>
-          {/* Security: 15-minute idle timeout warning */}
-          <SessionManager onLogout={handleLogout} />
-          
-          {/* The Apple Vision Loading Screen tied to your original loading state */}
-          <LoadingScreen isVisible={loading} />
-          
-          {/* THE STICKY HEADER WRAPPER (Your new Floating Glass Island) */}
-          <div className="sticky-header-group">
-            <Ribbon 
-              sessionUser={sessionUser} 
-              onLogout={handleLogout} 
-              onSync={() => syncMatrixData(true)} 
-            />
-            <Navbar />
-          </div>
+      <div style={{ flex: 1, marginLeft: `${sidebarWidth}px`, transition: 'margin-left 0.25s cubic-bezier(0.2,0.8,0.2,1)', display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+        <SessionManager onLogout={handleLogout} />
+        <LoadingScreen isVisible={loading} statusText={statusText} />
 
-          <main className="dashboard-container">
-            {/* Safe rendering: Only mount routes if dataMatrix isn't null to prevent child component crashes */}
-            {dataMatrix && (
-              <Routes>
-                <Route path="/" element={<Dashboard dataMatrix={dataMatrix} />} />
-                <Route path="/employee" element={<Employee dataMatrix={dataMatrix} sessionUser={sessionUser} />} />
-                <Route path="/projects" element={<ProjectDeepDive dataMatrix={dataMatrix} />} />
-                <Route path="/timesheets" element={<TimesheetOps dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} />} />
-                <Route path="/new-project" element={<SmartInitiator dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} />} />
-              </Routes>
-            )}
-          </main>
-        </>
-      )}
+        <Ribbon
+          sessionUser={sessionUser}
+          onLogout={handleLogout}
+          onSync={() => syncMatrixData(true)}
+          onSearchOpen={() => setSearchOpen(true)}
+          lastSynced={lastSynced}
+          dataMatrix={dataMatrix}
+        />
+
+        <main className="dashboard-container" style={{ flex: 1 }}>
+          {dataMatrix && (
+            <Routes>
+              <Route path="/"            element={<Dashboard       dataMatrix={dataMatrix} />} />
+              <Route path="/employee"    element={<Employee         dataMatrix={dataMatrix} sessionUser={sessionUser} />} />
+              <Route path="/projects"    element={<ProjectDeepDive  dataMatrix={dataMatrix} />} />
+              <Route path="/timesheets"  element={<TimesheetOps     dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} />} />
+              <Route path="/new-project" element={<SmartInitiator   dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} />} />
+            </Routes>
+          )}
+        </main>
+      </div>
+
+      {/* Global overlays */}
+      <GlobalSearch  dataMatrix={dataMatrix} isOpen={searchOpen}    onClose={() => setSearchOpen(false)} />
+      <KeyboardShortcuts isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <ToastStack />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
+    </ThemeProvider>
   );
 }
