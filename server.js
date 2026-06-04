@@ -55,17 +55,30 @@ const app = express();
 
 // 4.4 Security Headers via Helmet
 app.use(helmet({
+  // HSTS must be disabled — server runs HTTP only (no TLS).
+  // Sending HSTS over HTTP causes browsers to force-upgrade all future
+  // requests to HTTPS, breaking every asset load with ERR_SSL_PROTOCOL_ERROR.
+  hsts: false,
+
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy:   false,   // HTTP origin — browser ignores it anyway
+
   contentSecurityPolicy: {
     directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc:  ["'self'", "'unsafe-inline'"],   // React needs inline scripts in dev
-      styleSrc:   ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://unpkg.com"],
-      fontSrc:    ["'self'", "https://fonts.gstatic.com", "https://unpkg.com"],
-      imgSrc:     ["'self'", "data:", "blob:"],
-      connectSrc: ["'self'", "https://ap1.replicon.com"],
+      defaultSrc:  ["'self'"],
+      scriptSrc:   [
+        "'self'",
+        "'unsafe-inline'",
+        "https://cdnjs.cloudflare.com",   // html2pdf.js in index.html
+        "https://unpkg.com",
+      ],
+      styleSrc:    ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://unpkg.com"],
+      fontSrc:     ["'self'", "https://fonts.gstatic.com", "https://unpkg.com"],
+      imgSrc:      ["'self'", "data:", "blob:"],
+      connectSrc:  ["'self'", "https://ap1.replicon.com"],
+      workerSrc:   ["'self'", "blob:"],   // Web Worker support
     },
   },
-  crossOriginEmbedderPolicy: false,
 }));
 
 // 4.8 CORS Lockdown
