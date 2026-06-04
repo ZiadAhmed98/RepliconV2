@@ -4,6 +4,9 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
 
+  // NODE_ENV=test is not a valid Vite mode — always build for production
+  mode: 'production',
+
   build: {
     outDir: 'dist',
     rollupOptions: {
