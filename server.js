@@ -64,19 +64,16 @@ app.use(helmet({
   crossOriginOpenerPolicy:   false,   // HTTP origin — browser ignores it anyway
 
   contentSecurityPolicy: {
+    useDefaults: false,   // prevent helmet adding upgrade-insecure-requests (breaks HTTP sites)
     directives: {
-      defaultSrc:  ["'self'"],
-      scriptSrc:   [
-        "'self'",
-        "'unsafe-inline'",
-        "https://cdnjs.cloudflare.com",   // html2pdf.js in index.html
-        "https://unpkg.com",
-      ],
-      styleSrc:    ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://unpkg.com"],
-      fontSrc:     ["'self'", "https://fonts.gstatic.com", "https://unpkg.com"],
-      imgSrc:      ["'self'", "data:", "blob:"],
-      connectSrc:  ["'self'", "https://ap1.replicon.com", "https://cdnjs.cloudflare.com"],
-      workerSrc:   ["'self'", "blob:"],   // Web Worker support
+      defaultSrc:              ["'self'"],
+      scriptSrc:               ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
+      styleSrc:                ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://unpkg.com"],
+      fontSrc:                 ["'self'", "https://fonts.gstatic.com", "https://unpkg.com"],
+      imgSrc:                  ["'self'", "data:", "blob:"],
+      connectSrc:              ["'self'", "https://ap1.replicon.com", "https://cdnjs.cloudflare.com"],
+      workerSrc:               ["'self'", "blob:"],
+      // upgradeInsecureRequests intentionally omitted — server is HTTP only
     },
   },
 }));
