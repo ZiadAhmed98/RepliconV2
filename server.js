@@ -1,0 +1,661 @@
+import 'dotenv/config';
+import express       from 'express';
+import axios         from 'axios';
+import path          from 'path';
+import { fileURLToPath } from 'url';
+import cors          from 'cors';
+import helmet        from 'helmet';
+import cookieParser  from 'cookie-parser';
+import rateLimit     from 'express-rate-limit';
+import { z }         from 'zod';
+import crypto        from 'crypto';
+import pino          from 'pino';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname  = path.dirname(__filename);
+
+// ============================================================================
+// STRUCTURED LOGGER (6.3)
+// ============================================================================
+const logger = pino({
+  level: process.env.LOG_LEVEL || 'info',
+  // pino-pretty is not bundled in the Docker image — plain JSON logs only
+});
+
+// ============================================================================
+// IN-MEMORY SESSION STORE (4.1 / 4.2)
+// Swap for Redis in production via ioredis for persistence across restarts.
+// ============================================================================
+const sessions = new Map();
+
+function createSession(user) {
+  const token     = crypto.randomBytes(32).toString('hex');
+  const expiresAt = Date.now() + (Number(process.env.SESSION_MS) || 3600000);
+  sessions.set(token, { user, expiresAt });
+  return { token, expiresAt };
+}
+
+function validateSession(token) {
+  if (!token) return null;
+  const session = sessions.get(token);
+  if (!session) return null;
+  if (Date.now() > session.expiresAt) { sessions.delete(token); return null; }
+  return session;
+}
+
+// Periodic cleanup to avoid memory leaks
+setInterval(() => {
+  for (const [token, s] of sessions) { if (Date.now() > s.expiresAt) sessions.delete(token); }
+}, 10 * 60 * 1000);
+
+// ============================================================================
+// EXPRESS APP SETUP
+// ============================================================================
+const app = express();
+
+// 4.4 Security Headers via Helmet
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc:  ["'self'", "'unsafe-inline'"],   // React needs inline scripts in dev
+      styleSrc:   ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://unpkg.com"],
+      fontSrc:    ["'self'", "https://fonts.gstatic.com", "https://unpkg.com"],
+      imgSrc:     ["'self'", "data:", "blob:"],
+      connectSrc: ["'self'", "https://ap1.replicon.com"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
+
+// 4.8 CORS Lockdown
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost,http://129.151.146.210').split(',').map(o => o.trim());
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || allowedOrigins.some(o => origin.startsWith(o))) return cb(null, true);
+    cb(new Error(`CORS: Origin ${origin} not allowed`));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'OPTIONS'],
+}));
+
+app.use(cookieParser());
+app.use(express.json({ limit: '5mb' }));
+
+// 4.2 Auth Middleware
+function requireAuth(req, res, next) {
+  const token   = req.cookies?.mds_session;
+  const session = validateSession(token);
+  if (!session) return res.status(401).json({ error: 'Unauthorized. Please log in.' });
+  req.user = session.user;
+  next();
+}
+
+// 4.9 Audit Logger
+function auditLog(user, action, details = {}) {
+  logger.info({ audit: true, user, action, ...details }, `AUDIT: ${user} → ${action}`);
+}
+
+// ============================================================================
+// HELPER UTILITIES (unchanged from original)
+// ============================================================================
+function cleanStr(str) { return !str ? '' : str.replace(/[\r\n\t]/g, '').trim(); }
+function parseCSVLine(line) {
+  const result = []; let cur = ''; let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+    else if (line[i] === '"') { inQuotes = !inQuotes; }
+    else if (line[i] === ',' && !inQuotes) { result.push(cleanStr(cur)); cur = ''; }
+    else { cur += line[i]; }
+  }
+  result.push(cleanStr(cur));
+  return result;
+}
+function parseNumber(val) { return parseFloat(String(val).replace(/"/g, '').replace(/,/g, '')) || 0; }
+function parseDateToTimestamp(dateStr) { const p = Date.parse((dateStr || '').replace(/"/g, '')); return isNaN(p) ? 0 : p; }
+
+// ============================================================================
+// WCF REQUEST WRAPPER (with pino logging)
+// ============================================================================
+async function wcfRequest(stepName, url, payload, headers) {
+  logger.debug({ step: stepName, url }, 'WCF Request');
+  try {
+    const response = await axios.post(url, payload, { headers });
+    logger.debug({ step: stepName }, 'WCF Success');
+    return response.data;
+  } catch (error) {
+    logger.error({ step: stepName, status: error.response?.status, body: error.response?.data }, 'WCF Error');
+    throw error;
+  }
+}
+
+// ============================================================================
+// 4.3 RATE LIMITER — login endpoint
+// ============================================================================
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many login attempts. Please try again in 15 minutes.' },
+});
+
+// ============================================================================
+// 6.4 HEALTH CHECK
+// ============================================================================
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    uptime: Math.round(process.uptime()),
+    timestamp: new Date().toISOString(),
+    version: '2.0.0',
+    sessions: sessions.size,
+  });
+});
+
+// ============================================================================
+// AUTH: LOGIN  (4.1 httpOnly cookie session)
+// ============================================================================
+app.post('/api/v1/login', loginLimiter, async (req, res) => {
+  const { username, password } = req.body || {};
+  if (!username || !password) return res.status(400).json({ error: 'Username and password required.' });
+
+  const lowerUsername = String(username).toLowerCase().trim();
+  const token         = (process.env.REPLICON_TOKEN   || '').trim();
+  const company       = (process.env.REPLICON_COMPANY || '').trim();
+
+  if (!token || !company) return res.status(500).json({ error: 'Server configuration error.' });
+
+  const ALLOWED_USERS    = { ziad: process.env.AdminPWD, mod: process.env.ModPWD, gm: process.env.GMPWD };
+  const REPLICON_LOGINS  = { ziad: 'z.shafik', mod: 'i.najmi', gm: 'H.matta' };
+
+  if (!ALLOWED_USERS[lowerUsername] || ALLOWED_USERS[lowerUsername] !== password) {
+    logger.warn({ username: lowerUsername, ip: req.ip }, 'Failed login attempt');
+    return res.status(401).json({ error: 'Invalid credentials.' });
+  }
+
+  try {
+    const data = await wcfRequest(
+      'User Login',
+      `https://ap1.replicon.com/${company}/services/UserService1.svc/GetUser2`,
+      { user: { loginName: REPLICON_LOGINS[lowerUsername] } },
+      { Authorization: `Bearer ${token}`, 'X-Replicon-Security-Context': 'User', 'Content-Type': 'application/json' },
+    );
+
+    const user        = { name: data.d.displayName, uri: data.d.uri, role: lowerUsername };
+    const { sessionToken, expiresAt } = (() => {
+      const { token: st, expiresAt: ea } = createSession(user);
+      return { sessionToken: st, expiresAt: ea };
+    })();
+
+    res.cookie('mds_session', sessionToken, {
+      httpOnly: true,
+      secure:   process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge:   Number(process.env.SESSION_MS) || 3600000,
+    });
+
+    auditLog(user.name, 'LOGIN', { ip: req.ip });
+    logger.info({ user: user.name }, 'Login success');
+    res.json({ success: true, displayName: data.d.displayName, uri: data.d.uri });
+  } catch (err) {
+    logger.error({ err, username: lowerUsername }, 'Replicon login rejected');
+    res.status(400).json({ error: 'Replicon rejected the user request.' });
+  }
+});
+
+// 6.5 Backward-compatible login alias
+app.post('/api/login', loginLimiter, async (req, res) => {
+  // Duplicate the v1 handler inline so old clients still work
+  const { username, password } = req.body || {};
+  if (!username || !password) return res.status(400).json({ error: 'Username and password required.' });
+  const lowerUsername = String(username).toLowerCase().trim();
+  const token   = (process.env.REPLICON_TOKEN   || '').trim();
+  const company = (process.env.REPLICON_COMPANY || '').trim();
+  if (!token || !company) return res.status(500).json({ error: 'Server configuration error.' });
+  const ALLOWED_USERS   = { ziad: process.env.AdminPWD, mod: process.env.ModPWD, gm: process.env.GMPWD };
+  const REPLICON_LOGINS = { ziad: 'z.shafik', mod: 'i.najmi', gm: 'H.matta' };
+  if (!ALLOWED_USERS[lowerUsername] || ALLOWED_USERS[lowerUsername] !== password) return res.status(401).json({ error: 'Invalid credentials.' });
+  try {
+    const data = await wcfRequest('User Login (compat)', `https://ap1.replicon.com/${company}/services/UserService1.svc/GetUser2`, { user: { loginName: REPLICON_LOGINS[lowerUsername] } }, { Authorization: `Bearer ${token}`, 'X-Replicon-Security-Context': 'User', 'Content-Type': 'application/json' });
+    const user = { name: data.d.displayName, uri: data.d.uri, role: lowerUsername };
+    const { token: sessionToken } = createSession(user);
+    res.cookie('mds_session', sessionToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: Number(process.env.SESSION_MS) || 3600000 });
+    res.json({ success: true, displayName: data.d.displayName, uri: data.d.uri });
+  } catch { res.status(400).json({ error: 'Replicon rejected the user request.' }); }
+});
+
+// Auth: Validate session (used by frontend on mount)
+app.get('/api/v1/me', requireAuth, (req, res) => {
+  res.json({ user: req.user });
+});
+
+// Auth: Logout
+app.post('/api/v1/logout', (req, res) => {
+  const token = req.cookies?.mds_session;
+  if (token) sessions.delete(token);
+  res.clearCookie('mds_session');
+  res.json({ success: true });
+});
+
+// ============================================================================
+// DASHBOARD DATA (6.1 Streaming SSE — sends each source as it arrives)
+// ============================================================================
+app.get('/api/v1/dashboard', requireAuth, async (req, res) => {
+  const token   = (process.env.REPLICON_TOKEN   || '').trim();
+  const company = (process.env.REPLICON_COMPANY || '').trim();
+  const headers = { Authorization: `Bearer ${token}`, 'X-Replicon-Security-Context': 'User', 'Content-Type': 'application/json' };
+  const reportEndpoint = `https://ap1.replicon.com/${company}/services/ReportService1.svc/GenerateReport`;
+
+  // SSE setup
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders?.();
+
+  const send = (type, data) => {
+    res.write(`data: ${JSON.stringify({ type, data })}\n\n`);
+  };
+
+  const sendError = (msg) => { res.write(`data: ${JSON.stringify({ type: 'error', message: msg })}\n\n`); res.end(); };
+
+  try {
+    // --- Dictionaries ---
+    const fetchListData = async (dictName, serviceName, columnUri) => {
+      const url = `https://ap1.replicon.com/${company}/services/${serviceName}.svc/GetData`;
+      const payload = { page: 1, pagesize: 10000, columnUris: [columnUri], sort: [], filterExpression: null };
+      try {
+        const data = await wcfRequest(`Dict: ${dictName}`, url, payload, headers);
+        const rows = data.d?.rows || data.rows || [];
+        return rows.map(r => {
+          const cell = r.cells?.[0];
+          return cell?.textValue && cell?.uri ? { name: cell.textValue, uri: cell.uri } : null;
+        }).filter(Boolean);
+      } catch { return []; }
+    };
+
+    const fetchPolicyData = async (dictName, serviceName, methodName, searchKey) => {
+      const url = `https://ap1.replicon.com/${company}/services/${serviceName}.svc/${methodName}`;
+      const payload = { pageIndex: '1', pageSize: '1000', policyUri: 'urn:replicon:policy:project-management' };
+      if (searchKey) {
+        payload[searchKey] = searchKey === 'departmentGroupSearch' ? {
+          statusOptionUri: 'urn:replicon:department-group-status-option:include-only-enabled-department-groups',
+          hierarchyDataOptionUri: null, textSearch: null,
+        } : null;
+      }
+      try {
+        const data = await wcfRequest(`Policy: ${dictName}`, url, payload, headers);
+        const items = data.d || data || [];
+        const parsed = [];
+        items.forEach(item => {
+          let target = item;
+          Object.values(item).forEach(val => { if (val?.displayText && val?.uri) target = val; });
+          if (target?.displayText && target?.uri) parsed.push({ name: target.displayText, uri: target.uri });
+        });
+        if (dictName === 'Departments' && parsed.length > 0) parsed.shift();
+        return parsed;
+      } catch { return []; }
+    };
+
+    const dictionaries = {
+      clients: [], programs: [], locations: [], departments: [], employeeTypes: [],
+      users: [], projectManagers: [], accountManagers: [],
+    };
+
+    logger.info({ user: req.user.name }, 'Dashboard fetch started');
+
+    [dictionaries.clients, dictionaries.programs] = await Promise.all([
+      fetchListData('Clients',  'ClientListService1',  'urn:replicon:client-list-column:client'),
+      fetchListData('Programs', 'ProgramListService1', 'urn:replicon:program-list-column:program'),
+    ]);
+    [dictionaries.locations, dictionaries.departments, dictionaries.employeeTypes] = await Promise.all([
+      fetchPolicyData('Locations',      'LocationService1',         'GetPageOfLocationsInPolicyDataAccessScope',          'locationSearch'),
+      fetchPolicyData('Departments',    'DepartmentGroupService1',  'GetPageOfDepartmentGroupsInPolicyDataAccessScope',   'departmentGroupSearch'),
+      fetchPolicyData('EmployeeTypes',  'EmployeeTypeGroupService1','GetPageOfEmployeeTypeGroupsInPolicyDataAccessScope', 'employeeTypeGroupSearch'),
+    ]);
+
+    try {
+      const amData = await wcfRequest('Account Managers', `https://ap1.replicon.com/${company}/services/CustomFieldService1.svc/GetEnabledCustomFieldDropDownOptions`, {
+        customFieldUri: 'urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:fc1a8ce8-7e33-4683-bdd3-c08387b82b58',
+      }, headers);
+      dictionaries.accountManagers = (amData.d || amData || []).map(opt => ({ name: opt.displayText, uri: opt.uri }));
+    } catch { dictionaries.accountManagers = []; }
+
+    const allUsers = await fetchListData('Users', 'UserListService1', 'urn:replicon:user-list-column:user');
+    dictionaries.users = allUsers;
+    dictionaries.projectManagers = allUsers.filter(u => {
+      const n = u.name.toLowerCase();
+      return n.includes('ziad shafik') || n.includes('irfan najmi');
+    });
+
+    send('dictionaries', dictionaries);
+
+    // --- Reports (streamed as each arrives) ---
+    const parseReport = async (reportUri, headerKeyword, buildRow) => {
+      const payload = { reportUri: `urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:report:${reportUri}`, filterValues: [], outputFormatUri: 'urn:replicon:report-output-format-option:csv' };
+      const res2 = await axios.post(reportEndpoint, payload, { headers });
+      const csvStr = res2.data.d?.payload || res2.data.payload || '';
+      if (!csvStr) return [];
+      const lines   = csvStr.split(/\r?\n/);
+      const hIdx    = lines.findIndex(l => l.toLowerCase().includes(headerKeyword.toLowerCase()));
+      if (hIdx === -1) return [];
+      const cols    = parseCSVLine(lines[hIdx]);
+      const getIdx  = (s) => cols.findIndex(h => h.toLowerCase().includes(s.toLowerCase()));
+      const rows    = [];
+      for (let j = hIdx + 1; j < lines.length; j++) {
+        const line = lines[j].trim();
+        if (!line || line.startsWith('Full Summary')) continue;
+        const row = buildRow(parseCSVLine(line), getIdx);
+        if (row) rows.push(row);
+      }
+      return rows;
+    };
+
+    const [roster, drafts, cube, timesheets] = await Promise.all([
+      parseReport('3f1148e3-624f-4666-ba25-6a0432a883ee', 'user name', (c, g) => ({
+        name: c[g('user name')] || 'Unknown', start: parseDateToTimestamp(c[g('start date')]),
+        end: parseDateToTimestamp(c[g('end date')]), status: c[g('status')] || 'Disabled',
+      })).catch(() => []),
+
+      parseReport('523be039-0435-402a-b1ba-fc7fc5810bb1', 'user name', (c, g) => {
+        const idxName = g('user name'), idxDate = g('date'), idxHours = Math.max(g('actual work hours'), g('hours'));
+        if (!c[idxName] || !c[idxDate]) return null;
+        return { user: c[idxName], date: parseDateToTimestamp(c[idxDate]), act: parseNumber(c[idxHours]) };
+      }).catch(() => []),
+
+      parseReport('c4dc8459-d888-4db8-af86-051e965912b3', 'entry date', (c, g) => {
+        const pName = c[g('project name')];
+        if (!pName || pName === '' || pName.toLowerCase() === '< none >') return null;
+        return {
+          dateStr: c[g('entry date')], timestamp: parseDateToTimestamp(c[g('entry date')]),
+          user: c[g('user name')], client: c[g('client name')], project: pName,
+          program: c[g('program name')] || 'Unassigned', location: c[g('location')],
+          status: g('project status') > -1 ? c[g('project status')] : 'Unknown',
+          act: parseNumber(c[g('hours')]), est: parseNumber(c[g('estimated hrs')]), quoted: parseNumber(c[g('quoted hours')]),
+        };
+      }).catch(() => []),
+
+      parseReport('759875bf-264a-4aef-8a44-26649c81ae65', 'timesheet uri', (c, g) => {
+        const idxUri    = g('timesheet uri');
+        const idxHours  = Math.max(g('total hrs (in period)'), g('total hrs'));
+        if (!c[idxUri] || !c[g('user name')] || !c[g('timesheet period')]) return null;
+        return { period: c[g('timesheet period')], user: c[g('user name')], status: c[g('approval status')] || c[g('submission status')], uri: c[idxUri], hours: parseNumber(c[idxHours]) };
+      }).catch(() => []),
+    ]);
+
+    send('roster',      roster);
+    send('drafts',      drafts);
+    send('cube',        cube);
+    send('timesheets',  timesheets);
+    send('complete',    { dictionaries });
+    res.end();
+
+    logger.info({ user: req.user.name, cubeRows: cube.length, rosterRows: roster.length }, 'Dashboard fetch complete');
+  } catch (err) {
+    logger.error({ err, user: req.user?.name }, 'Dashboard fetch failed');
+    sendError('Failed to fetch live data: ' + err.message);
+  }
+});
+
+// /api/dashboard legacy — frontend now uses /api/v1/dashboard via streaming fetch
+
+// ============================================================================
+// 4.5 ZOD SCHEMA — Project creation validation
+// ============================================================================
+const projectSchema = z.object({
+  projectName:      z.string().min(1).max(200),
+  projectCode:      z.string().min(1).max(50),
+  status:           z.string().optional(),
+  percentCompleted: z.union([z.string(), z.number()]).optional(),
+  startDate:        z.string().optional(),
+  endDate:          z.string().optional(),
+  clientMode:       z.enum(['existing', 'new']).optional(),
+  clientName:       z.string().max(200).optional(),
+  clientUri:        z.string().optional(),
+  programUri:       z.string().optional(),
+  pmUri:            z.string().optional(),
+  departmentUri:    z.string().optional(),
+  locationUri:      z.string().optional(),
+  employeeTypeUri:  z.string().optional(),
+  allowTimeEntry:   z.string().optional(),
+  quotedHours:      z.union([z.string(), z.number()]).optional(),
+  tasks:            z.array(z.object({
+    name:          z.string().min(1).max(500),
+    outlineLevel:  z.number().optional(),
+    start:         z.string().optional(),
+    end:           z.string().optional(),
+    roundedHours:  z.number().optional(),
+    isMilestone:   z.boolean().optional(),
+    assignedUsers: z.array(z.string()).optional(),
+  })).optional().default([]),
+}).passthrough();
+
+// ============================================================================
+// STREAMING PROJECT CREATION
+// ============================================================================
+app.post('/api/v1/projects', requireAuth, async (req, res) => {
+  const parse = projectSchema.safeParse(req.body);
+  if (!parse.success) {
+    return res.status(400).json({ error: 'Validation failed', issues: parse.error.issues });
+  }
+  const payload = parse.data;
+
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Transfer-Encoding', 'chunked');
+  res.setHeader('Cache-Control', 'no-cache');
+
+  const token   = (process.env.REPLICON_TOKEN   || '').trim();
+  const company = (process.env.REPLICON_COMPANY || '').trim();
+  if (!token || !company) {
+    res.write(JSON.stringify({ status: 'error', error: 'Server configuration error.' }) + '\n');
+    return res.end();
+  }
+
+  const headers = { Authorization: `Bearer ${token}`, 'X-Replicon-Security-Context': 'User', 'Content-Type': 'application/json' };
+
+  const parseDateForReplicon = (dateStr) => {
+    if (!dateStr) return undefined;
+    const parts = dateStr.split('-');
+    return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10), day: parseInt(parts[2], 10) };
+  };
+
+  const getStatusUri = (s) => ({
+    'Planning':    'urn:replicon:project-status-type:tentative',
+    'In Progress': 'urn:replicon:project-status-type:in-progress',
+    'Completed':   'urn:replicon:project-status-type:completed',
+    'Archived':    'urn:replicon:project-status-type:archived',
+  }[s] || 'urn:replicon:project-status:tentative');
+
+  try {
+    let activeClientUri = payload.clientUri;
+
+    if (payload.clientMode === 'new' && payload.clientName) {
+      res.write(JSON.stringify({ step: 'client' }) + '\n');
+      let clientDraftRes = await wcfRequest('Create Client Draft', `https://ap1.replicon.com/${company}/services/ClientService1.svc/CreateNewDraft`, {}, headers);
+      let clientDraftUri = clientDraftRes.Value || clientDraftRes.d || clientDraftRes.uri;
+      await wcfRequest('Update Client Name', `https://ap1.replicon.com/${company}/services/ClientService1.svc/UpdateName`, { clientUri: clientDraftUri, name: payload.clientName }, headers);
+      if (payload.accountManagerUri) {
+        await wcfRequest('Update AM', `https://ap1.replicon.com/${company}/services/CustomFieldService1.svc/UpdateDropdownValue`, {
+          objectUri: clientDraftUri,
+          customFieldUri: 'urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:fc1a8ce8-7e33-4683-bdd3-c08387b82b58',
+          customFieldDropDownOptionUri: payload.accountManagerUri,
+        }, headers);
+      }
+      let clientPubRes = await wcfRequest('Publish Client', `https://ap1.replicon.com/${company}/services/ClientService1.svc/PublishDraft`, { draftUri: clientDraftUri }, headers);
+      activeClientUri = clientPubRes.Value || clientPubRes.d || clientPubRes.uri;
+    }
+
+    if (!activeClientUri) throw new Error('Pipeline aborted: Client URI missing.');
+
+    res.write(JSON.stringify({ step: 'project' }) + '\n');
+    let projDraftRes = await wcfRequest('Create Project Draft', `https://ap1.replicon.com/${company}/services/ProjectService1.svc/CreateNewDraft`, {}, headers);
+    let projDraftUri = projDraftRes.Value || projDraftRes.d || projDraftRes.uri;
+
+    await wcfRequest('Update Name',    `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateName`,    { projectUri: projDraftUri, name: payload.projectName }, headers);
+    await wcfRequest('Update Code',    `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateCode`,    { projectUri: projDraftUri, code: payload.projectCode }, headers);
+    await wcfRequest('Update Pct',     `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdatePercentComplete`, { projectUri: projDraftUri, code: payload.percentCompleted }, headers);
+
+    if (payload.startDate || payload.endDate) {
+      await wcfRequest('Update Dates', `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateTimeEntryDateRange`, {
+        projectUri: projDraftUri, dateRange: { startDate: parseDateForReplicon(payload.startDate), endDate: parseDateForReplicon(payload.endDate) },
+      }, headers);
+    }
+
+    const nullObj = (uri) => ({ uri, parent: null, name: null, parameterCorrelationId: null });
+    if (payload.departmentUri)   await wcfRequest('Update Dept',  `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateDepartmentGroup2`,  { projectUri: projDraftUri, departmentGroup:   nullObj(payload.departmentUri) },  headers);
+    if (payload.employeeTypeUri) await wcfRequest('Update EType', `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateEmployeeTypeGroup2`, { projectUri: projDraftUri, employeeTypeGroup: nullObj(payload.employeeTypeUri) }, headers);
+    if (payload.locationUri)     await wcfRequest('Update Loc',   `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateLocation`,           { projectUri: projDraftUri, location: { uri: payload.locationUri, parentUri: null, name: null } }, headers);
+
+    await wcfRequest('Allow Time Entry', `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateAllowTimeEntryAgainstTasksOnly`, { projectUri: projDraftUri, allowTimeEntryAgainstTasksOnly: payload.allowTimeEntry === 'Yes' }, headers);
+
+    const safeClientUri = typeof activeClientUri === 'object' ? activeClientUri.uri : activeClientUri;
+    await wcfRequest('Update Clients', `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateClients`, {
+      projectUri: projDraftUri,
+      clients: [{ client: { uri: safeClientUri, name: null, code: null, parameterCorrelationId: null }, costAllocationPercentage: '100.0' }],
+    }, headers);
+
+    if (payload.programUri) await wcfRequest('Update Program', `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateProgram`,       { projectUri: projDraftUri, programUri: payload.programUri }, headers);
+    if (payload.pmUri)      await wcfRequest('Update PM',      `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateProjectLeader`, { projectUri: projDraftUri, userUri: payload.pmUri }, headers);
+
+    await wcfRequest('Update Status', `https://ap1.replicon.com/${company}/services/ProjectService1.svc/UpdateStatus`, { projectUri: projDraftUri, projectStatusUri: getStatusUri(payload.status) }, headers);
+
+    let projPubRes       = await wcfRequest('Publish Project', `https://ap1.replicon.com/${company}/services/ProjectService1.svc/PublishDraft`, { draftUri: projDraftUri }, headers);
+    let finalProjectUri  = projPubRes.Value || projPubRes.d || projPubRes.uri;
+    const safeProjectUri = typeof finalProjectUri === 'object' ? finalProjectUri.uri : finalProjectUri;
+
+    const tasks = payload.tasks || [];
+    let successfulTasks = 0; let capturedTasks = []; let levelUriMap = {};
+
+    if (safeProjectUri && tasks.length > 0) {
+      res.write(JSON.stringify({ step: 'tasks', current: 0, total: tasks.length }) + '\n');
+      for (let i = 0; i < tasks.length; i++) {
+        const t = tasks[i]; const level = t.outlineLevel || 1;
+        let parentUri = (level > 1 && levelUriMap[level - 1]) ? levelUriMap[level - 1] : null;
+        const targetBlock = { uri: null, name: t.name, ...(parentUri ? { parent: { uri: parentUri } } : {}) };
+        const taskPayload = {
+          project: { uri: safeProjectUri },
+          task: {
+            target: targetBlock, name: t.name, code: '', description: '',
+            timeEntryDateRange: { startDate: parseDateForReplicon(t.start), endDate: parseDateForReplicon(t.end) },
+            percentCompleted: 0, isTimeEntryAllowed: !t.isMilestone, isClosed: false,
+            estimatedHours: t.roundedHours > 0 ? { hours: t.roundedHours, minutes: 0, seconds: 0 } : null,
+            customFieldValues: [
+              { customField: { uri: 'urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:ff2f15e9-8238-4691-89ee-53d780cd899a' }, number: 0 },
+              { customField: { uri: 'urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:45c59ea2-2ceb-496a-8544-c836cbcac626' }, number: null },
+              { customField: { uri: 'urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:user-defined-field:ad68d557-6779-4adc-8925-a25c403f8504' }, text: 'Unlimited' },
+            ],
+            estimatedCost: { amount: 0, currency: { uri: 'urn:replicon-tenant:676a13c33af94d2fbb078764ac976b6e:currency:8' } },
+            timeAndExpenseEntryTypeUri: 'urn:replicon:time-and-expense-entry-type:billable-and-non-billable',
+          },
+          unitOfWorkId: `batch_${Date.now()}_${i}`,
+        };
+        try {
+          let taskRes = await wcfRequest(`Add Task ${i + 1}/${tasks.length}`, `https://ap1.replicon.com/${company}/services/ProjectService1.svc/AddTask`, taskPayload, headers);
+          successfulTasks++;
+          let newTaskUri = taskRes.Value || taskRes.d || taskRes.uri;
+          while (newTaskUri && typeof newTaskUri === 'object') newTaskUri = newTaskUri.uri || newTaskUri.Value || newTaskUri.d;
+          if (newTaskUri) levelUriMap[level] = newTaskUri;
+          if (newTaskUri && t.assignedUsers?.length) capturedTasks.push({ taskUri: newTaskUri, assignedUris: t.assignedUsers });
+          res.write(JSON.stringify({ step: 'tasks', current: i + 1, total: tasks.length }) + '\n');
+        } catch { logger.warn(`Task ${i + 1} skipped due to error`); }
+      }
+    }
+
+    const uniqueUsers = new Set(); let totalAssign = 0;
+    capturedTasks.forEach(ct => { ct.assignedUris.forEach(u => uniqueUsers.add(u)); totalAssign += ct.assignedUris.length; });
+    res.write(JSON.stringify({ step: 'resources', current: 0, total: totalAssign }) + '\n');
+
+    for (const userUri of uniqueUsers) {
+      try { await wcfRequest('Assign to Project', `https://ap1.replicon.com/${company}/services/ProjectService1.svc/AssignResourceToProject`, { projectUri: safeProjectUri, resourceUri: userUri, resourceToReplaceUri: null }, headers); } catch { }
+    }
+
+    let completedAssign = 0;
+    for (let i = 0; i < capturedTasks.length; i++) {
+      const ct = capturedTasks[i];
+      try {
+        await wcfRequest(`Assign Users Task ${i + 1}`, `https://ap1.replicon.com/${company}/services/TaskService1.svc/BulkUpdateResourceAssignments`, { taskUri: ct.taskUri, resourceUris: ct.assignedUris, isAssigned: true }, headers);
+        completedAssign += ct.assignedUris.length;
+        res.write(JSON.stringify({ step: 'resources', current: completedAssign, total: totalAssign }) + '\n');
+      } catch { logger.warn(`Task assignment failed for ${ct.taskUri}`); }
+    }
+
+    res.write(JSON.stringify({ step: 'finalizing' }) + '\n');
+    auditLog(req.user.name, 'PROJECT_CREATED', { project: payload.projectName, code: payload.projectCode, tasks: successfulTasks });
+    res.write(JSON.stringify({ status: 'success', message: `Project ${payload.projectCode} created with ${successfulTasks} tasks.`, projectUri: safeProjectUri }) + '\n');
+    res.end();
+  } catch (err) {
+    logger.error({ err, user: req.user?.name }, 'Project creation failed');
+    res.write(JSON.stringify({ status: 'error', error: err.message || 'Project creation failed.' }) + '\n');
+    res.end();
+  }
+});
+
+// Backward-compat alias — just note it; SmartInitiator.jsx now calls /api/v1/projects directly
+
+// ============================================================================
+// TIMESHEET ACTIONS (4.9 Audit Logging — was missing in original!)
+// ============================================================================
+app.post('/api/v1/timesheets/action', requireAuth, async (req, res) => {
+  const { action, uris } = req.body || {};
+  if (!action || !Array.isArray(uris) || uris.length === 0) {
+    return res.status(400).json({ error: 'action and uris[] are required.' });
+  }
+  if (!['approve', 'reject'].includes(action)) {
+    return res.status(400).json({ error: 'action must be "approve" or "reject".' });
+  }
+
+  const token   = (process.env.REPLICON_TOKEN   || '').trim();
+  const company = (process.env.REPLICON_COMPANY || '').trim();
+  const headers = { Authorization: `Bearer ${token}`, 'X-Replicon-Security-Context': 'User', 'Content-Type': 'application/json' };
+
+  const methodName = action === 'approve' ? 'ApproveTimesheets' : 'RejectTimesheets';
+
+  try {
+    await wcfRequest(
+      `Timesheet ${action}`,
+      `https://ap1.replicon.com/${company}/services/TimesheetService1.svc/${methodName}`,
+      { timesheetUris: uris },
+      headers,
+    );
+    auditLog(req.user.name, `TIMESHEETS_${action.toUpperCase()}`, { count: uris.length });
+    logger.info({ user: req.user.name, action, count: uris.length }, 'Timesheet bulk action');
+    res.json({ message: `Successfully ${action}d ${uris.length} timesheet(s).` });
+  } catch (err) {
+    logger.error({ err, action, user: req.user?.name }, 'Timesheet action failed');
+    res.status(500).json({ error: err.message || 'Timesheet action failed.' });
+  }
+});
+
+// Backward-compat alias for timesheets
+app.post('/api/timesheets/action', requireAuth, async (req, res) => {
+  const { action, uris } = req.body || {};
+  if (!action || !Array.isArray(uris) || uris.length === 0) return res.status(400).json({ error: 'action and uris[] are required.' });
+  if (!['approve', 'reject'].includes(action)) return res.status(400).json({ error: 'action must be "approve" or "reject".' });
+  const token = (process.env.REPLICON_TOKEN || '').trim();
+  const company = (process.env.REPLICON_COMPANY || '').trim();
+  const headers = { Authorization: `Bearer ${token}`, 'X-Replicon-Security-Context': 'User', 'Content-Type': 'application/json' };
+  const method = action === 'approve' ? 'ApproveTimesheets' : 'RejectTimesheets';
+  try {
+    await wcfRequest(`Timesheet ${action} (compat)`, `https://ap1.replicon.com/${company}/services/TimesheetService1.svc/${method}`, { timesheetUris: uris }, headers);
+    auditLog(req.user.name, `TIMESHEETS_${action.toUpperCase()}_COMPAT`, { count: uris.length });
+    res.json({ message: `Successfully ${action}d ${uris.length} timesheet(s).` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ============================================================================
+// STATIC + SPA FALLBACK
+// ============================================================================
+app.use(express.static(path.join(__dirname, 'dist'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.css')) res.setHeader('Content-Type', 'text/css');
+    else if (filePath.endsWith('.js')) res.setHeader('Content-Type', 'application/javascript');
+  },
+}));
+
+app.get('*', (req, res) => {
+  if (req.path.startsWith('/api')) return res.status(404).json({ error: 'API route not found' });
+  res.sendFile(path.join(__dirname, 'dist/index.html'));
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => logger.info({ port: PORT }, `Server running on port ${PORT}`));

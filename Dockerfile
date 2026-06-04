@@ -4,23 +4,20 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 COPY . .
-# This creates the /app/dist folder
-RUN npm run build 
+RUN npm run build
 
-# Stage 2: Serve with the backend
+# Stage 2: Production server — only what Node needs at runtime
 FROM node:18-alpine
 WORKDIR /app
 
-# Add the Linux dictionary for MIME types
 RUN apk add --no-cache mailcap
 
 COPY package*.json ./
-# Install production dependencies only
+# Install ALL production dependencies from package.json (includes new packages)
 RUN npm install --only=production
-RUN npm install cors express axios dotenv
-# Copy ONLY the built frontend from the builder stage
+
+# Copy built frontend and server
 COPY --from=builder /app/dist ./dist
-# Copy the server and env files
 COPY server.js .
 COPY .env .
 
