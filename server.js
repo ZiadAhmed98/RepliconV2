@@ -154,76 +154,39 @@ app.get('/health', (req, res) => {
 });
 
 // ============================================================================
-// AUTH: LOGIN  (4.1 httpOnly cookie session)
+// AUTH: LOGIN — validated against .env only, no Replicon API call needed
 // ============================================================================
-app.post('/api/v1/login', loginLimiter, async (req, res) => {
+const DISPLAY_NAMES = { ziad: 'Ziad Shafik', mod: 'Irfan Najmi', gm: 'Habib Matta' };
+
+function handleLogin(req, res) {
   const { username, password } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: 'Username and password required.' });
 
   const lowerUsername = String(username).toLowerCase().trim();
-  const token         = (process.env.REPLICON_TOKEN   || '').trim();
-  const company       = (process.env.REPLICON_COMPANY || '').trim();
+  const pwdMap = { ziad: process.env.AdminPWD, mod: process.env.ModPWD, gm: process.env.GMPWD };
 
-  if (!token || !company) return res.status(500).json({ error: 'Server configuration error.' });
-
-  const ALLOWED_USERS    = { ziad: process.env.AdminPWD, mod: process.env.ModPWD, gm: process.env.GMPWD };
-  const REPLICON_LOGINS  = { ziad: 'z.shafik', mod: 'i.najmi', gm: 'H.matta' };
-
-  if (!ALLOWED_USERS[lowerUsername] || ALLOWED_USERS[lowerUsername] !== password) {
+  if (!pwdMap[lowerUsername] || pwdMap[lowerUsername] !== password) {
     logger.warn({ username: lowerUsername, ip: req.ip }, 'Failed login attempt');
     return res.status(401).json({ error: 'Invalid credentials.' });
   }
 
-  try {
-    const data = await wcfRequest(
-      'User Login',
-      `https://ap1.replicon.com/${company}/services/UserService1.svc/GetUser2`,
-      { user: { loginName: REPLICON_LOGINS[lowerUsername] } },
-      { Authorization: `Bearer ${token}`, 'X-Replicon-Security-Context': 'User', 'Content-Type': 'application/json' },
-    );
+  const displayName         = DISPLAY_NAMES[lowerUsername] || lowerUsername;
+  const { token: sessionToken } = createSession({ name: displayName, role: lowerUsername });
 
-    const user        = { name: data.d.displayName, uri: data.d.uri, role: lowerUsername };
-    const { sessionToken, expiresAt } = (() => {
-      const { token: st, expiresAt: ea } = createSession(user);
-      return { sessionToken: st, expiresAt: ea };
-    })();
+  res.cookie('mds_session', sessionToken, {
+    httpOnly: true,
+    secure:   process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge:   Number(process.env.SESSION_MS) || 3600000,
+  });
 
-    res.cookie('mds_session', sessionToken, {
-      httpOnly: true,
-      secure:   process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge:   Number(process.env.SESSION_MS) || 3600000,
-    });
+  auditLog(displayName, 'LOGIN', { ip: req.ip });
+  logger.info({ user: displayName }, 'Login success');
+  res.json({ success: true, displayName });
+}
 
-    auditLog(user.name, 'LOGIN', { ip: req.ip });
-    logger.info({ user: user.name }, 'Login success');
-    res.json({ success: true, displayName: data.d.displayName, uri: data.d.uri });
-  } catch (err) {
-    logger.error({ err, username: lowerUsername }, 'Replicon login rejected');
-    res.status(400).json({ error: 'Replicon rejected the user request.' });
-  }
-});
-
-// 6.5 Backward-compatible login alias
-app.post('/api/login', loginLimiter, async (req, res) => {
-  // Duplicate the v1 handler inline so old clients still work
-  const { username, password } = req.body || {};
-  if (!username || !password) return res.status(400).json({ error: 'Username and password required.' });
-  const lowerUsername = String(username).toLowerCase().trim();
-  const token   = (process.env.REPLICON_TOKEN   || '').trim();
-  const company = (process.env.REPLICON_COMPANY || '').trim();
-  if (!token || !company) return res.status(500).json({ error: 'Server configuration error.' });
-  const ALLOWED_USERS   = { ziad: process.env.AdminPWD, mod: process.env.ModPWD, gm: process.env.GMPWD };
-  const REPLICON_LOGINS = { ziad: 'z.shafik', mod: 'i.najmi', gm: 'H.matta' };
-  if (!ALLOWED_USERS[lowerUsername] || ALLOWED_USERS[lowerUsername] !== password) return res.status(401).json({ error: 'Invalid credentials.' });
-  try {
-    const data = await wcfRequest('User Login (compat)', `https://ap1.replicon.com/${company}/services/UserService1.svc/GetUser2`, { user: { loginName: REPLICON_LOGINS[lowerUsername] } }, { Authorization: `Bearer ${token}`, 'X-Replicon-Security-Context': 'User', 'Content-Type': 'application/json' });
-    const user = { name: data.d.displayName, uri: data.d.uri, role: lowerUsername };
-    const { token: sessionToken } = createSession(user);
-    res.cookie('mds_session', sessionToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: Number(process.env.SESSION_MS) || 3600000 });
-    res.json({ success: true, displayName: data.d.displayName, uri: data.d.uri });
-  } catch { res.status(400).json({ error: 'Replicon rejected the user request.' }); }
-});
+app.post('/api/v1/login', loginLimiter, handleLogin);
+app.post('/api/login',    loginLimiter, handleLogin);
 
 // Auth: Validate session (used by frontend on mount)
 app.get('/api/v1/me', requireAuth, (req, res) => {

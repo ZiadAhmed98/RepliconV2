@@ -22,7 +22,7 @@ export default function Login({ onLoginSuccess }) {
         }
         // No more localStorage session — the httpOnly cookie handles auth.
         // We pass the user object up so App.jsx knows who's logged in UI-side.
-        onLoginSuccess({ name: finalName, uri: data.uri });
+        onLoginSuccess({ name: finalName });
       } else {
         setError(data.error || 'Login failed.');
       }
