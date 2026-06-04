@@ -75,7 +75,7 @@ app.use(helmet({
       styleSrc:    ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://unpkg.com"],
       fontSrc:     ["'self'", "https://fonts.gstatic.com", "https://unpkg.com"],
       imgSrc:      ["'self'", "data:", "blob:"],
-      connectSrc:  ["'self'", "https://ap1.replicon.com"],
+      connectSrc:  ["'self'", "https://ap1.replicon.com", "https://cdnjs.cloudflare.com"],
       workerSrc:   ["'self'", "blob:"],   // Web Worker support
     },
   },
