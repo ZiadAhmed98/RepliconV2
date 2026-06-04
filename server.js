@@ -4,7 +4,6 @@ import axios         from 'axios';
 import path          from 'path';
 import { fileURLToPath } from 'url';
 import cors          from 'cors';
-import helmet        from 'helmet';
 import cookieParser  from 'cookie-parser';
 import rateLimit     from 'express-rate-limit';
 import { z }         from 'zod';
@@ -53,30 +52,25 @@ setInterval(() => {
 // ============================================================================
 const app = express();
 
-// 4.4 Security Headers via Helmet
-app.use(helmet({
-  // HSTS must be disabled — server runs HTTP only (no TLS).
-  // Sending HSTS over HTTP causes browsers to force-upgrade all future
-  // requests to HTTPS, breaking every asset load with ERR_SSL_PROTOCOL_ERROR.
-  hsts: false,
-
-  crossOriginEmbedderPolicy: false,
-  crossOriginOpenerPolicy:   false,   // HTTP origin — browser ignores it anyway
-
-  contentSecurityPolicy: {
-    useDefaults: false,   // prevent helmet adding upgrade-insecure-requests (breaks HTTP sites)
-    directives: {
-      defaultSrc:              ["'self'"],
-      scriptSrc:               ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
-      styleSrc:                ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://unpkg.com"],
-      fontSrc:                 ["'self'", "https://fonts.gstatic.com", "https://unpkg.com"],
-      imgSrc:                  ["'self'", "data:", "blob:"],
-      connectSrc:              ["'self'", "https://ap1.replicon.com", "https://cdnjs.cloudflare.com"],
-      workerSrc:               ["'self'", "blob:"],
-      // upgradeInsecureRequests intentionally omitted — server is HTTP only
-    },
-  },
-}));
+// 4.4 Minimal security headers — set manually so helmet defaults can't interfere.
+// This server runs HTTP only; HSTS and upgrade-insecure-requests must never be sent.
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options',   'nosniff');
+  res.setHeader('X-Frame-Options',          'SAMEORIGIN');
+  res.setHeader('Referrer-Policy',          'strict-origin-when-cross-origin');
+  res.setHeader('X-XSS-Protection',         '1; mode=block');
+  res.setHeader('Content-Security-Policy',
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com; " +
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; " +
+    "font-src 'self' https://fonts.gstatic.com https://unpkg.com; " +
+    "img-src 'self' data: blob:; " +
+    "connect-src 'self' https://ap1.replicon.com https://cdnjs.cloudflare.com; " +
+    "worker-src 'self' blob:"
+    // upgrade-insecure-requests is intentionally NOT included — HTTP server only
+  );
+  next();
+});
 
 // 4.8 CORS Lockdown
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost,http://129.151.146.210').split(',').map(o => o.trim());
