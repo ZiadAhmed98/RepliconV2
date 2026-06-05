@@ -51,6 +51,16 @@ const CATEGORIES = ['meeting', 'development', 'admin', 'training', 'travel', 'ot
 
 const CONFIDENCE_COLOR = (c) => c >= 0.8 ? '#30d158' : c >= 0.5 ? '#ffd60a' : '#ff9f0a';
 
+// crypto.randomUUID is HTTPS-only; this polyfill works over HTTP too
+function genId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+    return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
 // ── Entry Card ─────────────────────────────────────────────────────────────
 
 function EntryCard({ entry, projects, onUpdate, onDelete, onCategorize }) {
@@ -340,7 +350,7 @@ export default function MyTimesheet({ dataMatrix }) {
         const alreadyExists = entries.some(e => e.calEventId === ev.id);
         if (alreadyExists || ev.hours <= 0) continue;
         const entry = {
-          id: crypto.randomUUID(), date: getDayKey(ev.start),
+          id: genId(), date: getDayKey(ev.start),
           title: ev.title, source: ev.source, hours: ev.hours,
           start: ev.start, end: ev.end, attendees: ev.attendees,
           status: 'pending', calEventId: ev.id,
@@ -359,31 +369,44 @@ export default function MyTimesheet({ dataMatrix }) {
     setImporting(true);
     try {
       const text = await file.text();
+      // Send without weekStart — server returns ALL events from the file
       const r = await fetch('/api/v1/timesheets/import-ics', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ icsText: text, weekStart }),
+        body: JSON.stringify({ icsText: text }),
       });
       const d = await r.json();
       if (!r.ok) { toast.error(d.error || 'ICS parse failed'); return; }
 
       let added = 0;
+      const seen = new Set(entries.map(e => e.calEventId).filter(Boolean));
       for (const ev of d.events || []) {
-        const alreadyExists = entries.some(e => e.calEventId === ev.id || e.title === ev.title);
-        if (alreadyExists || ev.hours <= 0) continue;
-        await saveEntry({ id: crypto.randomUUID(), date: getDayKey(ev.start), title: ev.title, source: 'ics', hours: ev.hours, start: ev.start, end: ev.end, status: 'pending', calEventId: ev.id });
+        if (ev.hours <= 0 || seen.has(ev.id)) continue;
+        seen.add(ev.id);
+        // Compute the correct week for this event and save it there
+        const evMonday = getMondayOf(new Date(ev.start));
+        const evWeekStart = evMonday.toISOString().split('T')[0];
+        await fetch('/api/v1/timesheets/entry', {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ weekStart: evWeekStart, entry: {
+            id: genId(), date: getDayKey(ev.start), title: ev.title,
+            source: 'ics', hours: ev.hours, start: ev.start, end: ev.end,
+            status: 'pending', calEventId: ev.id,
+          }}),
+        });
         added++;
       }
-      toast.success(`Imported ${added} events from ICS file`);
+      toast.success(`Imported ${added} event${added !== 1 ? 's' : ''} from ICS file`);
       loadWeek();
     } catch (err) { toast.error('ICS import failed: ' + err.message); }
     finally { setImporting(false); fileRef.current.value = ''; }
-  }, [weekStart, entries, saveEntry, loadWeek]);
+  }, [weekStart, entries, loadWeek]);
 
   // ── Add manual entry ──
   const addManual = useCallback(async (form) => {
     const entry = {
-      id: crypto.randomUUID(), date: form.date, title: form.title,
+      id: genId(), date: form.date, title: form.title,
       source: 'manual', hours: parseFloat(form.hours) || 1,
       project: form.project || null, category: form.category, notes: form.notes,
       status: 'pending',

@@ -1585,32 +1585,35 @@ app.post('/api/v1/timesheets/submit', requireAuth, (req, res) => {
   res.json({ ok: true, totalHours, entryCount: confirmed.length });
 });
 
-// POST /api/v1/timesheets/import-ics — parse ICS file, return events (no Azure needed)
+// POST /api/v1/timesheets/import-ics — parse ICS file, return all events (no Azure needed)
 app.post('/api/v1/timesheets/import-ics', requireAuth, (req, res) => {
   try {
-    const { icsText, weekStart } = req.body;
+    const { icsText } = req.body;
     if (!icsText) return res.status(400).json({ error: 'icsText required' });
 
-    const monday = getMondayOf(weekStart ? new Date(weekStart) : new Date());
-    const sunday = new Date(monday); sunday.setDate(monday.getDate() + 7);
+    // Unfold RFC 5545 line continuations (CRLF or LF followed by a space/tab)
+    const unfolded = icsText.replace(/\r\n[ \t]/g, '').replace(/\n[ \t]/g, '');
 
-    // Minimal ICS parser — handles VEVENT blocks
+    const parseICSDate = (raw) => {
+      if (!raw) return null;
+      const digits = raw.replace(/[^\d]/g, '');
+      if (digits.length < 8) return null;
+      const y = digits.slice(0,4), mo = digits.slice(4,6), d = digits.slice(6,8);
+      const h = digits.slice(8,10)||'00', mi = digits.slice(10,12)||'00';
+      return new Date(`${y}-${mo}-${d}T${h}:${mi}:00`);
+    };
+
+    // Reasonable import window: 90 days past → 60 days future
+    const cutoffPast   = new Date(); cutoffPast.setDate(cutoffPast.getDate() - 90);
+    const cutoffFuture = new Date(); cutoffFuture.setDate(cutoffFuture.getDate() + 60);
+
     const events = [];
-    const vevents = icsText.split('BEGIN:VEVENT').slice(1);
+    const vevents = unfolded.split('BEGIN:VEVENT').slice(1);
 
     for (const block of vevents) {
       const get = (key) => {
         const m = block.match(new RegExp(`${key}(?:;[^:]*)?:([^\r\n]+)`));
         return m ? m[1].trim() : null;
-      };
-      const parseICSDate = (raw) => {
-        if (!raw) return null;
-        // Handle TZID=... prefixed dates and UTC Z-suffix dates
-        const digits = raw.replace(/[^\d]/g, '');
-        if (digits.length < 8) return null;
-        const y = digits.slice(0,4), mo = digits.slice(4,6), d = digits.slice(6,8);
-        const h = digits.slice(8,10)||'00', mi = digits.slice(10,12)||'00';
-        return new Date(`${y}-${mo}-${d}T${h}:${mi}:00`);
       };
 
       const title   = get('SUMMARY');
@@ -1618,25 +1621,28 @@ app.post('/api/v1/timesheets/import-ics', requireAuth, (req, res) => {
       const endDt   = parseICSDate(get('DTEND'));
       const uid     = get('UID');
       const desc    = get('DESCRIPTION') || '';
-      const isOnline = (desc + block).toLowerCase().includes('teams') || block.toLowerCase().includes('onlinemeet');
+      const isOnline = (desc + block).toLowerCase().includes('teams') ||
+                       block.toLowerCase().includes('onlinemeet');
 
-      if (!title || !startDt || startDt < monday || startDt >= sunday) continue;
+      if (!title || !startDt) continue;
+      if (startDt < cutoffPast || startDt > cutoffFuture) continue;
 
       events.push({
-        id:       uid || crypto.randomUUID(),
+        id:        uid || crypto.randomUUID(),
         title,
-        start:    startDt.toISOString(),
-        end:      endDt?.toISOString() || null,
-        hours:    endDt ? calcHours(startDt.toISOString(), endDt.toISOString()) : 1,
+        start:     startDt.toISOString(),
+        end:       endDt?.toISOString() || null,
+        hours:     endDt ? calcHours(startDt.toISOString(), endDt.toISOString()) : 1,
         isOnline,
-        source:   isOnline ? 'teams' : 'calendar',
+        source:    isOnline ? 'teams' : 'calendar',
         attendees: [],
-        preview:  '',
+        preview:   '',
       });
     }
 
     events.sort((a, b) => new Date(a.start) - new Date(b.start));
-    res.json({ events, weekStart: monday.toISOString().split('T')[0], source: 'ics' });
+    logger.info({ total: vevents.length, imported: events.length }, 'ICS parsed');
+    res.json({ events, total: vevents.length, source: 'ics' });
   } catch (err) {
     logger.error({ err: err.message }, 'ICS parse error');
     res.status(500).json({ error: 'Failed to parse ICS file: ' + err.message });
