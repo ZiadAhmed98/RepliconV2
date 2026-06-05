@@ -271,19 +271,23 @@ function TaskPicker({ value, allClients, allProjects, allTasks, onChange, disabl
 
         {step === 'task' && (() => {
           // Group leaf tasks under their nearest summary/phase ancestor.
-          // rawTaskList has all tasks for the project (summaries + leaves), ordered by sortOrder.
+          // A task is treated as a summary if it has description='Phase / Summary'
+          // OR if any other task in the project has this task as its parent.
           const allProjTasks = rawTaskList;
+          const parentIdSet  = new Set(allProjTasks.filter(t => t.parentTaskId).map(t => t.parentTaskId));
+          const isSummaryTask = (t) => t.description === 'Phase / Summary' || parentIdSet.has(t.id);
+          const isMilestone   = (t) => t.description === 'Milestone';
 
           const nearestSummary = (t) => {
             let cur = t.parentTaskId ? allProjTasks.find(x => x.id === t.parentTaskId) : null;
             while (cur) {
-              if (isSummary(cur)) return cur;
+              if (isSummaryTask(cur)) return cur;
               cur = cur.parentTaskId ? allProjTasks.find(x => x.id === cur.parentTaskId) : null;
             }
             return null;
           };
 
-          const leafTasks = taskList.filter(t => !isSummary(t));
+          const leafTasks = filt(allProjTasks.filter(t => !isSummaryTask(t) && !isMilestone(t)), 'name');
 
           // Build ordered groups preserving the sortOrder from the server
           const groupMap = new Map(); // summaryId|'__top__' → { header, tasks[] }

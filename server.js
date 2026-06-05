@@ -1923,7 +1923,8 @@ function parseTasksXml(xmlStr) {
     function elText(block, tag) {
       const re = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`);
       const m = block.match(re);
-      return m ? m[1].trim() : null;
+      if (!m) return null;
+      return m[1].replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").trim();
     }
 
     while ((taskMatch = taskRe.exec(xmlStr)) !== null) {
