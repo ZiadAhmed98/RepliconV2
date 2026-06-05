@@ -536,9 +536,22 @@ export default function Dashboard({ dataMatrix }) {
             </div>
             <LazyChart>
               <div id="wrap-topClientsChart">
-                <Chart type="bar" width="100%" height={280}
+                <Chart type="bar" width="100%" height={260}
                   series={[{name:'Hours',data:metrics.topClients.map(c=>Math.round(c.val))}]}
-                  options={getOpts('topClientsChart',{ colors:CHART_PALETTE, plotOptions:{bar:{horizontal:false,borderRadius:6,distributed:true,columnWidth:'50%'}}, dataLabels:{enabled:false}, xaxis:{categories:metrics.topClients.map(c=>c.name),labels:{style:{colors:CHART_COLORS.muted},rotate:-35,trim:true}}, legend:{show:false} })} />
+                  options={getOpts('topClientsChart',{
+                    colors: ['#8b5cf6'],
+                    fill: { type:'gradient', gradient:{ shade:'dark', type:'vertical', shadeIntensity:0.4, gradientToColors:['#3b82f6'], inverseColors:false, opacityFrom:1, opacityTo:0.85 } },
+                    plotOptions:{ bar:{ horizontal:false, borderRadius:5, distributed:false, columnWidth:'52%' } },
+                    dataLabels:{ enabled:false },
+                    xaxis:{
+                      categories: metrics.topClients.map(c => c.name.length > 14 ? c.name.slice(0,12)+'…' : c.name),
+                      labels:{ style:{ colors:CHART_COLORS.muted, fontSize:'11px' }, rotate:-38, trim:false, maxHeight:64 },
+                    },
+                    yaxis:{ labels:{ style:{ colors:CHART_COLORS.muted } } },
+                    grid:{ borderColor:'rgba(255,255,255,0.05)', padding:{ bottom:0 } },
+                    legend:{ show:false },
+                    tooltip:{ theme:'dark' },
+                  })} />
               </div>
             </LazyChart>
           </div>
