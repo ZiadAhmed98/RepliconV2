@@ -194,6 +194,34 @@ db.exec(`
     createdAt      TEXT NOT NULL,
     updatedAt      TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS psa_timesheets (
+    id        TEXT PRIMARY KEY,
+    userId    TEXT NOT NULL,
+    weekStart TEXT NOT NULL,
+    status    TEXT NOT NULL DEFAULT 'not_submitted',
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL,
+    UNIQUE(userId, weekStart)
+  );
+
+  CREATE TABLE IF NOT EXISTS psa_timesheet_rows (
+    id          TEXT PRIMARY KEY,
+    timesheetId TEXT NOT NULL REFERENCES psa_timesheets(id) ON DELETE CASCADE,
+    projectId   TEXT REFERENCES projects(id) ON DELETE SET NULL,
+    taskId      TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+    note        TEXT,
+    sortOrder   INTEGER DEFAULT 0,
+    createdAt   TEXT NOT NULL,
+    updatedAt   TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS psa_timesheet_hours (
+    rowId  TEXT NOT NULL REFERENCES psa_timesheet_rows(id) ON DELETE CASCADE,
+    date   TEXT NOT NULL,
+    hours  REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY(rowId, date)
+  );
 `);
 
 // Safe migrations — ignored if column already exists
@@ -1862,6 +1890,112 @@ app.delete('/api/v1/psa/projects/:id', requireAuth, (req, res) => {
 });
 
 // ============================================================================
+// XML PARSER (server-side, no external deps)
+// ============================================================================
+
+function parseTasksXml(xmlStr) {
+  let counter = 0;
+  const allTasks = [];
+
+  function getAttr(attrsStr, name) {
+    const re = new RegExp(`(?:^|\\s)${name}="([^"]*?)"`);
+    const m = (' ' + attrsStr).match(re);
+    return m ? m[1] : null;
+  }
+
+  function extractNodes(str) {
+    const result = [];
+    let i = 0;
+    while (i < str.length) {
+      const taskStart = str.indexOf('<task', i);
+      if (taskStart === -1) break;
+      const tagClose = str.indexOf('>', taskStart);
+      if (tagClose === -1) break;
+      const tagContent = str.slice(taskStart + 5, tagClose);
+      const isSelf = tagContent.trimEnd().endsWith('/');
+      const attrStr = isSelf ? tagContent.slice(0, tagContent.lastIndexOf('/')).trim() : tagContent.trim();
+      if (isSelf) {
+        result.push({ attrStr, children: [] });
+        i = tagClose + 1;
+      } else {
+        let depth = 1, j = tagClose + 1;
+        while (j < str.length && depth > 0) {
+          const nextOpen  = str.indexOf('<task',   j);
+          const nextClose = str.indexOf('</task>', j);
+          if (nextClose === -1) { j = str.length; break; }
+          if (nextOpen !== -1 && nextOpen < nextClose) { depth++; j = nextOpen + 5; }
+          else {
+            depth--;
+            if (depth === 0) {
+              result.push({ attrStr, children: extractNodes(str.slice(tagClose + 1, nextClose)) });
+              i = nextClose + 7;
+              break;
+            }
+            j = nextClose + 7;
+          }
+        }
+        if (depth > 0) break;
+      }
+    }
+    return result;
+  }
+
+  function processNode(node, parentTempId) {
+    const tempId = `t${counter++}`;
+    const g = (n) => getAttr(node.attrStr, n);
+    allTasks.push({
+      _tempId:       tempId,
+      _parentTempId: parentTempId || null,
+      name:          g('name')         || '(unnamed)',
+      code:          g('code')         || null,
+      description:   g('description') || null,
+      startDate:     g('startDate')    || null,
+      endDate:       g('endDate')      || null,
+      status:        g('status')       || 'open',
+      estimatedHours: parseFloat(g('estimatedHours')) || 0,
+    });
+    node.children.forEach(child => processNode(child, tempId));
+  }
+
+  const clean = xmlStr.replace(/<\?xml[^?]*\?>/g, '').replace(/<!--[\s\S]*?-->/g, '').trim();
+  const inner = clean.replace(/^\s*<tasks[^>]*>/, '').replace(/<\/tasks>\s*$/, '').trim();
+  extractNodes(inner).forEach(node => processNode(node, null));
+  return allTasks;
+}
+
+// POST /api/v1/psa/parse-xml — server-side XML → task list
+app.post('/api/v1/psa/parse-xml', requireAuth, (req, res) => {
+  const { xml } = req.body;
+  if (!xml || typeof xml !== 'string') return res.status(400).json({ error: 'xml string required' });
+  try {
+    const tasks = parseTasksXml(xml);
+    if (tasks.length === 0) return res.status(400).json({ error: 'No <task> elements found in XML' });
+    res.json({ tasks });
+  } catch (e) {
+    res.status(400).json({ error: e.message || 'XML parse error' });
+  }
+});
+
+// ============================================================================
+// PSA TASKS — flat list for dropdowns
+// ============================================================================
+
+// GET /api/v1/psa/tasks?projectId=xxx
+app.get('/api/v1/psa/tasks', requireAuth, (req, res) => {
+  const { projectId } = req.query;
+  let q = `
+    SELECT t.*, p.name AS projectName, p.clientId
+    FROM tasks t
+    LEFT JOIN projects p ON p.id = t.projectId
+    WHERE 1=1
+  `;
+  const params = [];
+  if (projectId) { q += ' AND t.projectId = ?'; params.push(projectId); }
+  q += ' ORDER BY t.sortOrder ASC, t.name ASC';
+  res.json({ tasks: db.prepare(q).all(...params) });
+});
+
+// ============================================================================
 // PSA TASKS
 // ============================================================================
 
@@ -1952,6 +2086,141 @@ app.delete('/api/v1/psa/tasks/:id', requireAuth, (req, res) => {
   db.prepare('DELETE FROM tasks WHERE id=?').run(req.params.id);
   auditLog(req.user.id, 'TASK_DELETE', { id: req.params.id });
   res.json({ ok: true });
+});
+
+// ============================================================================
+// PSA TIMESHEETS
+// ============================================================================
+
+function buildTimesheetRows(timesheetId) {
+  const rows = db.prepare(`
+    SELECT r.id, r.projectId, r.taskId, r.note, r.sortOrder,
+           p.name  AS projectName, p.clientId,
+           c.name  AS clientName,
+           tk.name AS taskName
+    FROM psa_timesheet_rows r
+    LEFT JOIN projects p  ON p.id  = r.projectId
+    LEFT JOIN clients  c  ON c.id  = p.clientId
+    LEFT JOIN tasks    tk ON tk.id = r.taskId
+    WHERE r.timesheetId = ?
+    ORDER BY r.sortOrder ASC, r.createdAt ASC
+  `).all(timesheetId);
+  rows.forEach(row => {
+    const hrs = db.prepare('SELECT date, hours FROM psa_timesheet_hours WHERE rowId=?').all(row.id);
+    row.hours = Object.fromEntries(hrs.map(h => [h.date, h.hours]));
+  });
+  return rows;
+}
+
+function buildSingleRow(rowId) {
+  const row = db.prepare(`
+    SELECT r.id, r.projectId, r.taskId, r.note, r.sortOrder,
+           p.name  AS projectName, p.clientId,
+           c.name  AS clientName,
+           tk.name AS taskName
+    FROM psa_timesheet_rows r
+    LEFT JOIN projects p  ON p.id  = r.projectId
+    LEFT JOIN clients  c  ON c.id  = p.clientId
+    LEFT JOIN tasks    tk ON tk.id = r.taskId
+    WHERE r.id = ?
+  `).get(rowId);
+  if (!row) return null;
+  const hrs = db.prepare('SELECT date, hours FROM psa_timesheet_hours WHERE rowId=?').all(rowId);
+  row.hours = Object.fromEntries(hrs.map(h => [h.date, h.hours]));
+  return row;
+}
+
+// GET /api/v1/psa/timesheets?weekStart=YYYY-MM-DD — get or create timesheet for the logged-in user
+app.get('/api/v1/psa/timesheets', requireAuth, (req, res) => {
+  const { weekStart } = req.query;
+  if (!weekStart) return res.status(400).json({ error: 'weekStart required' });
+  const d = new Date(weekStart + 'T12:00:00Z');
+  if (isNaN(d)) return res.status(400).json({ error: 'Invalid weekStart' });
+  // Normalize to UTC Monday
+  const dow = d.getUTCDay();
+  d.setUTCDate(d.getUTCDate() + (dow === 0 ? -6 : 1 - dow));
+  const ws  = d.toISOString().slice(0, 10);
+  const uid = req.user.id;
+  const now = new Date().toISOString();
+  let ts = db.prepare('SELECT * FROM psa_timesheets WHERE userId=? AND weekStart=?').get(uid, ws);
+  if (!ts) {
+    const id = crypto.randomUUID();
+    db.prepare('INSERT INTO psa_timesheets (id,userId,weekStart,status,createdAt,updatedAt) VALUES (?,?,?,?,?,?)')
+      .run(id, uid, ws, 'not_submitted', now, now);
+    ts = db.prepare('SELECT * FROM psa_timesheets WHERE id=?').get(id);
+  }
+  res.json({ timesheet: { ...ts, rows: buildTimesheetRows(ts.id) } });
+});
+
+// POST /api/v1/psa/timesheet-rows — add a blank row
+app.post('/api/v1/psa/timesheet-rows', requireAuth, (req, res) => {
+  const { timesheetId, note } = req.body || {};
+  if (!timesheetId) return res.status(400).json({ error: 'timesheetId required' });
+  const ts = db.prepare('SELECT * FROM psa_timesheets WHERE id=? AND userId=?').get(timesheetId, req.user.id);
+  if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
+  if (ts.status === 'submitted' || ts.status === 'approved')
+    return res.status(409).json({ error: 'Cannot modify a submitted timesheet' });
+  const maxOrd = db.prepare('SELECT MAX(sortOrder) AS m FROM psa_timesheet_rows WHERE timesheetId=?').get(timesheetId);
+  const id  = crypto.randomUUID();
+  const now = new Date().toISOString();
+  db.prepare('INSERT INTO psa_timesheet_rows (id,timesheetId,projectId,taskId,note,sortOrder,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?,?)')
+    .run(id, timesheetId, null, null, note || null, (maxOrd?.m ?? -1) + 1, now, now);
+  res.status(201).json({ row: buildSingleRow(id) });
+});
+
+// PUT /api/v1/psa/timesheet-rows/:id — update project / task / note
+app.put('/api/v1/psa/timesheet-rows/:id', requireAuth, (req, res) => {
+  const row = db.prepare('SELECT r.*, ts.userId, ts.status FROM psa_timesheet_rows r JOIN psa_timesheets ts ON ts.id=r.timesheetId WHERE r.id=?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Row not found' });
+  if (row.userId !== req.user.id) return res.status(403).json({ error: 'Not your timesheet' });
+  if (row.status === 'submitted' || row.status === 'approved') return res.status(409).json({ error: 'Timesheet already submitted' });
+  const { projectId, taskId, note } = req.body || {};
+  db.prepare('UPDATE psa_timesheet_rows SET projectId=?,taskId=?,note=?,updatedAt=? WHERE id=?')
+    .run(projectId || null, taskId || null, note || null, new Date().toISOString(), req.params.id);
+  res.json({ row: buildSingleRow(req.params.id) });
+});
+
+// PUT /api/v1/psa/timesheet-rows/:id/hours — save all days at once
+app.put('/api/v1/psa/timesheet-rows/:id/hours', requireAuth, (req, res) => {
+  const row = db.prepare('SELECT r.*, ts.userId, ts.status, ts.id AS tsId FROM psa_timesheet_rows r JOIN psa_timesheets ts ON ts.id=r.timesheetId WHERE r.id=?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Row not found' });
+  if (row.userId !== req.user.id) return res.status(403).json({ error: 'Not your timesheet' });
+  if (row.status === 'submitted' || row.status === 'approved') return res.status(409).json({ error: 'Timesheet already submitted' });
+  const { hours } = req.body || {};
+  if (!hours || typeof hours !== 'object') return res.status(400).json({ error: 'hours object required' });
+  const upsert = db.prepare('INSERT OR REPLACE INTO psa_timesheet_hours (rowId,date,hours) VALUES (?,?,?)');
+  const del    = db.prepare('DELETE FROM psa_timesheet_hours WHERE rowId=? AND date=?');
+  db.transaction(() => {
+    Object.entries(hours).forEach(([date, h]) => {
+      const n = parseFloat(h);
+      if (!isNaN(n) && n > 0) upsert.run(req.params.id, date, n);
+      else del.run(req.params.id, date);
+    });
+  })();
+  db.prepare('UPDATE psa_timesheets SET updatedAt=? WHERE id=?').run(new Date().toISOString(), row.tsId);
+  const saved = db.prepare('SELECT date, hours FROM psa_timesheet_hours WHERE rowId=?').all(req.params.id);
+  res.json({ hours: Object.fromEntries(saved.map(h => [h.date, h.hours])) });
+});
+
+// DELETE /api/v1/psa/timesheet-rows/:id
+app.delete('/api/v1/psa/timesheet-rows/:id', requireAuth, (req, res) => {
+  const row = db.prepare('SELECT r.*, ts.userId, ts.status FROM psa_timesheet_rows r JOIN psa_timesheets ts ON ts.id=r.timesheetId WHERE r.id=?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Row not found' });
+  if (row.userId !== req.user.id) return res.status(403).json({ error: 'Not your timesheet' });
+  if (row.status === 'submitted' || row.status === 'approved') return res.status(409).json({ error: 'Timesheet already submitted' });
+  db.prepare('DELETE FROM psa_timesheet_rows WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// POST /api/v1/psa/timesheets/:id/submit
+app.post('/api/v1/psa/timesheets/:id/submit', requireAuth, (req, res) => {
+  const ts = db.prepare('SELECT * FROM psa_timesheets WHERE id=? AND userId=?').get(req.params.id, req.user.id);
+  if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
+  if (ts.status === 'approved') return res.status(409).json({ error: 'Already approved' });
+  db.prepare('UPDATE psa_timesheets SET status=?,updatedAt=? WHERE id=?')
+    .run('submitted', new Date().toISOString(), req.params.id);
+  auditLog(req.user.id, 'TIMESHEET_SUBMIT', { timesheetId: req.params.id, weekStart: ts.weekStart });
+  res.json({ ok: true, status: 'submitted' });
 });
 
 // ============================================================================

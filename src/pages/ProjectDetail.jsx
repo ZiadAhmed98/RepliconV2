@@ -147,63 +147,51 @@ function TaskModal({ task, tasks, projectId, onSave, onClose }) {
 }
 
 // ── XML Import Modal ──────────────────────────────────────────────────────────
-const XML_EXAMPLE = `<tasks>
+
+const XML_FORMAT_HINT = `<tasks>
   <task name="Phase 1: Assessment" code="T001" estimatedHours="16" startDate="2026-06-01" endDate="2026-06-15">
-    <task name="Kickoff Meeting" code="T001.1" estimatedHours="2" />
-    <task name="Requirements Gathering" code="T001.2" estimatedHours="14" />
+    <task name="Kickoff Meeting"         code="T001.1" estimatedHours="2"  />
+    <task name="Requirements Gathering"  code="T001.2" estimatedHours="14" />
   </task>
-  <task name="Phase 2: Implementation" code="T002" estimatedHours="80">
-    <task name="Setup Environment" code="T002.1" estimatedHours="8" />
-    <task name="Core Development" code="T002.2" estimatedHours="72" />
+  <task name="Phase 2: Implementation"  code="T002"   estimatedHours="80">
+    <task name="Setup Environment"       code="T002.1" estimatedHours="8"  />
+    <task name="Core Development"        code="T002.2" estimatedHours="72" />
   </task>
 </tasks>`;
 
-function parseXmlTasks(xmlStr) {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(xmlStr.trim(), 'application/xml');
-  const parseError = doc.querySelector('parsererror');
-  if (parseError) throw new Error(parseError.textContent?.split('\n')[0] || 'Invalid XML');
-
-  let counter = 0;
-  function parseNode(el, parentTempId) {
-    const tempId = `t${counter++}`;
-    const task = {
-      _tempId:       tempId,
-      _parentTempId: parentTempId || null,
-      name:          el.getAttribute('name')           || '(unnamed)',
-      code:          el.getAttribute('code')           || null,
-      description:   el.getAttribute('description')   || null,
-      startDate:     el.getAttribute('startDate')      || null,
-      endDate:       el.getAttribute('endDate')        || null,
-      status:        el.getAttribute('status')         || 'open',
-      estimatedHours: parseFloat(el.getAttribute('estimatedHours')) || 0,
-    };
-    const result = [task];
-    Array.from(el.children).filter(c => c.tagName === 'task').forEach(child => {
-      result.push(...parseNode(child, tempId));
-    });
-    return result;
-  }
-
-  const root = doc.documentElement;
-  const topTasks = Array.from(root.tagName === 'tasks' ? root.children : [root]).filter(c => c.tagName === 'task');
-  if (topTasks.length === 0) throw new Error('No <task> elements found');
-  return topTasks.flatMap(t => parseNode(t, null));
-}
+const TASK_STATUS_LABELS = { open: 'Open', in_progress: 'In Progress', completed: 'Completed', closed: 'Closed' };
 
 function XmlImportModal({ projectId, onImported, onClose }) {
-  const [xml,       setXml]       = useState('');
-  const [preview,   setPreview]   = useState(null);
-  const [error,     setError]     = useState('');
-  const [importing, setImporting] = useState(false);
-  const { toast } = useToast();
+  const { toast }                   = useToast();
+  const fileRef                     = React.useRef(null);
+  const [fileName,   setFileName]   = useState('');
+  const [preview,    setPreview]    = useState(null); // parsed task array from server
+  const [error,      setError]      = useState('');
+  const [parsing,    setParsing]    = useState(false);
+  const [importing,  setImporting]  = useState(false);
 
-  const handleParse = () => {
-    setError(''); setPreview(null);
+  const handleFile = async (file) => {
+    if (!file) return;
+    setFileName(file.name);
+    setPreview(null); setError(''); setParsing(true);
     try {
-      const tasks = parseXmlTasks(xml);
-      setPreview(tasks);
-    } catch (e) { setError(e.message); }
+      const xml = await file.text();
+      const r   = await fetch('/api/v1/psa/parse-xml', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ xml }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setError(d.error || 'Parse failed'); return; }
+      setPreview(d.tasks);
+    } catch (e) { setError('Failed to read file'); }
+    finally { setParsing(false); }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
   };
 
   const handleImport = async () => {
@@ -222,56 +210,125 @@ function XmlImportModal({ projectId, onImported, onClose }) {
     } finally { setImporting(false); }
   };
 
-  const inputStyle = { width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '9px', padding: '9px 12px', color: 'var(--text-main)', fontSize: '0.82rem', fontFamily: 'monospace', boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.6 };
+  const parentName = (t) => preview?.find(p => p._tempId === t._parentTempId)?.name;
+
+  const th = { padding: '8px 12px', fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid rgba(255,255,255,0.06)', textAlign: 'left', whiteSpace: 'nowrap' };
+  const td = { padding: '8px 12px', fontSize: '0.83rem', color: 'var(--text-main)', borderBottom: '1px solid rgba(255,255,255,0.04)', verticalAlign: 'middle' };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', zIndex: 2100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(5px)', zIndex: 2100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ background: 'var(--bg-card, #12121f)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '720px', maxHeight: '90vh', overflowY: 'auto' }}>
+      <div style={{ background: 'var(--bg-card, #12121f)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '800px', maxHeight: '92vh', overflowY: 'auto' }}>
+
+        {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)' }}>Import Tasks from XML</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem', padding: '4px' }}>×</button>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)' }}>Import Tasks from XML</h3>
+            <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Upload an XML file — nested &lt;task&gt; elements become sub-tasks</p>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.3rem', padding: '4px' }}>×</button>
         </div>
 
-        <div style={{ background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '10px', padding: '12px 14px', marginBottom: '16px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-          Paste XML below. Nested <code style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: '4px' }}>&lt;task&gt;</code> elements become sub-tasks automatically.
+        {/* Drop zone */}
+        <div
+          onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = 'rgba(139,92,246,0.5)'; }}
+          onDragLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; }}
+          onDrop={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; handleDrop(e); }}
+          onClick={() => fileRef.current?.click()}
+          style={{ border: '2px dashed rgba(255,255,255,0.1)', borderRadius: '12px', padding: '28px', textAlign: 'center', cursor: 'pointer', marginBottom: '16px', transition: 'border-color 0.15s', background: 'rgba(255,255,255,0.01)' }}
+          onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(139,92,246,0.35)'}
+          onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}>
+          <input ref={fileRef} type="file" accept=".xml,text/xml,application/xml" style={{ display: 'none' }}
+            onChange={e => { if (e.target.files[0]) handleFile(e.target.files[0]); e.target.value = ''; }} />
+          <i className='bx bx-upload' style={{ fontSize: '2rem', color: 'rgba(139,92,246,0.6)', marginBottom: '10px', display: 'block' }} />
+          {fileName
+            ? <div><strong style={{ color: 'var(--text-main)' }}>{fileName}</strong><br /><span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Click or drag to replace</span></div>
+            : <div><strong style={{ color: 'var(--text-main)', fontSize: '0.9rem' }}>Click to select XML file</strong><br /><span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>or drag and drop here</span></div>
+          }
         </div>
 
-        <textarea value={xml} onChange={e => setXml(e.target.value)} rows={10} placeholder={XML_EXAMPLE} style={inputStyle} />
+        {/* Format hint */}
+        <details style={{ marginBottom: '16px' }}>
+          <summary style={{ cursor: 'pointer', fontSize: '0.78rem', color: 'var(--text-muted)', userSelect: 'none' }}>Show expected XML format</summary>
+          <pre style={{ marginTop: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '8px', padding: '12px', fontSize: '0.75rem', color: 'var(--text-muted)', overflowX: 'auto', lineHeight: 1.5 }}>
+            {XML_FORMAT_HINT}
+          </pre>
+        </details>
 
-        {error && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', padding: '10px 14px', marginTop: '12px', color: '#f87171', fontSize: '0.83rem' }}>{error}</div>}
+        {/* Parsing indicator */}
+        {parsing && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px', background: 'rgba(99,102,241,0.07)', borderRadius: '10px', marginBottom: '14px', fontSize: '0.85rem', color: '#818cf8' }}>
+            <i className='bx bx-loader-alt bx-spin' style={{ fontSize: '1.1rem' }} /> Parsing XML…
+          </div>
+        )}
 
-        {/* Preview */}
+        {/* Error */}
+        {error && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', padding: '10px 14px', marginBottom: '14px', color: '#f87171', fontSize: '0.83rem' }}>{error}</div>}
+
+        {/* Preview table */}
         {preview && (
-          <div style={{ marginTop: '16px' }}>
-            <p style={{ margin: '0 0 8px', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              Preview — {preview.length} task{preview.length !== 1 ? 's' : ''}
-            </p>
-            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', overflow: 'hidden' }}>
-              {preview.map((t, i) => (
-                <div key={i} style={{ padding: '8px 14px', borderBottom: i < preview.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ paddingLeft: t._parentTempId ? '20px' : '0', fontSize: '0.85rem', color: t._parentTempId ? 'var(--text-muted)' : 'var(--text-main)', fontWeight: t._parentTempId ? 400 : 500 }}>
-                    {t._parentTempId ? '↳ ' : ''}{t.name}
-                  </span>
-                  {t.code && <span style={{ fontSize: '0.72rem', fontFamily: 'monospace', background: 'rgba(255,255,255,0.06)', padding: '1px 6px', borderRadius: '4px', color: 'var(--text-muted)' }}>{t.code}</span>}
-                  {t.estimatedHours > 0 && <span style={{ fontSize: '0.75rem', color: '#818cf8', marginLeft: 'auto' }}>{t.estimatedHours}h</span>}
-                </div>
-              ))}
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <p style={{ margin: 0, fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Preview — {preview.length} task{preview.length !== 1 ? 's' : ''} found
+              </p>
+              <span style={{ fontSize: '0.75rem', color: 'rgba(34,197,94,0.7)' }}>
+                <i className='bx bx-check' /> Ready to import
+              </span>
+            </div>
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', overflow: 'hidden', maxHeight: '340px', overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead style={{ position: 'sticky', top: 0, background: 'rgba(12,12,22,0.95)' }}>
+                  <tr>
+                    <th style={{ ...th, width: '28px' }}>#</th>
+                    <th style={th}>Task Name</th>
+                    <th style={th}>Code</th>
+                    <th style={th}>Parent Task</th>
+                    <th style={{ ...th, textAlign: 'right' }}>Est. Hours</th>
+                    <th style={th}>Start</th>
+                    <th style={th}>End</th>
+                    <th style={th}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.map((t, i) => {
+                    const isChild = !!t._parentTempId;
+                    return (
+                      <tr key={i}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.025)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <td style={{ ...td, color: 'var(--text-muted)', fontSize: '0.72rem' }}>{i + 1}</td>
+                        <td style={{ ...td, paddingLeft: isChild ? '28px' : '12px' }}>
+                          {isChild && <span style={{ color: 'var(--text-muted)', marginRight: '6px' }}>↳</span>}
+                          <span style={{ fontWeight: isChild ? 400 : 600, color: isChild ? 'var(--text-muted)' : 'var(--text-main)' }}>{t.name}</span>
+                        </td>
+                        <td style={td}>{t.code ? <code style={{ background: 'rgba(255,255,255,0.06)', borderRadius: '4px', padding: '1px 6px', fontSize: '0.76rem' }}>{t.code}</code> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
+                        <td style={{ ...td, color: 'var(--text-muted)', fontSize: '0.8rem' }}>{isChild ? parentName(t) : '—'}</td>
+                        <td style={{ ...td, textAlign: 'right', color: t.estimatedHours > 0 ? '#818cf8' : 'var(--text-muted)', fontWeight: t.estimatedHours > 0 ? 600 : 400 }}>
+                          {t.estimatedHours > 0 ? `${t.estimatedHours}h` : '—'}
+                        </td>
+                        <td style={{ ...td, color: 'var(--text-muted)', fontSize: '0.8rem' }}>{t.startDate || '—'}</td>
+                        <td style={{ ...td, color: 'var(--text-muted)', fontSize: '0.8rem' }}>{t.endDate   || '—'}</td>
+                        <td style={td}><span style={{ fontSize: '0.72rem', background: 'rgba(255,255,255,0.06)', borderRadius: '4px', padding: '2px 7px', color: 'var(--text-muted)' }}>{TASK_STATUS_LABELS[t.status] || t.status}</span></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-          <button onClick={handleParse} style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '9px', padding: '9px 20px', cursor: 'pointer', color: '#818cf8', fontSize: '0.88rem', fontFamily: 'inherit', fontWeight: 500 }}>
-            Parse XML
-          </button>
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '9px', padding: '9px 20px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.88rem', fontFamily: 'inherit' }}>Cancel</button>
           {preview && (
             <button onClick={handleImport} disabled={importing}
-              style={{ background: 'linear-gradient(135deg,#7c3aed,#a855f7)', border: 'none', borderRadius: '9px', padding: '9px 22px', cursor: 'pointer', color: '#fff', fontSize: '0.88rem', fontFamily: 'inherit', fontWeight: 600, opacity: importing ? 0.6 : 1 }}>
+              style={{ display: 'flex', alignItems: 'center', gap: '7px', background: 'linear-gradient(135deg,#7c3aed,#a855f7)', border: 'none', borderRadius: '9px', padding: '9px 24px', cursor: 'pointer', color: '#fff', fontSize: '0.88rem', fontFamily: 'inherit', fontWeight: 600, opacity: importing ? 0.6 : 1 }}>
+              <i className='bx bx-import' style={{ fontSize: '1rem' }} />
               {importing ? 'Importing…' : `Import ${preview.length} Task${preview.length !== 1 ? 's' : ''}`}
             </button>
           )}
-          <button onClick={onClose} style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '9px', padding: '9px 18px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.88rem', fontFamily: 'inherit' }}>Cancel</button>
         </div>
       </div>
     </div>

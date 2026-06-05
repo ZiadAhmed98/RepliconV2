@@ -1,8 +1,12 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { repliconApi } from '../api/replicon';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useToast } from '../context/ToastContext';
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+// ── Date helpers ──────────────────────────────────────────────────────────────
+
+function toLocalDate(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
 
 function getMondayOf(date) {
   const d = new Date(date);
@@ -12,600 +16,500 @@ function getMondayOf(date) {
   return d;
 }
 
-function fmtWeekRange(monday) {
-  const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
-  const opts = { month: 'short', day: 'numeric' };
-  return `${monday.toLocaleDateString('en-US', opts)} – ${sunday.toLocaleDateString('en-US', { ...opts, year: 'numeric' })}`;
-}
+const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const MONTHS    = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-function fmtTime(isoStr) {
-  if (!isoStr) return '';
-  return new Date(isoStr).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-}
-
-function fmtDate(isoStr) {
-  if (!isoStr) return '';
-  return new Date(isoStr).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
-}
-
-// Format a Date in the LOCAL timezone as YYYY-MM-DD (avoids UTC-shift issues)
-function toLocalDate(date) {
-  const d = date instanceof Date ? date : new Date(date);
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
-
-function getDayKey(isoStr) {
-  if (!isoStr) return '';
-  return toLocalDate(new Date(isoStr));
-}
-
-function getDaysOfWeek(monday) {
-  return Array.from({ length: 5 }, (_, i) => {
-    const d = new Date(monday); d.setDate(monday.getDate() + i);
-    return d;
-  });
-}
-
-const SOURCE_META = {
-  calendar: { icon: 'bx-calendar',      label: 'Calendar', color: '#6366f1' },
-  teams:    { icon: 'bx-video',          label: 'Teams',    color: '#5b5ea6' },
-  ics:      { icon: 'bx-calendar-check', label: 'ICS',      color: '#8b5cf6' },
-  manual:   { icon: 'bx-pencil',         label: 'Manual',   color: '#64748b' },
+const STATUS_STYLE = {
+  not_submitted: { bg: 'rgba(234,179,8,0.1)',  color: '#fbbf24', label: 'Not Submitted' },
+  submitted:     { bg: 'rgba(99,102,241,0.1)', color: '#818cf8', label: 'Submitted'     },
+  approved:      { bg: 'rgba(34,197,94,0.1)',  color: '#4ade80', label: 'Approved'      },
+  rejected:      { bg: 'rgba(239,68,68,0.1)',  color: '#f87171', label: 'Rejected'      },
 };
 
-const CATEGORIES = ['meeting', 'development', 'admin', 'training', 'travel', 'other'];
+// ── TimesheetRow ──────────────────────────────────────────────────────────────
 
-const CONFIDENCE_COLOR = (c) => c >= 0.8 ? '#30d158' : c >= 0.5 ? '#ffd60a' : '#ff9f0a';
-
-// crypto.randomUUID is HTTPS-only; this polyfill works over HTTP too
-function genId() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
-    return crypto.randomUUID();
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-    const r = Math.random() * 16 | 0;
-    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-  });
-}
-
-// ── Entry Card ─────────────────────────────────────────────────────────────
-
-function EntryCard({ entry, projects, onUpdate, onDelete, onCategorize }) {
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ project: entry.project || '', client: entry.client || '', category: entry.category || 'other', hours: entry.hours || 0, notes: entry.notes || '' });
-  const [categorizing, setCategorizing] = useState(false);
-  const src = SOURCE_META[entry.source] || SOURCE_META.manual;
-
-  const handleConfirm = () => {
-    onUpdate({ ...entry, status: 'confirmed', project: form.project || null, client: form.client || null, category: form.category, hours: parseFloat(form.hours) || entry.hours, notes: form.notes });
-    setEditing(false);
-  };
-
-  const handleAI = async () => {
-    setCategorizing(true);
-    try { await onCategorize(entry, (result) => {
-      setForm(f => ({ ...f, project: result.project || f.project, client: result.client || f.client, category: result.category || f.category }));
-    }); } finally { setCategorizing(false); }
-  };
-
-  const isConfirmed = entry.status === 'confirmed';
-
-  return (
-    <div style={{
-      background: isConfirmed ? 'rgba(48,209,88,0.06)' : 'rgba(255,255,255,0.03)',
-      border: `1px solid ${isConfirmed ? 'rgba(48,209,88,0.25)' : 'rgba(255,255,255,0.08)'}`,
-      borderRadius: '12px', padding: '14px 16px', marginBottom: '8px',
-      transition: 'border-color 0.2s',
-    }}>
-      {/* Header row */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-        <div style={{ width: '28px', height: '28px', borderRadius: '7px', background: src.color + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '1px' }}>
-          <i className={`bx ${src.icon}`} style={{ color: src.color, fontSize: '14px' }} />
-        </div>
-
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)' }}>{entry.title}</span>
-            <span style={{ fontSize: '0.72rem', background: src.color + '22', color: src.color, borderRadius: '4px', padding: '1px 6px' }}>{src.label}</span>
-            {isConfirmed && <span style={{ fontSize: '0.72rem', background: 'rgba(48,209,88,0.15)', color: '#30d158', borderRadius: '4px', padding: '1px 6px' }}>✓ Confirmed</span>}
-          </div>
-
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '3px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            {entry.startTime || entry.start ? <span><i className='bx bx-time-five' /> {fmtTime(entry.start || entry.startTime)}{entry.end ? ` – ${fmtTime(entry.end)}` : ''}</span> : null}
-            <span><i className='bx bx-stopwatch' /> {entry.hours}h</span>
-            {entry.project && <span style={{ color: '#a855f7' }}><i className='bx bx-folder' /> {entry.project}</span>}
-            {entry.category && <span style={{ color: 'var(--text-sub)' }}><i className='bx bx-tag' /> {entry.category}</span>}
-          </div>
-
-          {/* AI suggestion bar */}
-          {entry.aiConfidence != null && !isConfirmed && (
-            <div style={{ marginTop: '6px', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <i className='bx bx-brain' style={{ color: CONFIDENCE_COLOR(entry.aiConfidence) }} />
-              <span style={{ color: CONFIDENCE_COLOR(entry.aiConfidence) }}>{Math.round(entry.aiConfidence * 100)}% confidence</span>
-              {entry.aiReason && <span>— {entry.aiReason}</span>}
-            </div>
-          )}
-        </div>
-
-        {/* Actions */}
-        <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-          {!isConfirmed && (
-            <button onClick={handleAI} disabled={categorizing} title="AI suggest project" style={{ background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.25)', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', color: '#a855f7', fontSize: '12px', fontFamily: 'inherit' }}>
-              {categorizing ? <i className='bx bx-loader-alt bx-spin' /> : <i className='bx bx-brain' />}
-            </button>
-          )}
-          <button onClick={() => setEditing(e => !e)} title="Edit" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '12px' }}>
-            <i className='bx bx-pencil' />
-          </button>
-          {!isConfirmed ? (
-            <button onClick={handleConfirm} title="Confirm entry" style={{ background: 'rgba(48,209,88,0.12)', border: '1px solid rgba(48,209,88,0.3)', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', color: '#30d158', fontSize: '12px', fontFamily: 'inherit', fontWeight: 600 }}>
-              ✓ Confirm
-            </button>
-          ) : (
-            <button onClick={() => onUpdate({ ...entry, status: 'pending' })} title="Unconfirm" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '12px' }}>
-              <i className='bx bx-undo' />
-            </button>
-          )}
-          <button onClick={() => onDelete(entry.id)} title="Remove" style={{ background: 'rgba(255,59,48,0.08)', border: '1px solid rgba(255,59,48,0.2)', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', color: '#ff3b30', fontSize: '12px' }}>
-            <i className='bx bx-trash' />
-          </button>
-        </div>
-      </div>
-
-      {/* Edit panel */}
-      {editing && (
-        <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-          <div>
-            <label style={{ fontSize: '0.73rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Project</label>
-            <input list="project-list" value={form.project} onChange={e => setForm(f => ({ ...f, project: e.target.value }))}
-              style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '7px', padding: '6px 10px', color: 'var(--text-main)', fontSize: '0.83rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-            <datalist id="project-list">{projects.map(p => <option key={p} value={p} />)}</datalist>
-          </div>
-          <div>
-            <label style={{ fontSize: '0.73rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Category</label>
-            <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-              style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '7px', padding: '6px 10px', color: 'var(--text-main)', fontSize: '0.83rem', fontFamily: 'inherit', boxSizing: 'border-box' }}>
-              {CATEGORIES.map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={{ fontSize: '0.73rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Hours</label>
-            <input type="number" min="0.25" max="24" step="0.25" value={form.hours} onChange={e => setForm(f => ({ ...f, hours: e.target.value }))}
-              style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '7px', padding: '6px 10px', color: 'var(--text-main)', fontSize: '0.83rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-          </div>
-          <div>
-            <label style={{ fontSize: '0.73rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Notes</label>
-            <input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional notes"
-              style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '7px', padding: '6px 10px', color: 'var(--text-main)', fontSize: '0.83rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-          </div>
-          <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-            <button onClick={() => setEditing(false)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '7px', padding: '6px 14px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.83rem', fontFamily: 'inherit' }}>Cancel</button>
-            <button onClick={handleConfirm} style={{ background: 'linear-gradient(135deg,#7c3aed,#a855f7)', border: 'none', borderRadius: '7px', padding: '6px 16px', cursor: 'pointer', color: '#fff', fontSize: '0.83rem', fontFamily: 'inherit', fontWeight: 600 }}>Save & Confirm</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Manual Entry Modal ─────────────────────────────────────────────────────
-
-function AddEntryModal({ weekDays, projects, onAdd, onClose }) {
-  const [form, setForm] = useState({ date: weekDays[0] ? toLocalDate(weekDays[0]) : '', title: '', hours: 1, project: '', category: 'meeting', notes: '' });
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
-      <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '18px', padding: '28px', width: '440px', maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
-        <h3 style={{ margin: '0 0 20px', fontSize: '1rem', color: 'var(--text-main)' }}><i className='bx bx-plus-circle' style={{ color: '#a855f7', marginRight: '8px' }} />Add Manual Entry</h3>
-        <div style={{ display: 'grid', gap: '14px' }}>
-          <div>
-            <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '5px' }}>Date</label>
-            <select value={form.date} onChange={e => set('date', e.target.value)} style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '9px', padding: '9px 12px', color: 'var(--text-main)', fontSize: '0.88rem', fontFamily: 'inherit', boxSizing: 'border-box' }}>
-              {weekDays.map(d => { const v = toLocalDate(d); return <option key={v} value={v}>{fmtDate(d.toISOString())}</option>; })}
-            </select>
-          </div>
-          <div>
-            <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '5px' }}>Title / Description *</label>
-            <input value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Project review, Client call…"
-              style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '9px', padding: '9px 12px', color: 'var(--text-main)', fontSize: '0.88rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            <div>
-              <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '5px' }}>Hours *</label>
-              <input type="number" min="0.25" max="24" step="0.25" value={form.hours} onChange={e => set('hours', e.target.value)}
-                style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '9px', padding: '9px 12px', color: 'var(--text-main)', fontSize: '0.88rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-            </div>
-            <div>
-              <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '5px' }}>Category</label>
-              <select value={form.category} onChange={e => set('category', e.target.value)} style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '9px', padding: '9px 12px', color: 'var(--text-main)', fontSize: '0.88rem', fontFamily: 'inherit', boxSizing: 'border-box' }}>
-                {CATEGORIES.map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
-              </select>
-            </div>
-          </div>
-          <div>
-            <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '5px' }}>Project</label>
-            <input list="project-list-modal" value={form.project} onChange={e => set('project', e.target.value)} placeholder="Start typing or leave blank"
-              style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '9px', padding: '9px 12px', color: 'var(--text-main)', fontSize: '0.88rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-            <datalist id="project-list-modal">{projects.map(p => <option key={p} value={p} />)}</datalist>
-          </div>
-          <div>
-            <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '5px' }}>Notes</label>
-            <input value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Optional"
-              style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '9px', padding: '9px 12px', color: 'var(--text-main)', fontSize: '0.88rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '9px', padding: '9px 18px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.88rem', fontFamily: 'inherit' }}>Cancel</button>
-          <button onClick={() => { if (!form.title || !form.hours) return; onAdd(form); onClose(); }}
-            style={{ background: 'linear-gradient(135deg,#7c3aed,#a855f7)', border: 'none', borderRadius: '9px', padding: '9px 20px', cursor: 'pointer', color: '#fff', fontSize: '0.88rem', fontFamily: 'inherit', fontWeight: 600 }}>
-            Add Entry
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Main Page ──────────────────────────────────────────────────────────────
-
-export default function MyTimesheet({ dataMatrix }) {
+function TimesheetRow({ row, dayKeys, allClients, allProjects, allTasks, readOnly, todayKey, onUpdate, onDelete }) {
   const { toast } = useToast();
-  const fileRef = useRef(null);
+  const [localRow, setLocalRow] = useState(row);
+  const [hours,    setHours]    = useState(() => {
+    const h = {};
+    dayKeys.forEach(dk => { h[dk] = row.hours?.[dk] != null ? String(row.hours[dk]) : ''; });
+    return h;
+  });
+  const [saving, setSaving] = useState(false);
+  const saveTimer = useRef(null);
 
-  const [monday, setMonday]         = useState(() => getMondayOf(new Date()));
-  const [entries, setEntries]       = useState([]);
-  const [submitted, setSubmitted]   = useState(null);
-  const [graphConfig, setGraphConfig] = useState(null);
-  const [loading, setLoading]       = useState(false);
-  const [importing, setImporting]   = useState(false);
-  const [showAdd, setShowAdd]       = useState(false);
-  const [categorizing, setCategorizing] = useState(false);
+  // Sync project/task/client from parent (not hours — managed locally)
+  useEffect(() => {
+    setLocalRow(row);
+  }, [row.projectId, row.taskId, row.clientId]);
 
-  const weekStart = toLocalDate(monday);
-  const weekDays  = getDaysOfWeek(monday);
+  const filteredProjects = localRow.clientId
+    ? allProjects.filter(p => p.clientId === localRow.clientId)
+    : allProjects;
 
-  // Extract project list from Replicon data for AI categorization
-  const projectList = [...new Set((dataMatrix?.factTable || []).map(r => r.project).filter(Boolean))].sort();
+  const filteredTasks = localRow.projectId
+    ? allTasks.filter(t => t.projectId === localRow.projectId && !t.parentTaskId)
+    : [];
 
-  // ── Load saved entries ──
+  const subTasksOf = (parentId) =>
+    allTasks.filter(t => t.projectId === localRow.projectId && t.parentTaskId === parentId);
+
+  const handleClientChange = async (newClientId) => {
+    const updated = { ...localRow, clientId: newClientId || null, projectId: null, projectName: null, taskId: null, taskName: null };
+    setLocalRow(updated);
+    if (localRow.projectId) {
+      await fetch(`/api/v1/psa/timesheet-rows/${row.id}`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: null, taskId: null }),
+      });
+      onUpdate({ ...updated, hours: getCurrentHoursObj() });
+    }
+  };
+
+  const handleProjectChange = async (newProjectId) => {
+    const proj  = allProjects.find(p => p.id === newProjectId);
+    const cId   = proj?.clientId || localRow.clientId || null;
+    const cName = allClients.find(c => c.id === cId)?.name || localRow.clientName || null;
+    const optimistic = { ...localRow, projectId: newProjectId || null, projectName: proj?.name || null, clientId: cId, clientName: cName, taskId: null, taskName: null };
+    setLocalRow(optimistic);
+    const r = await fetch(`/api/v1/psa/timesheet-rows/${row.id}`, {
+      method: 'PUT', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId: newProjectId || null, taskId: null }),
+    });
+    if (r.ok) {
+      const d = await r.json();
+      const merged = { ...d.row, hours: getCurrentHoursObj() };
+      setLocalRow(merged);
+      onUpdate(merged);
+    }
+  };
+
+  const handleTaskChange = async (newTaskId) => {
+    const tk = allTasks.find(t => t.id === newTaskId);
+    setLocalRow(prev => ({ ...prev, taskId: newTaskId || null, taskName: tk?.name || null }));
+    const r = await fetch(`/api/v1/psa/timesheet-rows/${row.id}`, {
+      method: 'PUT', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId: localRow.projectId, taskId: newTaskId || null }),
+    });
+    if (r.ok) {
+      const d = await r.json();
+      const merged = { ...d.row, hours: getCurrentHoursObj() };
+      setLocalRow(merged);
+      onUpdate(merged);
+    }
+  };
+
+  function getCurrentHoursObj() {
+    const obj = {};
+    dayKeys.forEach(dk => {
+      const n = parseFloat(hours[dk]);
+      if (!isNaN(n) && n > 0) obj[dk] = n;
+    });
+    return obj;
+  }
+
+  const saveHours = useCallback(async () => {
+    if (!localRow.projectId) return; // can't save without project
+    setSaving(true);
+    try {
+      const payload = {};
+      dayKeys.forEach(dk => { payload[dk] = parseFloat(hours[dk]) || 0; });
+      const r = await fetch(`/api/v1/psa/timesheet-rows/${row.id}/hours`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hours: payload }),
+      });
+      if (r.ok) {
+        const d = await r.json();
+        const newHours = {};
+        dayKeys.forEach(dk => { newHours[dk] = d.hours[dk] != null ? String(d.hours[dk]) : ''; });
+        setHours(newHours);
+        onUpdate({ ...localRow, hours: d.hours });
+      }
+    } finally { setSaving(false); }
+  }, [localRow.projectId, hours, dayKeys, row.id]);
+
+  const handleHoursChange = (dk, val) => {
+    setHours(h => ({ ...h, [dk]: val }));
+  };
+
+  const handleHoursBlur = () => {
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(saveHours, 300);
+  };
+
+  const rowTotal = dayKeys.reduce((s, dk) => s + (parseFloat(hours[dk]) || 0), 0);
+  const hasProject = !!localRow.projectId;
+
+  const selStyle = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '5px 7px', color: 'var(--text-main)', fontSize: '0.8rem', fontFamily: 'inherit', cursor: 'pointer' };
+  const numStyle = (dk) => ({
+    width: '52px', height: '34px', textAlign: 'center',
+    background: dk === todayKey ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.04)',
+    border: `1px solid ${dk === todayKey ? 'rgba(99,102,241,0.25)' : 'rgba(255,255,255,0.07)'}`,
+    borderRadius: '6px', color: 'var(--text-main)', fontSize: '0.85rem', fontFamily: 'inherit',
+    opacity: (!hasProject || readOnly) ? 0.35 : 1,
+  });
+
+  return (
+    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+      {/* Project / task selectors */}
+      <td style={{ padding: '8px 12px', minWidth: '260px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {/* Client */}
+          <select value={localRow.clientId || ''} onChange={e => handleClientChange(e.target.value)} disabled={readOnly} style={selStyle}>
+            <option value="">— Client —</option>
+            {allClients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          {/* Project */}
+          <select value={localRow.projectId || ''} onChange={e => handleProjectChange(e.target.value)} disabled={readOnly}
+            style={{ ...selStyle, fontWeight: localRow.projectId ? 600 : 400, color: localRow.projectId ? 'var(--text-main)' : 'var(--text-muted)' }}>
+            <option value="">— Project * —</option>
+            {filteredProjects.map(p => <option key={p.id} value={p.id}>{p.name}{p.code ? ` (${p.code})` : ''}</option>)}
+          </select>
+          {/* Task — only shown once project is selected */}
+          {hasProject && (
+            <select value={localRow.taskId || ''} onChange={e => handleTaskChange(e.target.value)} disabled={readOnly}
+              style={{ ...selStyle, fontSize: '0.76rem', color: localRow.taskId ? 'var(--text-muted)' : 'rgba(255,255,255,0.25)' }}>
+              <option value="">— Task (optional) —</option>
+              {filteredTasks.map(t => {
+                const subs = subTasksOf(t.id);
+                return (
+                  <React.Fragment key={t.id}>
+                    <option value={t.id}>{t.name}{t.code ? ` (${t.code})` : ''}</option>
+                    {subs.map(s => <option key={s.id} value={s.id}>&nbsp;&nbsp;↳ {s.name}{s.code ? ` (${s.code})` : ''}</option>)}
+                  </React.Fragment>
+                );
+              })}
+            </select>
+          )}
+        </div>
+      </td>
+
+      {/* Hours per day */}
+      {dayKeys.map(dk => (
+        <td key={dk} style={{ padding: '8px 4px', textAlign: 'center' }}>
+          <input
+            type="number" min="0" max="24" step="0.5"
+            value={hours[dk]}
+            onChange={e => handleHoursChange(dk, e.target.value)}
+            onBlur={handleHoursBlur}
+            disabled={!hasProject || readOnly}
+            style={numStyle(dk)}
+          />
+        </td>
+      ))}
+
+      {/* Row total */}
+      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, fontSize: '0.88rem', color: rowTotal > 0 ? '#818cf8' : 'var(--text-muted)', whiteSpace: 'nowrap', minWidth: '54px' }}>
+        {rowTotal > 0 ? rowTotal.toFixed(2) : '—'}
+      </td>
+
+      {/* Delete */}
+      <td style={{ padding: '8px 8px', textAlign: 'center' }}>
+        {!readOnly && (
+          <button onClick={onDelete}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(239,68,68,0.45)', fontSize: '1.1rem', padding: '2px 5px', lineHeight: 1, borderRadius: '4px', transition: 'color 0.15s' }}
+            onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+            onMouseLeave={e => e.currentTarget.style.color = 'rgba(239,68,68,0.45)'}>
+            ×
+          </button>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
+export default function MyTimesheet() {
+  const { toast } = useToast();
+
+  const [weekStart,   setWeekStart]   = useState(() => toLocalDate(getMondayOf(new Date())));
+  const [timesheet,   setTimesheet]   = useState(null);
+  const [allClients,  setAllClients]  = useState([]);
+  const [allProjects, setAllProjects] = useState([]);
+  const [allTasks,    setAllTasks]    = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [addingRow,   setAddingRow]   = useState(false);
+  const [submitting,  setSubmitting]  = useState(false);
+
+  // Build the 7 UTC date objects for the week
+  const weekDays = useMemo(() => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(weekStart + 'T12:00:00Z');
+      d.setUTCDate(d.getUTCDate() + i);
+      return d;
+    });
+  }, [weekStart]);
+
+  const dayKeys = useMemo(() => weekDays.map(d => d.toISOString().slice(0, 10)), [weekDays]);
+
+  const todayKey = toLocalDate(new Date());
+
+  // Week navigation helpers
+  const navigate = (delta) => {
+    const d = new Date(weekStart + 'T12:00:00Z');
+    d.setUTCDate(d.getUTCDate() + delta * 7);
+    setWeekStart(d.toISOString().slice(0, 10));
+  };
+
+  // Week label: "Jun 1 – 7, 2026"
+  const weekLabel = useMemo(() => {
+    const s = weekDays[0], e = weekDays[6];
+    const sm = MONTHS[s.getUTCMonth()], em = MONTHS[e.getUTCMonth()];
+    const yr = s.getUTCFullYear();
+    return sm === em
+      ? `${sm} ${s.getUTCDate()} – ${e.getUTCDate()}, ${yr}`
+      : `${sm} ${s.getUTCDate()} – ${em} ${e.getUTCDate()}, ${yr}`;
+  }, [weekDays]);
+
+  const dueLabel = `${MONTHS[weekDays[6].getUTCMonth()]} ${weekDays[6].getUTCDate()}, ${weekDays[6].getUTCFullYear()}`;
+
   const loadWeek = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch(`/api/v1/timesheets/week?weekStart=${weekStart}`, { credentials: 'include' });
-      const d = await r.json();
-      setEntries(d.entries || []);
-      setSubmitted(d.submitted || null);
-    } catch { toast.error('Failed to load timesheet'); }
-    finally { setLoading(false); }
+      const [tsR, cR, pR, tR] = await Promise.all([
+        fetch(`/api/v1/psa/timesheets?weekStart=${weekStart}`, { credentials: 'include' }),
+        fetch('/api/v1/clients',                               { credentials: 'include' }),
+        fetch('/api/v1/psa/projects',                          { credentials: 'include' }),
+        fetch('/api/v1/psa/tasks',                             { credentials: 'include' }),
+      ]);
+      const [tsd, cd, pd, tkd] = await Promise.all([tsR.json(), cR.json(), pR.json(), tR.json()]);
+      setTimesheet(tsd.timesheet);
+      setAllClients(cd.clients?.filter(c => c.status === 'active') || []);
+      setAllProjects(pd.projects?.filter(p => p.status !== 'archived') || []);
+      setAllTasks(tkd.tasks || []);
+    } finally { setLoading(false); }
   }, [weekStart]);
 
   useEffect(() => { loadWeek(); }, [loadWeek]);
 
-  // ── Load Graph config ──
-  useEffect(() => {
-    fetch('/api/v1/graph/config', { credentials: 'include' })
-      .then(r => r.json()).then(setGraphConfig).catch(() => {});
+  const handleAddRow = async () => {
+    if (!timesheet || addingRow) return;
+    setAddingRow(true);
+    try {
+      const r = await fetch('/api/v1/psa/timesheet-rows', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timesheetId: timesheet.id }),
+      });
+      if (r.ok) {
+        const d = await r.json();
+        setTimesheet(ts => ({ ...ts, rows: [...(ts.rows || []), d.row] }));
+      } else {
+        const d = await r.json();
+        toast.error(d.error || 'Could not add row');
+      }
+    } finally { setAddingRow(false); }
+  };
+
+  const handleDeleteRow = async (rowId) => {
+    const r = await fetch(`/api/v1/psa/timesheet-rows/${rowId}`, { method: 'DELETE', credentials: 'include' });
+    if (r.ok) {
+      setTimesheet(ts => ({ ...ts, rows: ts.rows.filter(row => row.id !== rowId) }));
+    }
+  };
+
+  const handleRowUpdate = useCallback((updatedRow) => {
+    setTimesheet(ts => ({
+      ...ts,
+      rows: ts.rows.map(r => r.id === updatedRow.id ? updatedRow : r),
+    }));
   }, []);
 
-  // ── Save/update entry ──
-  const saveEntry = useCallback(async (entry) => {
+  const handleSubmit = async () => {
+    if (!timesheet) return;
+    setSubmitting(true);
     try {
-      const r = await fetch('/api/v1/timesheets/entry', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ weekStart, entry }),
-      });
-      if (!r.ok) throw new Error(await r.text());
-      setEntries(prev => {
-        const idx = prev.findIndex(e => e.id === entry.id);
-        return idx >= 0 ? prev.map((e, i) => i === idx ? { ...e, ...entry } : e) : [...prev, entry];
-      });
-    } catch (err) { toast.error('Save failed: ' + err.message); }
-  }, [weekStart]);
-
-  // ── Delete entry ──
-  const deleteEntry = useCallback(async (id) => {
-    try {
-      await fetch(`/api/v1/timesheets/entry/${id}?weekStart=${weekStart}`, { method: 'DELETE', credentials: 'include' });
-      setEntries(prev => prev.filter(e => e.id !== id));
-      toast.success('Entry removed');
-    } catch { toast.error('Delete failed'); }
-  }, [weekStart]);
-
-  // ── AI categorize one entry ──
-  const categorizeEntry = useCallback(async (entry, onResult) => {
-    try {
-      const r = await fetch('/api/v1/ai/categorize', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: entry.title, hours: entry.hours, attendees: entry.attendees || [], source: entry.source, projectList }),
-      });
-      const result = await r.json();
-      if (result.error) return;
-      onResult(result);
-      // Auto-save AI suggestions
-      await saveEntry({ ...entry, aiConfidence: result.confidence, aiReason: result.reason, project: result.project || entry.project, client: result.client || entry.client, category: result.category || entry.category });
-    } catch { toast.error('AI categorization failed'); }
-  }, [projectList, saveEntry]);
-
-  // ── AI categorize ALL pending ──
-  const categorizeAll = useCallback(async () => {
-    const pending = entries.filter(e => e.status !== 'confirmed' && !e.aiConfidence);
-    if (!pending.length) { toast.info('All entries already categorized'); return; }
-    setCategorizing(true);
-    toast.info(`AI categorizing ${pending.length} entries…`);
-    for (const entry of pending) {
-      await categorizeEntry(entry, () => {});
-      await new Promise(r => setTimeout(r, 400)); // gentle rate limit
-    }
-    setCategorizing(false);
-    await loadWeek();
-    toast.success('AI categorization complete');
-  }, [entries, categorizeEntry, loadWeek]);
-
-  // ── Import from Microsoft Graph ──
-  const importFromGraph = useCallback(async () => {
-    setImporting(true);
-    try {
-      const r = await fetch(`/api/v1/graph/calendar?weekStart=${weekStart}`, { credentials: 'include' });
-      const d = await r.json();
-      if (!r.ok) { toast.error(d.error || 'Graph import failed'); return; }
-
-      let added = 0;
-      for (const ev of d.events || []) {
-        const alreadyExists = entries.some(e => e.calEventId === ev.id);
-        if (alreadyExists || ev.hours <= 0) continue;
-        const entry = {
-          id: genId(), date: getDayKey(ev.start),
-          title: ev.title, source: ev.source, hours: ev.hours,
-          start: ev.start, end: ev.end, attendees: ev.attendees,
-          status: 'pending', calEventId: ev.id,
-        };
-        await saveEntry(entry);
-        added++;
+      const r = await fetch(`/api/v1/psa/timesheets/${timesheet.id}/submit`, { method: 'POST', credentials: 'include' });
+      if (r.ok) {
+        setTimesheet(ts => ({ ...ts, status: 'submitted' }));
+        toast.success('Timesheet submitted for approval');
+      } else {
+        const d = await r.json();
+        toast.error(d.error || 'Submit failed');
       }
-      toast.success(`Imported ${added} new calendar events`);
-      loadWeek();
-    } finally { setImporting(false); }
-  }, [weekStart, entries, saveEntry, loadWeek]);
+    } finally { setSubmitting(false); }
+  };
 
-  // ── Import from ICS file ──
-  const importFromICS = useCallback(async (file) => {
-    if (!file) return;
-    setImporting(true);
-    try {
-      const text = await file.text();
-      // Send without weekStart — server returns ALL events from the file
-      const r = await fetch('/api/v1/timesheets/import-ics', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ icsText: text }),
-      });
-      const d = await r.json();
-      if (!r.ok) { toast.error(d.error || 'ICS parse failed'); return; }
+  // Column totals
+  const colTotals = useMemo(() => {
+    const t = {};
+    dayKeys.forEach(dk => {
+      t[dk] = (timesheet?.rows || []).reduce((s, row) => s + (parseFloat(row.hours?.[dk]) || 0), 0);
+    });
+    t._total = Object.values(t).reduce((s, v) => s + v, 0);
+    return t;
+  }, [timesheet?.rows, dayKeys]);
 
-      let added = 0;
-      const seen = new Set(entries.map(e => e.calEventId).filter(Boolean));
-      for (const ev of d.events || []) {
-        if (ev.hours <= 0 || seen.has(ev.id)) continue;
-        seen.add(ev.id);
-        // Compute the correct week for this event and save it there
-        const evMonday = getMondayOf(new Date(ev.start));
-        const evWeekStart = toLocalDate(evMonday);
-        await fetch('/api/v1/timesheets/entry', {
-          method: 'POST', credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ weekStart: evWeekStart, entry: {
-            id: genId(), date: getDayKey(ev.start), title: ev.title,
-            source: 'ics', hours: ev.hours, start: ev.start, end: ev.end,
-            status: 'pending', calEventId: ev.id,
-          }}),
-        });
-        added++;
-      }
-      toast.success(`Imported ${added} event${added !== 1 ? 's' : ''} from ICS file`);
-      loadWeek();
-    } catch (err) { toast.error('ICS import failed: ' + err.message); }
-    finally { setImporting(false); fileRef.current.value = ''; }
-  }, [weekStart, entries, loadWeek]);
+  const statusStyle = STATUS_STYLE[timesheet?.status] || STATUS_STYLE.not_submitted;
+  const isSubmitted = timesheet?.status === 'submitted' || timesheet?.status === 'approved';
 
-  // ── Add manual entry ──
-  const addManual = useCallback(async (form) => {
-    const entry = {
-      id: genId(), date: form.date, title: form.title,
-      source: 'manual', hours: parseFloat(form.hours) || 1,
-      project: form.project || null, category: form.category, notes: form.notes,
-      status: 'pending',
-    };
-    await saveEntry(entry);
-    toast.success('Entry added');
-    loadWeek();
-  }, [saveEntry, loadWeek]);
-
-  // ── Submit week ──
-  const submitWeek = useCallback(async () => {
-    const confirmed = entries.filter(e => e.status === 'confirmed');
-    if (!confirmed.length) { toast.warning('Confirm at least one entry before submitting'); return; }
-    try {
-      const r = await fetch('/api/v1/timesheets/submit', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ weekStart }),
-      });
-      const d = await r.json();
-      if (!r.ok) { toast.error(d.error); return; }
-      toast.success(`Week submitted — ${d.totalHours}h across ${d.entryCount} entries`);
-      setSubmitted({ submittedAt: new Date().toISOString(), totalHours: d.totalHours, entryCount: d.entryCount });
-    } catch { toast.error('Submit failed'); }
-  }, [entries, weekStart]);
-
-  // ── Group entries by day ──
-  const byDay = weekDays.map(d => {
-    const key = toLocalDate(d);
-    return { date: d, key, items: entries.filter(e => e.date === key).sort((a, b) => new Date(a.start || 0) - new Date(b.start || 0)) };
-  });
-
-  const totalHours      = entries.reduce((s, e) => s + (e.hours || 0), 0);
-  const confirmedHours  = entries.filter(e => e.status === 'confirmed').reduce((s, e) => s + (e.hours || 0), 0);
-  const pendingCount    = entries.filter(e => e.status !== 'confirmed').length;
-
-  // Project breakdown
-  const byProject = {};
-  entries.filter(e => e.project).forEach(e => { byProject[e.project] = (byProject[e.project] || 0) + e.hours; });
+  const th = {
+    padding: '10px 6px', textAlign: 'center', fontSize: '0.72rem', fontWeight: 700,
+    color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em',
+    borderBottom: '1px solid rgba(255,255,255,0.07)', whiteSpace: 'nowrap',
+  };
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: '980px' }}>
-      {/* ── Header ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px', flexWrap: 'wrap', gap: '12px' }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-main)' }}>
-            <i className='bx bx-time-five' style={{ color: '#a855f7', marginRight: '10px' }} />My Timesheet
-          </h2>
-          <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            {fmtWeekRange(monday)}
-            {submitted && <span style={{ marginLeft: '10px', color: '#30d158', fontWeight: 600 }}>✓ Submitted {new Date(submitted.submittedAt).toLocaleDateString()}</span>}
-          </p>
-        </div>
-
+    <div style={{ padding: '28px 36px' }}>
+      {/* Header row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
         {/* Week navigation */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button onClick={() => { const d = new Date(monday); d.setDate(d.getDate() - 7); setMonday(d); }}
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '7px 12px', cursor: 'pointer', color: 'var(--text-muted)' }}>
-            <i className='bx bx-chevron-left' />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button onClick={() => navigate(-1)}
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '7px 12px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1rem', fontFamily: 'inherit', transition: 'all 0.15s' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.09)'; e.currentTarget.style.color = 'var(--text-main)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'var(--text-muted)'; }}>
+            ‹
           </button>
-          <button onClick={() => setMonday(getMondayOf(new Date()))}
-            style={{ background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.25)', borderRadius: '8px', padding: '7px 14px', cursor: 'pointer', color: '#a855f7', fontSize: '0.82rem', fontFamily: 'inherit' }}>
+          <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-main)', whiteSpace: 'nowrap' }}>{weekLabel}</h2>
+          <button onClick={() => navigate(1)}
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '7px 12px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1rem', fontFamily: 'inherit', transition: 'all 0.15s' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.09)'; e.currentTarget.style.color = 'var(--text-main)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'var(--text-muted)'; }}>
+            ›
+          </button>
+          <button onClick={() => setWeekStart(toLocalDate(getMondayOf(new Date())))}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(99,102,241,0.6)', fontSize: '0.78rem', fontFamily: 'inherit', textDecoration: 'underline' }}>
             This Week
           </button>
-          <button onClick={() => { const d = new Date(monday); d.setDate(d.getDate() + 7); setMonday(d); }}
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '7px 12px', cursor: 'pointer', color: 'var(--text-muted)' }}>
-            <i className='bx bx-chevron-right' />
-          </button>
         </div>
-      </div>
 
-      {/* ── Import toolbar ── */}
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '24px', flexWrap: 'wrap', alignItems: 'center' }}>
-        {/* ICS upload */}
-        <input ref={fileRef} type="file" accept=".ics" style={{ display: 'none' }} onChange={e => importFromICS(e.target.files[0])} />
-        <button onClick={() => fileRef.current.click()} disabled={importing}
-          style={{ display: 'flex', alignItems: 'center', gap: '7px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: '9px', padding: '9px 16px', cursor: 'pointer', color: 'var(--text-main)', fontSize: '0.85rem', fontFamily: 'inherit', fontWeight: 500 }}>
-          <i className='bx bx-calendar-import' style={{ color: '#6366f1' }} />
-          {importing ? 'Importing…' : 'Import .ics File'}
-        </button>
-
-        {/* Graph import (if configured) */}
-        {graphConfig?.ready && (
-          <button onClick={importFromGraph} disabled={importing}
-            style={{ display: 'flex', alignItems: 'center', gap: '7px', background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: '9px', padding: '9px 16px', cursor: 'pointer', color: '#818cf8', fontSize: '0.85rem', fontFamily: 'inherit', fontWeight: 500 }}>
-            <i className='bx bx-cloud-download' />Live Calendar
+        {/* Submit button */}
+        {!isSubmitted ? (
+          <button onClick={handleSubmit} disabled={submitting || loading}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg,#7c3aed,#a855f7)', border: 'none', borderRadius: '10px', padding: '10px 22px', cursor: 'pointer', color: '#fff', fontSize: '0.88rem', fontFamily: 'inherit', fontWeight: 600, opacity: (submitting || loading) ? 0.6 : 1, boxShadow: '0 4px 14px rgba(124,58,237,0.3)' }}>
+            <i className='bx bx-send' style={{ fontSize: '1rem' }} />
+            {submitting ? 'Submitting…' : 'Submit for Approval'}
           </button>
-        )}
-
-        {/* AI categorize all */}
-        {pendingCount > 0 && (
-          <button onClick={categorizeAll} disabled={categorizing}
-            style={{ display: 'flex', alignItems: 'center', gap: '7px', background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.3)', borderRadius: '9px', padding: '9px 16px', cursor: 'pointer', color: '#a855f7', fontSize: '0.85rem', fontFamily: 'inherit', fontWeight: 500 }}>
-            {categorizing ? <i className='bx bx-loader-alt bx-spin' /> : <i className='bx bx-brain' />}
-            {categorizing ? 'Categorizing…' : `AI Categorize All (${pendingCount})`}
-          </button>
-        )}
-
-        {/* Add manual */}
-        <button onClick={() => setShowAdd(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: '7px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '9px', padding: '9px 16px', cursor: 'pointer', color: 'var(--text-sub)', fontSize: '0.85rem', fontFamily: 'inherit' }}>
-          <i className='bx bx-plus' />Add Manually
-        </button>
-
-        {/* ICS help tip */}
-        {!graphConfig?.ready && (
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '4px' }}>
-            <i className='bx bx-info-circle' /> Export calendar from Outlook → File → Save Calendar → .ics
+        ) : (
+          <span style={{ fontSize: '0.85rem', color: statusStyle.color }}>
+            <i className='bx bx-check-circle' style={{ marginRight: '6px' }} />Submitted
           </span>
         )}
       </div>
 
-      {/* ── Stats strip ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '28px' }}>
-        {[
-          { label: 'Total Hours',     val: totalHours.toFixed(1) + 'h',     color: 'var(--text-main)' },
-          { label: 'Confirmed',       val: confirmedHours.toFixed(1) + 'h', color: '#30d158' },
-          { label: 'Needs Review',    val: pendingCount,                     color: '#ffd60a' },
-          { label: 'Projects',        val: Object.keys(byProject).length,   color: '#a855f7' },
-        ].map(s => (
-          <div key={s.label} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '12px', padding: '14px 16px', textAlign: 'center' }}>
-            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: s.color, letterSpacing: '-0.02em' }}>{s.val}</div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: '3px' }}>{s.label}</div>
-          </div>
-        ))}
+      {/* Status bar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '24px', flexWrap: 'wrap' }}>
+        <span style={{ background: statusStyle.bg, color: statusStyle.color, borderRadius: '8px', padding: '4px 12px', fontSize: '0.78rem', fontWeight: 700 }}>
+          {statusStyle.label}
+        </span>
+        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Due on {dueLabel}</span>
+        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>
+          Total: <strong style={{ color: colTotals._total > 0 ? '#818cf8' : 'var(--text-muted)' }}>
+            {colTotals._total.toFixed(2)}h
+          </strong>
+        </span>
       </div>
 
-      {/* ── Days ── */}
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}><i className='bx bx-loader-alt bx-spin' style={{ fontSize: '24px' }} /></div>
-      ) : (
-        byDay.map(({ date, key, items }) => {
-          const dayHours = items.reduce((s, e) => s + (e.hours || 0), 0);
-          const isToday  = key === toLocalDate(new Date());
-          return (
-            <div key={key} style={{ marginBottom: '24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: isToday ? '#a855f7' : 'var(--text-sub)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                  {date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-                  {isToday && <span style={{ marginLeft: '6px', fontSize: '0.65rem', background: 'rgba(168,85,247,0.2)', color: '#a855f7', borderRadius: '4px', padding: '1px 5px' }}>Today</span>}
-                </span>
-                {dayHours > 0 && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', padding: '2px 8px' }}>{dayHours.toFixed(1)}h</span>}
-                <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.06)' }} />
-              </div>
-
-              {items.length === 0 ? (
-                <div style={{ padding: '12px 16px', color: 'var(--text-muted)', fontSize: '0.82rem', fontStyle: 'italic' }}>No entries — add one manually or import from calendar</div>
-              ) : (
-                items.map(entry => (
-                  <EntryCard key={entry.id} entry={entry} projects={projectList}
-                    onUpdate={saveEntry} onDelete={deleteEntry} onCategorize={categorizeEntry} />
-                ))
-              )}
-            </div>
-          );
-        })
-      )}
-
-      {/* ── Project breakdown ── */}
-      {Object.keys(byProject).length > 0 && (
-        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '14px', padding: '20px', marginTop: '16px', marginBottom: '24px' }}>
-          <h4 style={{ margin: '0 0 14px', fontSize: '0.85rem', color: 'var(--text-sub)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Hours by Project</h4>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-            {Object.entries(byProject).sort((a, b) => b[1] - a[1]).map(([proj, hrs]) => (
-              <div key={proj} style={{ background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.2)', borderRadius: '8px', padding: '6px 12px', fontSize: '0.83rem' }}>
-                <span style={{ color: '#a855f7', fontWeight: 600 }}>{hrs.toFixed(1)}h</span>
-                <span style={{ color: 'var(--text-sub)', marginLeft: '6px' }}>{proj}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Submit ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-        {submitted ? (
-          <div style={{ color: '#30d158', fontSize: '0.9rem', fontWeight: 600 }}>
-            <i className='bx bx-check-circle' style={{ marginRight: '6px' }} />
-            Submitted {submitted.totalHours}h on {new Date(submitted.submittedAt).toLocaleDateString()}
+      {/* Time Distribution table */}
+      <div style={{ background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', overflow: 'hidden' }}>
+        {loading ? (
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
+            <i className='bx bx-loader-alt bx-spin' style={{ fontSize: '28px' }} />
           </div>
         ) : (
-          <>
-            <button onClick={submitWeek} disabled={!confirmedHours}
-              style={{ background: confirmedHours ? 'linear-gradient(135deg,#7c3aed,#a855f7)' : 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '10px', padding: '11px 24px', cursor: confirmedHours ? 'pointer' : 'not-allowed', color: confirmedHours ? '#fff' : 'var(--text-muted)', fontSize: '0.9rem', fontFamily: 'inherit', fontWeight: 700, letterSpacing: '0.01em' }}>
-              <i className='bx bx-send' style={{ marginRight: '7px' }} />Submit Week ({confirmedHours.toFixed(1)}h confirmed)
-            </button>
-            {pendingCount > 0 && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{pendingCount} {pendingCount === 1 ? 'entry' : 'entries'} still need review</span>}
-          </>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+              <colgroup>
+                <col style={{ width: '270px' }} />
+                {dayKeys.map(dk => <col key={dk} style={{ width: '68px' }} />)}
+                <col style={{ width: '62px' }} />
+                <col style={{ width: '36px' }} />
+              </colgroup>
+
+              <thead>
+                <tr style={{ background: 'rgba(255,255,255,0.025)' }}>
+                  <th style={{ ...th, textAlign: 'left', paddingLeft: '14px' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Client</span>
+                    {' / '}
+                    <span style={{ color: 'var(--text-main)' }}>Project</span>
+                    {' / Task'}
+                  </th>
+                  {weekDays.map((d, i) => (
+                    <th key={dayKeys[i]} style={{ ...th, background: dayKeys[i] === todayKey ? 'rgba(99,102,241,0.06)' : 'transparent', color: dayKeys[i] === todayKey ? '#818cf8' : 'var(--text-muted)' }}>
+                      {DAY_NAMES[i]}<br /><span style={{ fontSize: '0.85rem', fontWeight: 800 }}>{d.getUTCDate()}</span>
+                    </th>
+                  ))}
+                  <th style={{ ...th, textAlign: 'right', paddingRight: '10px' }}>Total</th>
+                  <th style={th} />
+                </tr>
+              </thead>
+
+              <tbody>
+                {(timesheet?.rows || []).length === 0 && (
+                  <tr>
+                    <td colSpan={10} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                      <i className='bx bx-time-five' style={{ fontSize: '32px', display: 'block', marginBottom: '10px', opacity: 0.35 }} />
+                      No entries yet — click <strong>"+ Add Row"</strong> to start logging time
+                    </td>
+                  </tr>
+                )}
+                {(timesheet?.rows || []).map(row => (
+                  <TimesheetRow
+                    key={row.id}
+                    row={row}
+                    dayKeys={dayKeys}
+                    allClients={allClients}
+                    allProjects={allProjects}
+                    allTasks={allTasks}
+                    readOnly={isSubmitted}
+                    todayKey={todayKey}
+                    onUpdate={handleRowUpdate}
+                    onDelete={() => handleDeleteRow(row.id)}
+                  />
+                ))}
+
+                {/* ADD ROW */}
+                {!isSubmitted && (
+                  <tr>
+                    <td colSpan={10} style={{ padding: '0' }}>
+                      <button onClick={handleAddRow} disabled={addingRow}
+                        style={{ width: '100%', background: 'none', border: 'none', padding: '12px 14px', cursor: 'pointer', color: 'rgba(99,102,241,0.7)', fontSize: '0.85rem', fontFamily: 'inherit', fontWeight: 600, textAlign: 'left', display: 'flex', alignItems: 'center', gap: '6px', transition: 'color 0.15s' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.04)'; e.currentTarget.style.color = '#818cf8'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'rgba(99,102,241,0.7)'; }}>
+                        <i className='bx bx-plus' style={{ fontSize: '1rem' }} />
+                        {addingRow ? 'Adding…' : '+ Add Row'}
+                      </button>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+
+              {/* Totals footer */}
+              <tfoot>
+                <tr style={{ background: 'rgba(255,255,255,0.025)', borderTop: '2px solid rgba(255,255,255,0.08)' }}>
+                  <td style={{ padding: '12px 14px', fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-main)' }}>
+                    Total Hours
+                  </td>
+                  {dayKeys.map(dk => (
+                    <td key={dk} style={{ padding: '12px 4px', textAlign: 'center', fontWeight: 700, fontSize: '0.9rem', color: colTotals[dk] > 0 ? '#818cf8' : 'var(--text-muted)', background: dk === todayKey ? 'rgba(99,102,241,0.04)' : 'transparent' }}>
+                      {colTotals[dk] > 0 ? colTotals[dk].toFixed(2) : '0.00'}
+                    </td>
+                  ))}
+                  <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 800, fontSize: '0.95rem', color: colTotals._total > 0 ? '#a78bfa' : 'var(--text-muted)' }}>
+                    {colTotals._total.toFixed(2)}
+                  </td>
+                  <td />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         )}
       </div>
 
-      {/* ── Add modal ── */}
-      {showAdd && <AddEntryModal weekDays={weekDays} projects={projectList} onAdd={addManual} onClose={() => setShowAdd(false)} />}
+      {/* Legend */}
+      {!loading && (
+        <div style={{ marginTop: '14px', display: 'flex', gap: '20px', flexWrap: 'wrap', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+          <span><i className='bx bx-info-circle' style={{ marginRight: '4px' }} />Select a Project first, then optionally pick a Task. Hours save automatically when you leave a cell.</span>
+          {allProjects.length === 0 && <span style={{ color: '#fbbf24' }}><i className='bx bx-error' style={{ marginRight: '4px' }} />No projects found — ask your admin to add projects via Admin → Projects.</span>}
+        </div>
+      )}
     </div>
   );
 }
