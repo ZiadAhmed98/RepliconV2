@@ -5,7 +5,8 @@ const PermissionContext = createContext({ permissions: {}, isAdmin: false, ready
 export function PermissionProvider({ sessionUser, children }) {
   const permissions = sessionUser?.permissions || {};
   const isAdmin     = sessionUser?.isAdmin || false;
-  const ready       = !!(sessionUser?.permissions);
+  // ready = true as soon as any sessionUser exists (even old format without permissions)
+  const ready       = !!sessionUser;
   return (
     <PermissionContext.Provider value={{ permissions, isAdmin, ready }}>
       {children}
@@ -20,5 +21,7 @@ export function usePermissions() {
 export function useCan(page) {
   const { permissions, isAdmin } = useContext(PermissionContext);
   if (page === 'settings') return isAdmin;
+  // If permissions object is empty (old session format), allow everything
+  if (Object.keys(permissions).length === 0) return true;
   return isAdmin || permissions[page] === true;
 }
