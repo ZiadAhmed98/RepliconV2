@@ -434,7 +434,7 @@ function HourCell({ value, date, rowId, initialNote, disabled, isToday, hasProje
   const cancel  = () => { setNoteText(initialNote || ''); setPopOpen(false); };
 
   return (
-    <div ref={cellRef} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', width: '52px' }}>
+    <div ref={cellRef} style={{ position: 'relative', display: 'inline-block', width: '52px' }}>
       <input
         type="number" min="0" max="24" step="0.5"
         value={value} onChange={onChange} onBlur={onBlur}
@@ -445,22 +445,27 @@ function HourCell({ value, date, rowId, initialNote, disabled, isToday, hasProje
           background: isToday ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.03)',
           border: `1px solid ${isToday ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.06)'}`,
           borderRadius: '6px', color: 'var(--text-main)', fontSize: '0.85rem', fontFamily: 'inherit',
-          opacity: (!hasProject || disabled) ? 0.3 : 1, MozAppearance: 'textfield',
+          opacity: (!hasProject || disabled) ? 0.3 : 1, MozAppearance: 'textfield', display: 'block',
         }}
       />
-      <button
-        onClick={openPop}
-        title={hasNote ? 'View / edit note' : 'Add note for this day'}
-        style={{
-          background: 'none', border: 'none', padding: '1px 2px', lineHeight: 1,
-          cursor: (canEdit || canView) ? 'pointer' : 'default',
-          opacity: (canEdit || canView) ? 1 : 0,
-          transition: 'opacity 0.15s',
-          pointerEvents: (canEdit || canView) ? 'auto' : 'none',
-        }}>
-        <i className={`bx ${hasNote ? 'bxs-notepad' : 'bx-notepad'}`}
-          style={{ fontSize: '0.7rem', color: hasNote ? '#fbbf24' : 'rgba(255,255,255,0.25)' }} />
-      </button>
+      {/* Note badge — small overlay on bottom-right corner of the hour input */}
+      {(canEdit || canView) && (
+        <button
+          onClick={openPop}
+          title={hasNote ? 'View / edit note' : 'Add note for this entry'}
+          style={{
+            position: 'absolute', right: '-3px', bottom: '-3px',
+            width: '15px', height: '15px',
+            background: hasNote ? 'rgba(251,191,36,0.18)' : 'rgba(8,8,18,0.85)',
+            border: `1px solid ${hasNote ? 'rgba(251,191,36,0.5)' : 'rgba(255,255,255,0.14)'}`,
+            borderRadius: '4px', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 2, padding: 0,
+          }}>
+          <i className={`bx ${hasNote ? 'bxs-pencil' : 'bx-pencil'}`}
+            style={{ fontSize: '0.5rem', color: hasNote ? '#fbbf24' : 'rgba(255,255,255,0.4)', lineHeight: 1 }} />
+        </button>
+      )}
 
       {popOpen && createPortal(
         <div ref={dropRef} style={{
