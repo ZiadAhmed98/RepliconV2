@@ -810,10 +810,20 @@ CREATING PROJECTS — guide the user, then navigate:
 3. Show [NAVIGATE:/new-project|Open Project Creator] at the end
 4. List the exact values they should enter in the form
 
+DATA FIELDS — understand these before answering:
+- hoursAllTime   = CUMULATIVE all-time hours ever logged (full history, not limited)
+- hoursLast30d   = hours in the last 30 calendar days (recent activity)
+- hoursLast7d    = hours in the last 7 days
+- utilizationPct = based on hoursLast30d vs 176h expected (8h/day × 22 working days)
+- activeEmployees = Enabled in Replicon roster (regardless of recent hours — 0 recent hrs means inactive lately, not disabled)
+- inactiveEmployees = Disabled in Replicon roster (may have large hoursAllTime from prior contributions)
+- projects.actualHrs = all-time hours logged to that project
+- Managed services / SLA projects accumulate hours across contract renewals — 300–500%+ burn is NORMAL for those
+- NEVER say data is "limited to 30 days" — hoursAllTime is the complete history
+
 FORMATTING:
 - **Bold** key names/numbers, bullet lists for sets of items
 - ALWAYS use markdown table format (| col | ) for comparative/tabular data
-- Managed services / SLA projects accumulate hours across contract renewals — 300–500%+ burn is NORMAL for those, not a problem
 - Brief question = brief answer; detailed question = detailed answer
 - Respond in the same language as the user
 ${fbSection}

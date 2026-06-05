@@ -285,23 +285,27 @@ export default function ChatBot({ dataMatrix }) {
     const ms90  = 90 * 86400000;
     const EXPECTED_30D = 176;
 
-    const hrs30 = {}, hrs7 = {}, empProjects = {};
+    // Single pass — compute all-time, last-30d, last-7d hours together
+    const hrsAll = {}, hrs30 = {}, hrs7 = {}, empProjects = {};
     factTable.forEach(r => {
       if (r.act <= 0) return;
-      if (r.date >= now - ms30) hrs30[r.user] = (hrs30[r.user] || 0) + r.act;
-      if (r.date >= now - ms7)  hrs7[r.user]  = (hrs7[r.user]  || 0) + r.act;
+      hrsAll[r.user] = (hrsAll[r.user] || 0) + r.act;
       if (r.date >= now - ms30) {
+        hrs30[r.user] = (hrs30[r.user] || 0) + r.act;
         if (!empProjects[r.user]) empProjects[r.user] = new Set();
         empProjects[r.user].add(r.project);
       }
+      if (r.date >= now - ms7) hrs7[r.user] = (hrs7[r.user] || 0) + r.act;
     });
 
     const activeEmployees = roster
       .filter(e => e.status === 'Enabled')
       .map(e => {
-        const h30 = Math.round(hrs30[e.name] || 0);
+        const h30  = Math.round(hrs30[e.name]  || 0);
+        const hAll = Math.round(hrsAll[e.name] || 0);
         return {
           name:            e.name,
+          hoursAllTime:    hAll,
           hoursLast30d:    h30,
           hoursLast7d:     Math.round(hrs7[e.name] || 0),
           utilizationPct:  Math.round((h30 / EXPECTED_30D) * 100),
@@ -310,7 +314,7 @@ export default function ChatBot({ dataMatrix }) {
           weeklyCompliant: (compliance.weeklyList || []).find(c => c.name === e.name)?.isCompliant ?? null,
         };
       })
-      .sort((a, b) => b.hoursLast30d - a.hoursLast30d);
+      .sort((a, b) => b.hoursAllTime - a.hoursAllTime);
 
     // Active + recently-active projects only (exclude stale archived/completed)
     const projects = Object.entries(dimensionTable).map(([name, d]) => {
@@ -349,7 +353,10 @@ export default function ChatBot({ dataMatrix }) {
         avgUtilizationPct:    Math.round(activeEmployees.reduce((s, e) => s + e.utilizationPct, 0) / (activeEmployees.length || 1)),
       },
       activeEmployees,
-      inactiveEmployees: roster.filter(e => e.status === 'Disabled').map(e => ({ name: e.name })),
+      inactiveEmployees: roster
+        .filter(e => e.status === 'Disabled')
+        .map(e => ({ name: e.name, hoursAllTime: Math.round(hrsAll[e.name] || 0) }))
+        .sort((a, b) => b.hoursAllTime - a.hoursAllTime),
       projects,
       compliance: {
         dailyDeficits:    compliance.dailyDeficits,
