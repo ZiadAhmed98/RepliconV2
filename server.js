@@ -220,6 +220,7 @@ db.exec(`
     rowId  TEXT NOT NULL REFERENCES psa_timesheet_rows(id) ON DELETE CASCADE,
     date   TEXT NOT NULL,
     hours  REAL NOT NULL DEFAULT 0,
+    note   TEXT,
     PRIMARY KEY(rowId, date)
   );
 `);
@@ -227,6 +228,7 @@ db.exec(`
 // Safe migrations — ignored if column already exists
 try { db.exec('ALTER TABLE employees ADD COLUMN userId TEXT'); } catch {}
 try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_emp_userId ON employees(userId) WHERE userId IS NOT NULL'); } catch {}
+try { db.exec('ALTER TABLE psa_timesheet_hours ADD COLUMN note TEXT'); } catch {}
 
 const ALL_PAGES = ['dashboard','employees','timesheets','projects','clients','aiInsights','chatbot','myTimesheet'];
 
@@ -2189,8 +2191,9 @@ function buildTimesheetRows(timesheetId) {
     ORDER BY r.sortOrder ASC, r.createdAt ASC
   `).all(timesheetId);
   rows.forEach(row => {
-    const hrs = db.prepare('SELECT date, hours FROM psa_timesheet_hours WHERE rowId=?').all(row.id);
-    row.hours = Object.fromEntries(hrs.map(h => [h.date, h.hours]));
+    const hrs = db.prepare('SELECT date, hours, note FROM psa_timesheet_hours WHERE rowId=?').all(row.id);
+    row.hours    = Object.fromEntries(hrs.map(h => [h.date, h.hours]));
+    row.dayNotes = Object.fromEntries(hrs.filter(h => h.note).map(h => [h.date, h.note]));
   });
   return rows;
 }
@@ -2208,8 +2211,9 @@ function buildSingleRow(rowId) {
     WHERE r.id = ?
   `).get(rowId);
   if (!row) return null;
-  const hrs = db.prepare('SELECT date, hours FROM psa_timesheet_hours WHERE rowId=?').all(rowId);
-  row.hours = Object.fromEntries(hrs.map(h => [h.date, h.hours]));
+  const hrs = db.prepare('SELECT date, hours, note FROM psa_timesheet_hours WHERE rowId=?').all(rowId);
+  row.hours    = Object.fromEntries(hrs.map(h => [h.date, h.hours]));
+  row.dayNotes = Object.fromEntries(hrs.filter(h => h.note).map(h => [h.date, h.note]));
   return row;
 }
 
@@ -2271,7 +2275,7 @@ app.put('/api/v1/psa/timesheet-rows/:id/hours', requireAuth, (req, res) => {
   if (row.status === 'submitted' || row.status === 'approved') return res.status(409).json({ error: 'Timesheet already submitted' });
   const { hours } = req.body || {};
   if (!hours || typeof hours !== 'object') return res.status(400).json({ error: 'hours object required' });
-  const upsert = db.prepare('INSERT OR REPLACE INTO psa_timesheet_hours (rowId,date,hours) VALUES (?,?,?)');
+  const upsert = db.prepare('INSERT INTO psa_timesheet_hours (rowId,date,hours,note) VALUES (?,?,?,NULL) ON CONFLICT(rowId,date) DO UPDATE SET hours=excluded.hours');
   const del    = db.prepare('DELETE FROM psa_timesheet_hours WHERE rowId=? AND date=?');
   db.transaction(() => {
     Object.entries(hours).forEach(([date, h]) => {
@@ -2281,8 +2285,23 @@ app.put('/api/v1/psa/timesheet-rows/:id/hours', requireAuth, (req, res) => {
     });
   })();
   db.prepare('UPDATE psa_timesheets SET updatedAt=? WHERE id=?').run(new Date().toISOString(), row.tsId);
-  const saved = db.prepare('SELECT date, hours FROM psa_timesheet_hours WHERE rowId=?').all(req.params.id);
-  res.json({ hours: Object.fromEntries(saved.map(h => [h.date, h.hours])) });
+  const saved = db.prepare('SELECT date, hours, note FROM psa_timesheet_hours WHERE rowId=?').all(req.params.id);
+  res.json({
+    hours:    Object.fromEntries(saved.map(h => [h.date, h.hours])),
+    dayNotes: Object.fromEntries(saved.filter(h => h.note).map(h => [h.date, h.note])),
+  });
+});
+
+// PUT /api/v1/psa/timesheet-rows/:id/day-notes — save per-day entry note
+app.put('/api/v1/psa/timesheet-rows/:id/day-notes', requireAuth, (req, res) => {
+  const row = db.prepare('SELECT r.*, ts.userId, ts.status FROM psa_timesheet_rows r JOIN psa_timesheets ts ON ts.id=r.timesheetId WHERE r.id=?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Row not found' });
+  if (row.userId !== req.user.id) return res.status(403).json({ error: 'Not your timesheet' });
+  if (row.status === 'submitted' || row.status === 'approved') return res.status(409).json({ error: 'Timesheet already submitted' });
+  const { date, note } = req.body || {};
+  if (!date) return res.status(400).json({ error: 'date required' });
+  db.prepare('UPDATE psa_timesheet_hours SET note=? WHERE rowId=? AND date=?').run(note || null, req.params.id, date);
+  res.json({ ok: true });
 });
 
 // DELETE /api/v1/psa/timesheet-rows/:id

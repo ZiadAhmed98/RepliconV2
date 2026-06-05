@@ -384,9 +384,135 @@ function TaskPicker({ value, allClients, allProjects, allTasks, onChange, disabl
   );
 }
 
+// ── HourCell ──────────────────────────────────────────────────────────────────
+
+const _WKDAY = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+function HourCell({ value, date, rowId, initialNote, disabled, isToday, hasProject, onChange, onBlur, onNoteSave }) {
+  const [popOpen, setPopOpen]   = useState(false);
+  const [noteText, setNoteText] = useState(initialNote || '');
+  const [popPos, setPopPos]     = useState({ top: 0, left: 0 });
+  const cellRef     = useRef(null);
+  const dropRef     = useRef(null);
+  const textareaRef = useRef(null);
+  const hasHours    = parseFloat(value) > 0;
+  const hasNote     = noteText.trim().length > 0;
+  const canEdit     = hasHours && hasProject && !disabled;
+  const canView     = hasHours && hasNote && disabled;
+
+  const dayLabel = (() => {
+    const d = new Date(date + 'T12:00:00Z');
+    return _WKDAY[d.getDay()] + ' ' + d.getDate();
+  })();
+
+  useEffect(() => { setNoteText(initialNote || ''); }, [initialNote]);
+
+  const openPop = (e) => {
+    e.stopPropagation();
+    if (!canEdit && !canView) return;
+    const r = cellRef.current.getBoundingClientRect();
+    const PH  = 176;
+    const top  = r.top > PH + 8 ? r.top - PH - 6 : r.bottom + 6;
+    const left = Math.max(4, Math.min(r.left + r.width / 2 - 101, window.innerWidth - 214));
+    setPopPos({ top, left });
+    setPopOpen(true);
+  };
+
+  useEffect(() => {
+    if (!popOpen) return;
+    const t = setTimeout(() => textareaRef.current?.focus(), 20);
+    const handler = (e) => {
+      if (cellRef.current?.contains(e.target) || dropRef.current?.contains(e.target)) return;
+      setNoteText(initialNote || '');
+      setPopOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => { clearTimeout(t); document.removeEventListener('mousedown', handler); };
+  }, [popOpen, initialNote]);
+
+  const confirm = () => { onNoteSave(date, noteText.trim()); setPopOpen(false); };
+  const cancel  = () => { setNoteText(initialNote || ''); setPopOpen(false); };
+
+  return (
+    <div ref={cellRef} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', width: '52px' }}>
+      <input
+        type="number" min="0" max="24" step="0.5"
+        value={value} onChange={onChange} onBlur={onBlur}
+        disabled={!hasProject || disabled}
+        className="no-spin"
+        style={{
+          width: '52px', height: '34px', textAlign: 'center',
+          background: isToday ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.03)',
+          border: `1px solid ${isToday ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.06)'}`,
+          borderRadius: '6px', color: 'var(--text-main)', fontSize: '0.85rem', fontFamily: 'inherit',
+          opacity: (!hasProject || disabled) ? 0.3 : 1, MozAppearance: 'textfield',
+        }}
+      />
+      <button
+        onClick={openPop}
+        title={hasNote ? 'View / edit note' : 'Add note for this day'}
+        style={{
+          background: 'none', border: 'none', padding: '1px 2px', lineHeight: 1,
+          cursor: (canEdit || canView) ? 'pointer' : 'default',
+          opacity: (canEdit || canView) ? 1 : 0,
+          transition: 'opacity 0.15s',
+          pointerEvents: (canEdit || canView) ? 'auto' : 'none',
+        }}>
+        <i className={`bx ${hasNote ? 'bxs-notepad' : 'bx-notepad'}`}
+          style={{ fontSize: '0.7rem', color: hasNote ? '#fbbf24' : 'rgba(255,255,255,0.25)' }} />
+      </button>
+
+      {popOpen && createPortal(
+        <div ref={dropRef} style={{
+          position: 'fixed', top: `${popPos.top}px`, left: `${popPos.left}px`,
+          width: '202px', zIndex: 9999, fontFamily: 'inherit',
+          background: '#0d0d1a', border: '1px solid rgba(250,204,21,0.2)',
+          borderRadius: '10px', boxShadow: '0 16px 48px rgba(0,0,0,0.8)',
+          padding: '11px 12px',
+        }}>
+          <div style={{ fontSize: '0.64rem', fontWeight: 700, color: 'rgba(250,204,21,0.55)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+            {dayLabel}
+          </div>
+          {disabled ? (
+            <p style={{ margin: '0 0 8px', fontSize: '0.82rem', color: 'var(--text-main)', lineHeight: 1.5, whiteSpace: 'pre-wrap', minHeight: '44px' }}>
+              {noteText || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No note added</span>}
+            </p>
+          ) : (
+            <textarea
+              ref={textareaRef} value={noteText}
+              onChange={e => setNoteText(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Escape') cancel(); if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); confirm(); } }}
+              placeholder="What did you work on?"
+              rows={3}
+              style={{
+                width: '100%', resize: 'none', boxSizing: 'border-box',
+                background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: '7px', padding: '6px 8px',
+                color: 'var(--text-main)', fontSize: '0.8rem', fontFamily: 'inherit',
+                lineHeight: 1.45, outline: 'none',
+              }}
+            />
+          )}
+          <div style={{ display: 'flex', gap: '6px', marginTop: '8px', justifyContent: 'flex-end' }}>
+            {disabled ? (
+              <button onClick={() => setPopOpen(false)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '6px', padding: '4px 11px', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', fontSize: '0.77rem', fontFamily: 'inherit' }}>Close</button>
+            ) : (
+              <>
+                <button onClick={cancel} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '6px', padding: '4px 11px', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', fontSize: '0.77rem', fontFamily: 'inherit' }}>Cancel</button>
+                <button onClick={confirm} style={{ background: 'rgba(250,204,21,0.12)', border: '1px solid rgba(250,204,21,0.28)', borderRadius: '6px', padding: '4px 11px', cursor: 'pointer', color: '#fbbf24', fontSize: '0.77rem', fontFamily: 'inherit', fontWeight: 700 }}>✓ Save</button>
+              </>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
 // ── TimesheetRow ──────────────────────────────────────────────────────────────
 
-function TimesheetRow({ row, dayKeys, allClients, allProjects, allTasks, readOnly, todayKey, onUpdate, onDelete, colCount }) {
+function TimesheetRow({ row, dayKeys, allClients, allProjects, allTasks, readOnly, todayKey, onUpdate, onDelete }) {
   const [sel, setSel] = useState({
     clientId:    row.clientId    || null,
     clientName:  row.clientName  || null,
@@ -400,13 +526,13 @@ function TimesheetRow({ row, dayKeys, allClients, allProjects, allTasks, readOnl
     dayKeys.forEach(dk => { h[dk] = row.hours?.[dk] != null ? String(row.hours[dk]) : ''; });
     return h;
   });
-  const [note,     setNote]     = useState(row.note || '');
-  const [noteOpen, setNoteOpen] = useState(false);
-  const [saving,   setSaving]   = useState(false);
-  const [noteSaving, setNoteSaving] = useState(false);
-  const saveTimer  = useRef(null);
-  const noteTimer  = useRef(null);
-  const textareaRef = useRef(null);
+  const [dayNotes, setDayNotes] = useState(() => {
+    const n = {};
+    dayKeys.forEach(dk => { n[dk] = row.dayNotes?.[dk] || ''; });
+    return n;
+  });
+  const [saving, setSaving] = useState(false);
+  const saveTimer = useRef(null);
 
   useEffect(() => {
     setSel({
@@ -417,19 +543,17 @@ function TimesheetRow({ row, dayKeys, allClients, allProjects, allTasks, readOnl
     const h = {};
     dayKeys.forEach(dk => { h[dk] = row.hours?.[dk] != null ? String(row.hours[dk]) : ''; });
     setHours(h);
-    setNote(row.note || '');
+    const n = {};
+    dayKeys.forEach(dk => { n[dk] = row.dayNotes?.[dk] || ''; });
+    setDayNotes(n);
   }, [row.id]);
-
-  useEffect(() => {
-    if (noteOpen && textareaRef.current) textareaRef.current.focus();
-  }, [noteOpen]);
 
   const handlePickerChange = async (newSel) => {
     setSel(newSel);
     const r = await fetch(`/api/v1/psa/timesheet-rows/${row.id}`, {
       method: 'PUT', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ projectId: newSel.projectId, taskId: newSel.taskId, note }),
+      body: JSON.stringify({ projectId: newSel.projectId, taskId: newSel.taskId }),
     });
     if (r.ok) {
       const d = await r.json();
@@ -469,126 +593,52 @@ function TimesheetRow({ row, dayKeys, allClients, allProjects, allTasks, readOnl
     saveTimer.current = setTimeout(saveHours, 250);
   };
 
-  const saveNote = async (val) => {
-    setNoteSaving(true);
+  const handleNoteSave = useCallback(async (date, text) => {
+    setDayNotes(dn => ({ ...dn, [date]: text }));
     try {
-      await fetch(`/api/v1/psa/timesheet-rows/${row.id}`, {
+      await fetch(`/api/v1/psa/timesheet-rows/${row.id}/day-notes`, {
         method: 'PUT', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: sel.projectId, taskId: sel.taskId, note: val }),
+        body: JSON.stringify({ date, note: text }),
       });
-    } finally { setNoteSaving(false); }
-  };
-
-  const handleNoteChange = (val) => {
-    setNote(val);
-    clearTimeout(noteTimer.current);
-    noteTimer.current = setTimeout(() => saveNote(val), 600);
-  };
+    } catch {}
+  }, [row.id]);
 
   const rowTotal = dayKeys.reduce((s, dk) => s + (parseFloat(hours[dk]) || 0), 0);
-  const hasNote  = note.trim().length > 0;
-
-  const numStyle = (dk) => ({
-    width: '52px', height: '34px', textAlign: 'center',
-    background: dk === todayKey ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.03)',
-    border: `1px solid ${dk === todayKey ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.06)'}`,
-    borderRadius: '6px', color: 'var(--text-main)', fontSize: '0.85rem', fontFamily: 'inherit',
-    opacity: (!sel.projectId || readOnly) ? 0.3 : 1,
-    // hide spinner arrows
-    MozAppearance: 'textfield',
-  });
 
   return (
-    <React.Fragment>
-      <tr style={{ borderBottom: noteOpen ? 'none' : '1px solid rgba(255,255,255,0.04)' }}>
-        <td style={{ padding: '6px 8px' }}>
-          <TaskPicker value={sel} allClients={allClients} allProjects={allProjects} allTasks={allTasks} onChange={handlePickerChange} disabled={readOnly} />
+    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+      <td style={{ padding: '6px 8px' }}>
+        <TaskPicker value={sel} allClients={allClients} allProjects={allProjects} allTasks={allTasks} onChange={handlePickerChange} disabled={readOnly} />
+      </td>
+      {dayKeys.map(dk => (
+        <td key={dk} style={{ padding: '6px 3px', textAlign: 'center', background: dk === todayKey ? 'rgba(99,102,241,0.03)' : 'transparent' }}>
+          <HourCell
+            value={hours[dk]}
+            date={dk}
+            rowId={row.id}
+            initialNote={dayNotes[dk] || ''}
+            disabled={readOnly}
+            isToday={dk === todayKey}
+            hasProject={!!sel.projectId}
+            onChange={e => setHours(h => ({ ...h, [dk]: e.target.value }))}
+            onBlur={handleHoursBlur}
+            onNoteSave={handleNoteSave}
+          />
         </td>
-        {dayKeys.map(dk => (
-          <td key={dk} style={{ padding: '6px 3px', textAlign: 'center', background: dk === todayKey ? 'rgba(99,102,241,0.03)' : 'transparent' }}>
-            <input type="number" min="0" max="24" step="0.5"
-              value={hours[dk]}
-              onChange={e => setHours(h => ({ ...h, [dk]: e.target.value }))}
-              onBlur={handleHoursBlur}
-              disabled={!sel.projectId || readOnly}
-              className="no-spin"
-              style={numStyle(dk)} />
-          </td>
-        ))}
-        <td style={{ padding: '6px 6px', textAlign: 'right', fontWeight: 700, fontSize: '0.88rem', color: rowTotal > 0 ? '#818cf8' : 'var(--text-muted)', whiteSpace: 'nowrap', minWidth: '50px' }}>
-          {rowTotal > 0 ? rowTotal.toFixed(2) : '—'}
-        </td>
-        <td style={{ padding: '6px 6px', textAlign: 'center', verticalAlign: 'middle' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-            {!readOnly && (
-              <button onClick={() => setNoteOpen(o => !o)}
-                title={hasNote ? 'View / edit note' : 'Add note'}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', lineHeight: 1, borderRadius: '4px', position: 'relative' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(250,204,21,0.08)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'none'}>
-                <i className='bx bx-pencil' style={{ fontSize: '0.95rem', color: hasNote ? 'rgba(250,204,21,0.75)' : 'rgba(255,255,255,0.2)' }} />
-                {hasNote && <span style={{ position: 'absolute', top: '0', right: '0', width: '5px', height: '5px', background: '#fbbf24', borderRadius: '50%' }} />}
-              </button>
-            )}
-            {readOnly && hasNote && (
-              <button onClick={() => setNoteOpen(o => !o)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>
-                <i className='bx bx-comment-detail' style={{ fontSize: '0.9rem', color: 'rgba(250,204,21,0.5)' }} />
-              </button>
-            )}
-            {!readOnly && (
-              <button onClick={onDelete}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(239,68,68,0.35)', fontSize: '1rem', padding: '2px 4px', lineHeight: 1, borderRadius: '4px' }}
-                onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-                onMouseLeave={e => e.currentTarget.style.color = 'rgba(239,68,68,0.35)'}>×</button>
-            )}
-          </div>
-        </td>
-      </tr>
-
-      {/* Expandable note row */}
-      {noteOpen && (
-        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-          <td colSpan={colCount} style={{ padding: '0 10px 10px 10px' }}>
-            <div style={{
-              background: 'rgba(250,204,21,0.04)', border: '1px solid rgba(250,204,21,0.15)',
-              borderRadius: '10px', padding: '10px 12px', display: 'flex', gap: '10px', alignItems: 'flex-start',
-            }}>
-              <i className='bx bx-pencil' style={{ color: 'rgba(250,204,21,0.5)', fontSize: '0.95rem', marginTop: '3px', flexShrink: 0 }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '0.7rem', color: 'rgba(250,204,21,0.5)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
-                  What did you work on?
-                  {noteSaving && <span style={{ marginLeft: '8px', color: 'rgba(255,255,255,0.25)', fontWeight: 400, textTransform: 'none' }}>saving…</span>}
-                </div>
-                {readOnly ? (
-                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-main)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{note || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No note added</span>}</p>
-                ) : (
-                  <textarea
-                    ref={textareaRef}
-                    value={note}
-                    onChange={e => handleNoteChange(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Escape') setNoteOpen(false); }}
-                    placeholder="Briefly summarize what you worked on — e.g. 'Reviewed DNS config, updated MX records'"
-                    rows={3}
-                    style={{
-                      width: '100%', resize: 'vertical', minHeight: '60px',
-                      background: 'transparent', border: 'none', outline: 'none',
-                      color: 'var(--text-main)', fontSize: '0.85rem', fontFamily: 'inherit',
-                      lineHeight: 1.5, boxSizing: 'border-box', padding: 0,
-                    }}
-                  />
-                )}
-              </div>
-              <button onClick={() => setNoteOpen(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.2)', fontSize: '0.95rem', padding: '1px 3px', lineHeight: 1, flexShrink: 0 }}
-                onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.6)'}
-                onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.2)'}>×</button>
-            </div>
-          </td>
-        </tr>
-      )}
-    </React.Fragment>
+      ))}
+      <td style={{ padding: '6px 6px', textAlign: 'right', fontWeight: 700, fontSize: '0.88rem', color: rowTotal > 0 ? '#818cf8' : 'var(--text-muted)', whiteSpace: 'nowrap', minWidth: '50px' }}>
+        {rowTotal > 0 ? rowTotal.toFixed(2) : '—'}
+      </td>
+      <td style={{ padding: '6px 6px', textAlign: 'center', verticalAlign: 'middle' }}>
+        {!readOnly && (
+          <button onClick={onDelete}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(239,68,68,0.35)', fontSize: '1rem', padding: '2px 4px', lineHeight: 1, borderRadius: '4px' }}
+            onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+            onMouseLeave={e => e.currentTarget.style.color = 'rgba(239,68,68,0.35)'}>×</button>
+        )}
+      </td>
+    </tr>
   );
 }
 
@@ -1027,7 +1077,7 @@ export default function MyTimesheet() {
                   </td></tr>
                 )}
                 {(timesheet?.rows || []).map(row => (
-                  <TimesheetRow key={row.id} row={row} dayKeys={dayKeys} allClients={allClients} allProjects={allProjects} allTasks={allTasks} readOnly={isSubmitted} todayKey={todayKey} onUpdate={handleRowUpdate} onDelete={() => handleDeleteRow(row.id)} colCount={dayKeys.length + 3} />
+                  <TimesheetRow key={row.id} row={row} dayKeys={dayKeys} allClients={allClients} allProjects={allProjects} allTasks={allTasks} readOnly={isSubmitted} todayKey={todayKey} onUpdate={handleRowUpdate} onDelete={() => handleDeleteRow(row.id)} />
                 ))}
                 {!isSubmitted && (
                   <tr><td colSpan={dayKeys.length + 3} style={{ padding: 0 }}>
