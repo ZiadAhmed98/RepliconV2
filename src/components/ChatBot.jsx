@@ -12,7 +12,7 @@ const SUGGESTIONS = [
   'Who should I assign to a new engagement?',
 ];
 
-// ── Markdown renderer (no external deps) ────────────────────────────────────
+// ── Markdown renderer ────────────────────────────────────────────────────────
 
 function parseInline(text, keyPrefix = '') {
   const parts = [];
@@ -31,14 +31,23 @@ function parseInline(text, keyPrefix = '') {
   return parts.length === 1 && typeof parts[0] === 'string' ? parts[0] : parts;
 }
 
+function parseTableRow(line) {
+  return line.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+}
+
+function isSepRow(cells) {
+  return cells.every(c => /^:?-+:?$/.test(c));
+}
+
 function renderMarkdown(text) {
   if (!text) return null;
-  const lines    = text.split('\n');
-  const elements = [];
-  let listItems  = [];
-  let listType   = null;
-  let listKey    = 0;
-  let elKey      = 0;
+  const lines      = text.split('\n');
+  const elements   = [];
+  let listItems    = [];
+  let listType     = null;
+  let tableLines   = [];
+  let listKey      = 0;
+  let elKey        = 0;
 
   const flushList = () => {
     if (!listItems.length) return;
@@ -54,7 +63,48 @@ function renderMarkdown(text) {
     listType  = null;
   };
 
+  const flushTable = () => {
+    if (!tableLines.length) return;
+    const rows   = tableLines.map(parseTableRow);
+    const sepIdx = rows.findIndex(isSepRow);
+    const header = rows[0];
+    const body   = sepIdx >= 0 ? rows.slice(sepIdx + 1) : rows.slice(1);
+    elements.push(
+      <div key={`tbl-${elKey++}`} className={styles.tableWrapper}>
+        <table className={styles.mdTable}>
+          <thead>
+            <tr>
+              {header.map((cell, j) => (
+                <th key={j} className={styles.mdTh}>{parseInline(cell, `th${j}-`)}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {body.filter(r => !isSepRow(r)).map((row, i) => (
+              <tr key={i} className={i % 2 === 0 ? styles.mdTrEven : styles.mdTrOdd}>
+                {row.map((cell, j) => (
+                  <td key={j} className={styles.mdTd}>{parseInline(cell, `td${i}-${j}-`)}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+    tableLines = [];
+  };
+
   for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith('|')) {
+      flushList();
+      tableLines.push(line);
+      continue;
+    }
+
+    flushTable();
+
     if (/^#{1,3}\s/.test(line)) {
       flushList();
       elements.push(
@@ -70,10 +120,10 @@ function renderMarkdown(text) {
       if (listType === 'ul') flushList();
       listType = 'ol';
       listItems.push(line.replace(/^\d+\.\s+/, ''));
-    } else if (/^-{3,}$/.test(line.trim())) {
+    } else if (/^-{3,}$/.test(trimmed)) {
       flushList();
       elements.push(<hr key={elKey++} className={styles.mdHr} />);
-    } else if (line.trim() === '') {
+    } else if (trimmed === '') {
       flushList();
       if (elements.length) elements.push(<div key={elKey++} className={styles.mdSpacer} />);
     } else {
@@ -85,11 +135,13 @@ function renderMarkdown(text) {
       );
     }
   }
+
   flushList();
+  flushTable();
   return elements;
 }
 
-// ── Sub-components ──────────────────────────────────────────────────────────
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function TypingDots() {
   return (
@@ -99,31 +151,68 @@ function TypingDots() {
   );
 }
 
-function Message({ msg, isStreaming }) {
-  const isUser = msg.role === 'user';
-  const showDots = !isUser && isStreaming && !msg.content;
+function Message({ msg, isStreaming, feedback, onFeedback }) {
+  const isUser     = msg.role === 'user';
+  const showDots   = !isUser && isStreaming && !msg.content;
+  const isComplete = !isUser && !isStreaming && !!msg.content;
+
   return (
     <div className={`${styles.msgRow} ${isUser ? styles.msgRowUser : styles.msgRowAi}`}>
       {!isUser && <div className={styles.aiAvatar}><i className="bx bx-chip" /></div>}
-      <div className={`${styles.bubble} ${isUser ? styles.bubbleUser : styles.bubbleAi}`}>
-        {showDots ? <TypingDots /> : isUser ? msg.content : renderMarkdown(msg.content)}
+
+      <div className={isUser ? null : styles.msgContent}>
+        <div className={`${styles.bubble} ${isUser ? styles.bubbleUser : styles.bubbleAi}`}>
+          {showDots
+            ? <TypingDots />
+            : isUser
+              ? msg.content
+              : renderMarkdown(msg.content)}
+        </div>
+
+        {isComplete && (
+          <div className={styles.feedbackRow}>
+            {!feedback && <span className={styles.feedbackLabel}>Helpful?</span>}
+            <button
+              className={`${styles.feedbackBtn} ${feedback === 'up' ? styles.feedbackUp : ''}`}
+              onClick={() => onFeedback?.('up')}
+              title="Good answer"
+              disabled={!!feedback}
+            >
+              <i className="bx bx-like" />
+            </button>
+            <button
+              className={`${styles.feedbackBtn} ${feedback === 'down' ? styles.feedbackDown : ''}`}
+              onClick={() => onFeedback?.('down')}
+              title="Needs improvement"
+              disabled={!!feedback}
+            >
+              <i className="bx bx-dislike" />
+            </button>
+            {feedback && (
+              <span className={styles.feedbackThanks}>
+                {feedback === 'up' ? 'Thanks!' : 'Noted — will improve.'}
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// ── Main component ──────────────────────────────────────────────────────────
+// ── Main component ────────────────────────────────────────────────────────────
 
 export default function ChatBot({ dataMatrix }) {
-  const [open,    setOpen]    = useState(false);
-  const [input,   setInput]   = useState('');
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState(null);
+  const [open,        setOpen]        = useState(false);
+  const [input,       setInput]       = useState('');
+  const [history,     setHistory]     = useState([]);
+  const [loading,     setLoading]     = useState(false);
+  const [error,       setError]       = useState(null);
+  const [feedbackMap, setFeedbackMap] = useState({});
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
 
-  // ── Build comprehensive context from live dataMatrix ───────────────────────
+  // ── Build comprehensive context ────────────────────────────────────────────
   const context = useMemo(() => {
     if (!dataMatrix) return {};
     const { factTable = [], dimensionTable = {}, roster = [], compliance = {}, topClients = [] } = dataMatrix;
@@ -131,7 +220,7 @@ export default function ChatBot({ dataMatrix }) {
     const now   = Date.now();
     const ms30  = 30 * 86400000;
     const ms7   =  7 * 86400000;
-    const EXPECTED_30D = 176; // 8h/day × 22 working days
+    const EXPECTED_30D = 176;
 
     const hrs30 = {}, hrs7 = {}, empProjects = {};
     factTable.forEach(r => {
@@ -159,23 +248,23 @@ export default function ChatBot({ dataMatrix }) {
       .sort((a, b) => b.hoursLast30d - a.hoursLast30d);
 
     const projects = Object.entries(dimensionTable).map(([name, d]) => {
-      const allHrs   = factTable.filter(r => r.project === name).reduce((s, r) => s + r.act, 0);
-      const recent30 = factTable.filter(r => r.project === name && r.date >= now - ms30).reduce((s, r) => s + r.act, 0);
+      const allHrs    = factTable.filter(r => r.project === name).reduce((s, r) => s + r.act, 0);
+      const recent30  = factTable.filter(r => r.project === name && r.date >= now - ms30).reduce((s, r) => s + r.act, 0);
       const burnPerDay = recent30 / 30;
       const remaining  = d.est - allHrs;
       return {
         name,
-        client:                  d.client,
-        status:                  d.status,
-        estimatedHrs:            Math.round(d.est),
-        actualHrs:               Math.round(allHrs),
-        remainingHrs:            Math.round(remaining),
-        burnPct:                 d.est > 0 ? Math.round((allHrs / d.est) * 100) : 0,
-        recentHrsLast30d:        Math.round(recent30),
-        burnRateHrsPerDay:       Math.round(burnPerDay * 10) / 10,
-        forecastDaysToComplete:  burnPerDay > 0 && remaining > 0 ? Math.round(remaining / burnPerDay) : null,
-        isOverBudget:            d.est > 0 && allHrs > d.est,
-        isAtRisk:                d.est > 0 && allHrs / d.est > 0.8 && allHrs <= d.est,
+        client:                 d.client,
+        status:                 d.status,
+        estimatedHrs:           Math.round(d.est),
+        actualHrs:              Math.round(allHrs),
+        remainingHrs:           Math.round(remaining),
+        burnPct:                d.est > 0 ? Math.round((allHrs / d.est) * 100) : 0,
+        recentHrsLast30d:       Math.round(recent30),
+        burnRateHrsPerDay:      Math.round(burnPerDay * 10) / 10,
+        forecastDaysToComplete: burnPerDay > 0 && remaining > 0 ? Math.round(remaining / burnPerDay) : null,
+        isOverBudget:           d.est > 0 && allHrs > d.est,
+        isAtRisk:               d.est > 0 && allHrs / d.est > 0.8 && allHrs <= d.est,
       };
     })
     .filter(p => p.actualHrs > 0 || p.estimatedHrs > 0)
@@ -208,7 +297,6 @@ export default function ChatBot({ dataMatrix }) {
   }, [dataMatrix]);
 
   // ── Effects ────────────────────────────────────────────────────────────────
-
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 100);
   }, [open]);
@@ -217,7 +305,6 @@ export default function ChatBot({ dataMatrix }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [history, loading]);
 
-  // Auto-resize textarea
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
@@ -225,8 +312,19 @@ export default function ChatBot({ dataMatrix }) {
     el.style.height = Math.min(el.scrollHeight, 120) + 'px';
   }, [input]);
 
-  // ── Send (streaming) ───────────────────────────────────────────────────────
+  // ── Feedback ───────────────────────────────────────────────────────────────
+  const sendFeedback = useCallback((msgIndex, rating) => {
+    setFeedbackMap(prev => ({ ...prev, [msgIndex]: rating }));
+    const aiMsg   = history[msgIndex];
+    const userMsg = history[msgIndex - 1];
+    fetch('/api/v1/chat/feedback', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rating, question: userMsg?.content || '', answer: aiMsg?.content || '' }),
+    }).catch(() => {});
+  }, [history]);
 
+  // ── Send (streaming) ───────────────────────────────────────────────────────
   const send = useCallback(async (text) => {
     const msg = (text || input).trim();
     if (!msg || loading) return;
@@ -238,14 +336,9 @@ export default function ChatBot({ dataMatrix }) {
 
     try {
       const response = await fetch('/api/v1/chat', {
-        method: 'POST',
-        credentials: 'include',
+        method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: msg,
-          history: prevHistory.filter(m => m.content),
-          context,
-        }),
+        body: JSON.stringify({ message: msg, history: prevHistory.filter(m => m.content), context }),
       });
 
       if (!response.ok || !response.body) {
@@ -261,7 +354,6 @@ export default function ChatBot({ dataMatrix }) {
       outer: while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
@@ -278,10 +370,7 @@ export default function ChatBot({ dataMatrix }) {
           if (parsed.text) {
             setHistory(h => {
               const next = [...h];
-              next[next.length - 1] = {
-                ...next[next.length - 1],
-                content: next[next.length - 1].content + parsed.text,
-              };
+              next[next.length - 1] = { ...next[next.length - 1], content: next[next.length - 1].content + parsed.text };
               return next;
             });
           }
@@ -306,13 +395,11 @@ export default function ChatBot({ dataMatrix }) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   };
 
-  const clearChat = () => { setHistory([]); setError(null); };
+  const clearChat = () => { setHistory([]); setError(null); setFeedbackMap({}); };
 
   // ── Render ─────────────────────────────────────────────────────────────────
-
   return (
     <>
-      {/* Floating action button */}
       <button
         className={`${styles.fab} ${open ? styles.fabOpen : ''}`}
         onClick={() => setOpen(o => !o)}
@@ -322,10 +409,8 @@ export default function ChatBot({ dataMatrix }) {
         {!open && history.length === 0 && <span className={styles.fabPulse} />}
       </button>
 
-      {/* Chat panel */}
       <div className={`${styles.panel} ${open ? styles.panelOpen : ''}`}>
 
-        {/* Header */}
         <div className={styles.header}>
           <div className={styles.headerLeft}>
             <div className={styles.headerIcon}><i className="bx bx-chip" /></div>
@@ -346,7 +431,6 @@ export default function ChatBot({ dataMatrix }) {
           </div>
         </div>
 
-        {/* Messages */}
         <div className={styles.messages}>
           {history.length === 0 && (
             <div className={styles.emptyState}>
@@ -364,12 +448,13 @@ export default function ChatBot({ dataMatrix }) {
               key={i}
               msg={msg}
               isStreaming={loading && i === history.length - 1}
+              feedback={feedbackMap[i]}
+              onFeedback={msg.role === 'assistant' ? (rating) => sendFeedback(i, rating) : null}
             />
           ))}
           <div ref={bottomRef} />
         </div>
 
-        {/* Input */}
         <div className={styles.inputArea}>
           <textarea
             ref={inputRef}
@@ -393,7 +478,6 @@ export default function ChatBot({ dataMatrix }) {
         <div className={styles.inputHint}>Enter to send · Shift+Enter for new line</div>
       </div>
 
-      {/* Backdrop (mobile) */}
       {open && <div className={styles.backdrop} onClick={() => setOpen(false)} />}
     </>
   );

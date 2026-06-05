@@ -750,6 +750,16 @@ app.post('/api/v1/chat', requireAuth, async (req, res) => {
   const today   = new Date().toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
   const company = (process.env.REPLICON_COMPANY || 'the company');
 
+  // Load past feedback to guide response quality
+  const chatFeedback = readJSON(CHAT_FEEDBACK_FILE, []);
+  const goodEx = chatFeedback.filter(f => f.rating === 'up').slice(-5);
+  const badEx  = chatFeedback.filter(f => f.rating === 'down').slice(-5);
+  const fbSection = (goodEx.length || badEx.length) ? `
+
+RESPONSE QUALITY FEEDBACK — calibrate your style based on user ratings:
+${goodEx.map(f => `✅ GOOD (replicate this style)\nQ: "${f.question.slice(0,120)}"\n${f.answer.slice(0,300)}`).join('\n\n')}
+${badEx.map(f  => `❌ POOR (avoid this style)\nQ: "${f.question.slice(0,120)}"\n${f.answer.slice(0,300)}`).join('\n\n')}` : '';
+
   const systemPrompt = `You are an AI workforce management assistant for ${company}, a professional services firm using Replicon for time tracking and project management.
 Today is ${today}.
 
@@ -769,13 +779,15 @@ THINGS YOU CAN DO:
 
 HOW TO RESPOND:
 - ALWAYS use real names, exact numbers, and project names from the data — never invent figures
+- For burn/budget analysis: note that managed services and SLA projects accumulate hours across multiple contract periods, so 500%+ burn is expected and normal for those — clarify this in your response rather than flagging them as problems
 - For forecasts: show the calculation (e.g. "burning 12h/week with 200h remaining = ~17 weeks to budget exhaustion")
 - For recommendations: explain reasoning ("Sarah has 38% utilization vs expected ~100%, giving her clear capacity")
 - Use **bold** for key names/numbers, bullet points for lists, headings for multi-section answers
+- When presenting tabular data, ALWAYS use markdown table format: | Col | Col | with | --- | separator row
 - If data is insufficient to answer fully, say what you DO know and what additional data would help
 - Match the user's tone — brief question = brief answer, detailed question = detailed answer
 - Respond in the same language the user writes in
-
+${fbSection}
 LIVE WORKFORCE DATA (as of ${today}):
 ${JSON.stringify(dataCtx, null, 2)}`;
 
@@ -839,6 +851,24 @@ ${JSON.stringify(dataCtx, null, 2)}`;
   }
 });
 
+// ── Chat response feedback (thumbs up / down) ────────────────────────────────
+app.post('/api/v1/chat/feedback', requireAuth, (req, res) => {
+  const { rating, question, answer } = req.body || {};
+  if (!['up', 'down'].includes(rating)) return res.status(400).json({ error: 'rating must be "up" or "down"' });
+  const all = readJSON(CHAT_FEEDBACK_FILE, []);
+  all.push({
+    id:        crypto.randomUUID(),
+    timestamp: new Date().toISOString(),
+    user:      req.user.name,
+    rating,
+    question:  (question || '').slice(0, 500),
+    answer:    (answer   || '').slice(0, 1000),
+  });
+  writeJSON(CHAT_FEEDBACK_FILE, all.slice(-200));
+  logger.info({ user: req.user.name, rating }, 'Chat feedback recorded');
+  res.json({ ok: true });
+});
+
 // ============================================================================
 // AI INSIGHTS — persistent feedback, open-ended Claude, auto-generation
 // ============================================================================
@@ -847,7 +877,8 @@ ${JSON.stringify(dataCtx, null, 2)}`;
 const DATA_DIR        = path.join(__dirname, 'data');
 const FEEDBACK_FILE   = path.join(DATA_DIR, 'insights-feedback.json');
 const CACHE_FILE      = path.join(DATA_DIR, 'insights-cache.json');
-const SUMMARY_FILE    = path.join(DATA_DIR, 'insights-summary.json');
+const SUMMARY_FILE       = path.join(DATA_DIR, 'insights-summary.json');
+const CHAT_FEEDBACK_FILE = path.join(DATA_DIR, 'chat-feedback.json');
 
 if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
 
