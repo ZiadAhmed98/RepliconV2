@@ -1,395 +1,427 @@
-/* =========================================================================
-   GLOBAL DESIGN SYSTEM — MDS Premium V2
-   Google Material You · Apple HIG · Linear · Stripe level polish
-   ========================================================================= */
+/* ============================================================
+   OBSIDIAN GLASS — MDS Premium V2
+   The most modern dashboard design system you've ever seen.
+   Aurora mesh · Dot grid · 3D depth cards · Neon accents
+   ============================================================ */
 
-/* ── Google Fonts import ──────────────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 
-/* ── Design Tokens ──────────────────────────────────────────────────────── */
+/* ── 1. DESIGN TOKENS ──────────────────────────────────────────────────── */
 :root {
   /* Backgrounds */
-  --bg-main:      #050508;
-  --bg-card:      rgba(255, 255, 255, 0.035);
-  --bg-card-hover:rgba(255, 255, 255, 0.055);
-  --bg-menu:      rgba(12, 12, 18, 0.92);
-  --bg-input:     rgba(255, 255, 255, 0.05);
-  --bg-input-focus: rgba(168, 85, 247, 0.07);
-
-  /* Text */
-  --text-main:    #f2f2f7;
-  --text-sub:     #c7c7cc;
-  --text-muted:   #8e8e93;
-  --text-dim:     #636366;
+  --bg-void:        #040408;
+  --bg-surface:     #08080f;
+  --bg-elevated:    #0d0d18;
+  --bg-card:        rgba(255,255,255,0.026);
+  --bg-card-hover:  rgba(255,255,255,0.05);
+  --bg-input:       rgba(255,255,255,0.045);
+  --bg-input-focus: rgba(109,40,217,0.08);
+  --bg-menu:        rgba(8,8,15,0.94);
 
   /* Borders */
-  --border-color: rgba(255, 255, 255, 0.07);
-  --border-hover: rgba(255, 255, 255, 0.14);
-  --border-focus: rgba(168, 85, 247, 0.6);
+  --border:         rgba(255,255,255,0.065);
+  --border-hover:   rgba(255,255,255,0.13);
+  --border-focus:   rgba(139,92,246,0.7);
+  --border-glow:    rgba(139,92,246,0.4);
 
-  /* Brand Accents */
-  --accent-primary:      #a855f7;
-  --accent-primary-dim:  rgba(168, 85, 247, 0.12);
-  --accent-primary-glow: rgba(168, 85, 247, 0.3);
-  --accent-blue:         #0ea5e9;
-  --accent-blue-dim:     rgba(14, 165, 233, 0.12);
-  --accent-green:        #22c55e;
-  --accent-green-dim:    rgba(34, 197, 94, 0.12);
-  --accent-yellow:       #eab308;
-  --accent-yellow-dim:   rgba(234, 179, 8, 0.12);
-  --accent-red:          #ef4444;
-  --accent-red-dim:      rgba(239, 68, 68, 0.12);
-  --accent-coral:        #f97316;
-  --accent-indigo:       #6366f1;
-  --accent-teal:         #14b8a6;
+  /* Text */
+  --text-1:   #fafafa;
+  --text-2:   #d4d4d8;
+  --text-3:   #a1a1aa;
+  --text-4:   #71717a;
+  --text-5:   #52525b;
+
+  /* Brand gradient */
+  --grad-primary:  linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
+  --grad-accent:   linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+  --grad-hot:      linear-gradient(135deg, #ec4899 0%, #a855f7 100%);
+  --grad-success:  linear-gradient(135deg, #059669 0%, #10b981 100%);
+  --grad-warn:     linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+  --grad-danger:   linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+  --grad-text:     linear-gradient(135deg, #a78bfa 0%, #38bdf8 60%, #a78bfa 100%);
+
+  /* Solid accents */
+  --violet:   #8b5cf6;
+  --cyan:     #06b6d4;
+  --blue:     #3b82f6;
+  --emerald:  #10b981;
+  --amber:    #f59e0b;
+  --rose:     #f43f5e;
+  --pink:     #ec4899;
+  --indigo:   #6366f1;
 
   /* Semantic */
-  --color-success:    #22c55e;
-  --color-success-bg: rgba(34, 197, 94, 0.10);
-  --color-warning:    #eab308;
-  --color-warning-bg: rgba(234, 179, 8, 0.10);
-  --color-danger:     #ef4444;
-  --color-danger-bg:  rgba(239, 68, 68, 0.10);
-  --color-info:       #0ea5e9;
-  --color-info-bg:    rgba(14, 165, 233, 0.10);
+  --success:    #10b981; --success-bg:  rgba(16,185,129,0.10);
+  --warning:    #f59e0b; --warning-bg:  rgba(245,158,11,0.10);
+  --danger:     #ef4444; --danger-bg:   rgba(239,68,68,0.10);
+  --info:       #06b6d4; --info-bg:     rgba(6,182,212,0.10);
 
   /* Radius */
-  --radius-xs:   4px;
-  --radius-sm:   8px;
-  --radius-md:   12px;
-  --radius-lg:   18px;
-  --radius-xl:   24px;
-  --radius-2xl:  32px;
-  --radius-full: 9999px;
+  --r-xs: 5px;  --r-sm: 9px;   --r-md: 13px;
+  --r-lg: 18px; --r-xl: 24px;  --r-2xl: 32px; --r-full: 9999px;
 
-  /* Spacing (8-pt grid) */
-  --space-1: 4px;  --space-2: 8px;   --space-3: 12px;
-  --space-4: 16px; --space-5: 20px;  --space-6: 24px;
-  --space-8: 32px; --space-10: 40px; --space-12: 48px;
+  /* Spacing (8pt) */
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:20px;
+  --s6:24px; --s8:32px; --s10:40px; --s12:48px;
 
-  /* Typography */
-  --text-xs:  11px; --text-sm: 13px; --text-base: 15px;
-  --text-lg:  17px; --text-xl: 20px; --text-2xl:  26px; --text-3xl: 34px;
-  --fw-reg:   400;  --fw-med:  500;  --fw-semi:   600;  --fw-bold:  700; --fw-black: 800;
+  /* Type */
+  --t-xs:11px; --t-sm:13px; --t-base:15px;
+  --t-lg:18px; --t-xl:22px; --t-2xl:28px; --t-3xl:36px;
 
   /* Shadows */
-  --shadow-xs: 0 1px 2px rgba(0,0,0,0.4);
-  --shadow-sm: 0 2px 8px rgba(0,0,0,0.45);
-  --shadow-md: 0 4px 20px rgba(0,0,0,0.5);
-  --shadow-lg: 0 12px 40px rgba(0,0,0,0.55);
-  --shadow-glass: inset 0 1px 0 rgba(255,255,255,0.06), 0 1px 3px rgba(0,0,0,0.5);
-  --shadow-glow-purple: 0 0 24px rgba(168,85,247,0.18);
-  --shadow-glow-blue:   0 0 24px rgba(14,165,233,0.18);
+  --shadow-card:   0 0 0 1px var(--border), 0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.055);
+  --shadow-card-hover: 0 0 0 1px var(--border-hover), 0 20px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08);
+  --shadow-glow-v: 0 0 32px rgba(139,92,246,0.25);
+  --shadow-glow-c: 0 0 32px rgba(6,182,212,0.2);
+  --shadow-btn:    0 2px 12px rgba(109,40,217,0.45);
+  --shadow-btn-hover: 0 4px 24px rgba(109,40,217,0.6);
 
   /* Layout */
-  --sidebar-width:           240px;
-  --sidebar-width-collapsed: 72px;
-  --ribbon-height:           60px;
-  --content-padding:         32px;
+  --sidebar-w:  240px;
+  --sidebar-wc: 72px;
+  --ribbon-h:   58px;
+  --pad:        28px;
 }
 
-/* ── Light mode ──────────────────────────────────────────────────────────── */
+/* Light theme */
 [data-theme="light"] {
-  --bg-main:       #f8f8fa;
-  --bg-card:       rgba(255, 255, 255, 0.85);
-  --bg-card-hover: rgba(255, 255, 255, 0.95);
-  --bg-menu:       rgba(248, 248, 252, 0.95);
-  --bg-input:      rgba(0, 0, 0, 0.04);
-  --bg-input-focus:rgba(168, 85, 247, 0.05);
-
-  --text-main:    #09090b;
-  --text-sub:     #27272a;
-  --text-muted:   #71717a;
-  --text-dim:     #a1a1aa;
-
-  --border-color: rgba(0, 0, 0, 0.08);
-  --border-hover: rgba(0, 0, 0, 0.15);
-
-  --shadow-glass: inset 0 1px 0 rgba(255,255,255,0.9), 0 1px 4px rgba(0,0,0,0.08);
+  --bg-void:     #f0f0f8;
+  --bg-surface:  #f7f7fc;
+  --bg-elevated: #ffffff;
+  --bg-card:     rgba(255,255,255,0.7);
+  --bg-card-hover: rgba(255,255,255,0.9);
+  --bg-input:    rgba(0,0,0,0.04);
+  --bg-input-focus: rgba(109,40,217,0.05);
+  --bg-menu:     rgba(248,248,255,0.96);
+  --border:      rgba(0,0,0,0.08);
+  --border-hover:rgba(0,0,0,0.15);
+  --text-1: #09090b; --text-2: #27272a; --text-3: #71717a;
+  --text-4: #a1a1aa; --text-5: #d4d4d8;
+  --shadow-card: 0 0 0 1px var(--border), 0 4px 20px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.9);
 }
 
-/* ── Base ────────────────────────────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; }
-html, body, #root { width: 100%; margin: 0; padding: 0; overflow-x: hidden; }
+/* ── 2. RESET & BASE ───────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body, #root { width: 100%; overflow-x: hidden; }
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background-color: var(--bg-main);
-  background-image:
-    radial-gradient(ellipse at 15% 0%,   rgba(139, 92, 246, 0.20) 0px, transparent 50%),
-    radial-gradient(ellipse at 85% 5%,   rgba(14, 165, 233, 0.13) 0px, transparent 45%),
-    radial-gradient(ellipse at 50% 95%,  rgba(99,  102, 241, 0.10) 0px, transparent 50%);
-  background-attachment: fixed;
-  color: var(--text-main);
+  background-color: var(--bg-void);
+  color: var(--text-1);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.5;
-  letter-spacing: -0.011em;
-  transition: background-color 0.3s, color 0.3s;
+  letter-spacing: -0.012em;
+  position: relative;
+  overflow-x: hidden;
 }
 
-/* ── Form Inputs — unified premium style ────────────────────────────────── */
+/* ── 3. ANIMATED AURORA BACKGROUND ────────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 10%,  rgba(109,40,217,0.18) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 50% at 85% 15%,  rgba(6,182,212,0.13)  0%, transparent 50%),
+    radial-gradient(ellipse 70% 55% at 60% 85%,  rgba(99,102,241,0.10) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 40% at 10% 80%,  rgba(236,72,153,0.07) 0%, transparent 50%);
+  animation: auroraFloat 18s ease-in-out infinite alternate;
+  pointer-events: none;
+  z-index: 0;
+}
+@keyframes auroraFloat {
+  0%   { transform: scale(1)    rotate(0deg)   translate(0,     0); }
+  25%  { transform: scale(1.04) rotate(1.2deg) translate(-1%,  1%); }
+  50%  { transform: scale(1.07) rotate(2.5deg) translate( 1%, -2%); }
+  75%  { transform: scale(1.04) rotate(1deg)   translate( 2%,  1%); }
+  100% { transform: scale(1.08) rotate(3deg)   translate(-1%,  2%); }
+}
+
+/* Dot grid overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.09) 1px, transparent 1px);
+  background-size: 36px 36px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.45;
+  mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, #000 30%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, #000 30%, transparent 80%);
+}
+
+/* Ensure content sits above bg effects */
+#root > * { position: relative; z-index: 1; }
+
+/* ── 4. FORM INPUTS ────────────────────────────────────────────────────── */
 select, input[type="date"], input[type="time"] { color-scheme: dark; }
-[data-theme="light"] select,
-[data-theme="light"] input[type="date"] { color-scheme: light; }
+[data-theme="light"] select, [data-theme="light"] input[type="date"] { color-scheme: light; }
 
-select option { background-color: #18181b !important; color: #f4f4f5 !important; }
+select option { background: #0d0d18 !important; color: #fafafa !important; }
 
-input[type="date"],
-input[type="text"],
-input[type="password"],
-input[type="email"],
-input[type="number"],
-input[type="search"],
-select,
-textarea {
+input[type="text"], input[type="password"], input[type="email"],
+input[type="number"], input[type="search"], input[type="date"],
+select, textarea {
   background: var(--bg-input) !important;
-  color: var(--text-main) !important;
-  border: 1px solid var(--border-color) !important;
-  border-radius: var(--radius-md) !important;
-  padding: 11px 14px !important;
+  color: var(--text-1) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--r-sm) !important;
+  padding: 10px 13px !important;
   font-family: inherit;
-  font-size: var(--text-sm);
-  font-weight: var(--fw-med);
+  font-size: var(--t-sm);
+  font-weight: 500;
   outline: none;
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
-  min-width: 0;
+  transition: border-color 0.18s, box-shadow 0.18s, background 0.18s;
   width: 100%;
 }
-
 input:focus, select:focus, textarea:focus {
   border-color: var(--border-focus) !important;
   background: var(--bg-input-focus) !important;
-  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.15) !important;
+  box-shadow: 0 0 0 3px rgba(139,92,246,0.15), 0 0 0 1px rgba(139,92,246,0.4) !important;
 }
-
+input::placeholder { color: var(--text-5); }
 input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(1); opacity: 0.35; cursor: pointer;
-  transition: opacity 0.15s;
+  filter: invert(0.6); cursor: pointer; transition: filter 0.15s;
 }
-input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 0.7; }
+input[type="date"]::-webkit-calendar-picker-indicator:hover { filter: invert(0.9); }
 
-/* ── Content layout ──────────────────────────────────────────────────────── */
-.dashboard-container {
-  padding: var(--content-padding);
-  width: 100%; max-width: none !important;
-}
+/* ── 5. LAYOUT ─────────────────────────────────────────────────────────── */
+.dashboard-container { padding: var(--pad); width: 100%; max-width: none !important; position: relative; z-index: 1; }
 
-/* ── KPI Cards — Stripe/Linear style ────────────────────────────────────── */
+/* ── 6. KPI CARDS ──────────────────────────────────────────────────────── */
 .kpi-card {
   background: var(--bg-card);
-  backdrop-filter: blur(24px) saturate(120%);
-  -webkit-backdrop-filter: blur(24px) saturate(120%);
+  backdrop-filter: blur(28px) saturate(130%);
+  -webkit-backdrop-filter: blur(28px) saturate(130%);
   padding: 22px 24px;
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--border-color);
-  border-left: 3px solid transparent;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  position: relative;
-  transition: transform 0.2s ease, border-color 0.2s, box-shadow 0.2s;
-  box-shadow: var(--shadow-glass);
-  overflow: hidden;
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-card);
+  display: flex; flex-direction: column; justify-content: space-between;
+  position: relative; overflow: hidden;
+  transition: box-shadow 0.25s ease;
+  transform-style: preserve-3d;
+  will-change: transform;
+  animation: cardEntrance 0.5s cubic-bezier(0.2,0.8,0.2,1) both;
 }
+
+/* Animated gradient border on hover via pseudo-element */
 .kpi-card::before {
   content: '';
   position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, transparent 60%);
+  inset: 0; border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(139,92,246,0.5), rgba(6,182,212,0.5), rgba(236,72,153,0.3));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0; transition: opacity 0.3s;
   pointer-events: none;
 }
-.kpi-card:hover {
-  transform: translateY(-2px);
-  border-left-color: var(--accent-primary);
-  box-shadow: var(--shadow-glass), var(--shadow-glow-purple);
+/* Inner light that follows mouse via CSS vars */
+.kpi-card::after {
+  content: '';
+  position: absolute; inset: 0; border-radius: inherit;
+  background: radial-gradient(
+    circle at var(--glow-x, 50%) var(--glow-y, 50%),
+    rgba(255,255,255,0.07) 0%,
+    transparent 60%
+  );
+  opacity: 0; transition: opacity 0.2s; pointer-events: none;
 }
-.kpi-card p {
-  margin: 0;
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  font-weight: var(--fw-semi);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.kpi-card h3 {
-  margin: 8px 0 0;
-  font-size: 2rem;
-  font-weight: var(--fw-black);
-  color: var(--text-main);
-  letter-spacing: -0.04em;
-  line-height: 1.1;
-}
-.kpi-delta {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
-  font-size: var(--text-xs);
-  font-weight: var(--fw-semi);
-  margin-top: 6px;
-}
-.kpi-delta.up   { background: var(--color-success-bg); color: var(--color-success); }
-.kpi-delta.down { background: var(--color-danger-bg);  color: var(--color-danger);  }
-.kpi-delta.flat { background: rgba(255,255,255,0.06);   color: var(--text-muted);    }
-.trend {
-  font-size: var(--text-xs);
-  display: flex; align-items: center; gap: 5px;
-  margin-top: 10px;
-  color: var(--text-muted);
-  font-weight: var(--fw-med);
-}
+.kpi-card:hover { box-shadow: var(--shadow-card-hover); }
+.kpi-card:hover::before { opacity: 1; }
+.kpi-card:hover::after  { opacity: 1; }
 
-/* ── Chart Cards ─────────────────────────────────────────────────────────── */
+.kpi-card p  { font-size: var(--t-xs); color: var(--text-3); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; }
+.kpi-card h3 { font-size: 2rem; font-weight: 800; color: var(--text-1); letter-spacing: -0.04em; line-height: 1.1; margin-top: 8px; font-variant-numeric: tabular-nums; }
+.kpi-delta { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: var(--r-full); font-size: 10px; font-weight: 600; margin-top: 6px; }
+.kpi-delta.up   { background: var(--success-bg); color: var(--success); }
+.kpi-delta.down { background: var(--danger-bg);  color: var(--danger);  }
+.kpi-delta.flat { background: rgba(255,255,255,0.05); color: var(--text-3); }
+.trend { font-size: var(--t-xs); display: flex; align-items: center; gap: 5px; margin-top: 10px; color: var(--text-3); font-weight: 500; }
+
+/* Stagger animation for KPI cards */
+@keyframes cardEntrance {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+.kpi-card:nth-child(1) { animation-delay: 0.04s; }
+.kpi-card:nth-child(2) { animation-delay: 0.08s; }
+.kpi-card:nth-child(3) { animation-delay: 0.12s; }
+.kpi-card:nth-child(4) { animation-delay: 0.16s; }
+.kpi-card:nth-child(5) { animation-delay: 0.20s; }
+.kpi-card:nth-child(6) { animation-delay: 0.24s; }
+.kpi-card:nth-child(7) { animation-delay: 0.28s; }
+.kpi-card:nth-child(8) { animation-delay: 0.32s; }
+
+/* ── 7. CHART CARDS ────────────────────────────────────────────────────── */
 .chart-card {
   background: var(--bg-card);
-  backdrop-filter: blur(24px) saturate(120%);
-  -webkit-backdrop-filter: blur(24px) saturate(120%);
+  backdrop-filter: blur(28px) saturate(130%);
+  -webkit-backdrop-filter: blur(28px) saturate(130%);
   padding: 24px;
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--border-color);
-  display: flex;
-  flex-direction: column;
-  box-shadow: var(--shadow-glass);
-  transition: border-color 0.2s, box-shadow 0.2s;
-  position: relative;
-  overflow: hidden;
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-card);
+  display: flex; flex-direction: column;
+  position: relative; overflow: hidden;
+  transition: box-shadow 0.25s ease;
+  transform-style: preserve-3d;
+  will-change: transform;
 }
 .chart-card::before {
   content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
-  pointer-events: none;
+  position: absolute; inset: 0; border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(139,92,246,0.45), rgba(6,182,212,0.45), rgba(236,72,153,0.25));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0; transition: opacity 0.3s; pointer-events: none;
 }
-.chart-card:hover {
-  border-color: var(--border-hover);
-  box-shadow: var(--shadow-glass), var(--shadow-sm);
+.chart-card::after {
+  content: '';
+  position: absolute; inset: 0; border-radius: inherit;
+  background: radial-gradient(circle at var(--glow-x,50%) var(--glow-y,50%), rgba(255,255,255,0.05) 0%, transparent 55%);
+  opacity: 0; transition: opacity 0.2s; pointer-events: none;
 }
+/* Top shimmer line */
+.chart-card > *:first-child::before {
+  display: none; /* reset — inner shimmer handled by pseudo */
+}
+.chart-card:hover { box-shadow: var(--shadow-card-hover); }
+.chart-card:hover::before { opacity: 1; }
+.chart-card:hover::after  { opacity: 1; }
+
 .chart-card h4 {
-  margin: 0 0 18px;
-  font-size: var(--text-base);
-  color: var(--text-main);
-  font-weight: var(--fw-semi);
-  letter-spacing: -0.01em;
+  margin: 0 0 16px;
+  font-size: var(--t-base); color: var(--text-1);
+  font-weight: 600; letter-spacing: -0.015em;
   display: flex; align-items: center; gap: 8px;
 }
 
-/* ── Buttons ─────────────────────────────────────────────────────────────── */
+/* ── 8. BUTTONS ────────────────────────────────────────────────────────── */
 .btn-primary {
-  background: linear-gradient(135deg, #a855f7, #7c3aed);
-  color: #fff;
-  border: none;
-  padding: 10px 20px;
-  border-radius: var(--radius-md);
-  font-family: inherit;
-  font-weight: var(--fw-semi);
-  font-size: var(--text-sm);
-  cursor: pointer;
-  transition: all 0.2s;
+  background: var(--grad-primary);
+  background-size: 200% 200%;
+  color: #fff; border: none;
+  padding: 10px 20px; border-radius: var(--r-md);
+  font-family: inherit; font-weight: 600; font-size: var(--t-sm);
+  cursor: pointer; transition: all 0.2s;
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-  box-shadow: 0 2px 8px rgba(124,58,237,0.35);
-  letter-spacing: -0.01em;
+  box-shadow: var(--shadow-btn);
+  letter-spacing: -0.01em; position: relative; overflow: hidden;
 }
-.btn-primary:hover {
-  background: linear-gradient(135deg, #b866ff, #8b4fe0);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(124,58,237,0.45);
+.btn-primary::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 50%);
+  opacity: 0; transition: opacity 0.2s;
 }
+.btn-primary:hover { box-shadow: var(--shadow-btn-hover); transform: translateY(-1px); }
+.btn-primary:hover::before { opacity: 1; }
 .btn-primary:active { transform: scale(0.98); }
 
 .btn-ghost {
   background: var(--bg-input);
-  color: var(--text-sub);
-  border: 1px solid var(--border-color);
-  padding: 10px 20px;
-  border-radius: var(--radius-md);
-  font-family: inherit;
-  font-weight: var(--fw-med);
-  font-size: var(--text-sm);
-  cursor: pointer;
-  transition: all 0.15s;
+  color: var(--text-2); border: 1px solid var(--border);
+  padding: 10px 20px; border-radius: var(--r-md);
+  font-family: inherit; font-weight: 500; font-size: var(--t-sm);
+  cursor: pointer; transition: all 0.15s;
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
 }
-.btn-ghost:hover {
-  background: rgba(255,255,255,0.08);
-  border-color: var(--border-hover);
-  color: var(--text-main);
-}
+.btn-ghost:hover { background: rgba(255,255,255,0.08); border-color: var(--border-hover); color: var(--text-1); }
 
-/* ── Badges ──────────────────────────────────────────────────────────────── */
-.badges-container { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-height: 24px; }
+/* ── 9. BADGES ─────────────────────────────────────────────────────────── */
+.badges-container { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .badge-base {
-  padding: 3px 10px;
-  border-radius: var(--radius-full);
-  font-size: var(--text-xs);
-  font-weight: var(--fw-semi);
-  display: inline-flex; align-items: center;
-  height: 22px;
-  letter-spacing: 0.02em;
+  padding: 3px 10px; border-radius: var(--r-full);
+  font-size: 10px; font-weight: 600;
+  display: inline-flex; align-items: center; height: 22px; letter-spacing: 0.03em;
 }
-.period-badge        { background: rgba(255,255,255,0.07); color: var(--text-sub); border: 1px solid var(--border-color); }
-.active-filter-badge { background: var(--accent-primary-dim); color: #c4b5fd; border: 1px solid rgba(168,85,247,0.25); }
+.period-badge        { background: rgba(255,255,255,0.07); color: var(--text-2); border: 1px solid var(--border); }
+.active-filter-badge { background: rgba(139,92,246,0.14);  color: #c4b5fd;     border: 1px solid rgba(139,92,246,0.3); }
 
-/* ── ApexCharts overrides ────────────────────────────────────────────────── */
+/* ── 10. GRADIENT TEXT UTILITY ─────────────────────────────────────────── */
+.gradient-text {
+  background: var(--grad-text);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradientShift 4s linear infinite;
+}
+@keyframes gradientShift {
+  0%   { background-position: 0% center; }
+  100% { background-position: 200% center; }
+}
+
+/* ── 11. APEXCHARTS OVERRIDES ──────────────────────────────────────────── */
 .apexcharts-svg, .apexcharts-canvas { background: transparent !important; }
 .apexcharts-canvas { margin: 0 auto; }
-
 .apexcharts-menu {
-  background: rgba(18,18,24,0.96) !important;
-  backdrop-filter: blur(20px) !important;
-  border: 1px solid var(--border-color) !important;
-  color: var(--text-main) !important;
-  border-radius: var(--radius-md) !important;
-  box-shadow: var(--shadow-lg) !important;
+  background: rgba(8,8,15,0.97) !important;
+  backdrop-filter: blur(24px) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--r-md) !important;
+  box-shadow: 0 20px 48px rgba(0,0,0,0.7) !important;
 }
-.apexcharts-menu-item { padding: 8px 14px !important; font-size: var(--text-xs) !important; font-weight: var(--fw-med) !important; }
-.apexcharts-menu-item:hover { background: rgba(255,255,255,0.07) !important; }
-
+.apexcharts-menu-item { padding: 9px 14px !important; font-size: 12px !important; font-weight: 500 !important; }
+.apexcharts-menu-item:hover { background: rgba(139,92,246,0.12) !important; }
 .apexcharts-tooltip {
-  background: rgba(13,13,18,0.96) !important;
-  backdrop-filter: blur(20px) !important;
-  border: 1px solid var(--border-color) !important;
-  border-radius: var(--radius-lg) !important;
-  box-shadow: var(--shadow-lg) !important;
+  background: rgba(8,8,15,0.97) !important;
+  backdrop-filter: blur(24px) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--r-lg) !important;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.7) !important;
   overflow: hidden !important;
 }
 .apexcharts-tooltip-title {
   background: rgba(255,255,255,0.04) !important;
-  border-bottom: 1px solid var(--border-color) !important;
-  font-weight: var(--fw-semi) !important;
-  padding: 8px 12px !important;
-  font-size: var(--text-xs) !important;
-  color: var(--text-muted) !important;
+  border-bottom: 1px solid var(--border) !important;
+  font-weight: 600 !important; padding: 8px 12px !important;
+  font-size: 11px !important; color: var(--text-3) !important;
 }
-.apexcharts-tooltip-text { font-size: var(--text-sm) !important; font-weight: var(--fw-semi) !important; }
+.apexcharts-tooltip-text { font-size: 13px !important; font-weight: 600 !important; }
 
-/* ── Scrollbars ──────────────────────────────────────────────────────────── */
-::-webkit-scrollbar          { width: 5px; height: 5px; }
-::-webkit-scrollbar-track    { background: transparent; }
-::-webkit-scrollbar-thumb    { background: rgba(255,255,255,0.1); border-radius: 10px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+/* ── 12. SCROLLBARS ────────────────────────────────────────────────────── */
+::-webkit-scrollbar           { width: 4px; height: 4px; }
+::-webkit-scrollbar-track     { background: transparent; }
+::-webkit-scrollbar-thumb     { background: rgba(139,92,246,0.25); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(139,92,246,0.5); }
 
-/* ── Skeleton shimmer ────────────────────────────────────────────────────── */
-@keyframes skeletonShimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position:  200% 0; }
+/* ── 13. KEYFRAMES ─────────────────────────────────────────────────────── */
+@keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes glow    { from { box-shadow: 0 0 8px rgba(139,92,246,0.3); } to { box-shadow: 0 0 20px rgba(139,92,246,0.7); } }
+@keyframes spin    { to { transform: rotate(360deg); } }
+@keyframes pulse   { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+
+/* ── 14. SKELETON ──────────────────────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.09) 50%, rgba(255,255,255,0.04) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--r-sm);
 }
 
-/* ── Print ───────────────────────────────────────────────────────────────── */
+/* ── 15. PRINT ─────────────────────────────────────────────────────────── */
 @media print {
-  aside, header, .no-print { display: none !important; }
+  body::before, body::after { display: none !important; }
+  aside, header, .no-print  { display: none !important; }
   .dashboard-container { padding: 0 !important; }
   body { background: #fff !important; color: #000 !important; }
   .chart-card, .kpi-card {
     background: #fff !important; border: 1px solid #e4e4e7 !important;
-    backdrop-filter: none !important; box-shadow: none !important; break-inside: avoid;
+    backdrop-filter: none !important; box-shadow: none !important;
+    break-inside: avoid;
   }
+  .chart-card::before, .kpi-card::before,
+  .chart-card::after,  .kpi-card::after { display: none !important; }
 }
 
-/* ── Responsive ──────────────────────────────────────────────────────────── */
-@media (max-width: 1280px) { :root { --content-padding: 24px; } }
-@media (max-width: 1024px) { :root { --content-padding: 18px; } }
-@media (max-width: 768px)  { :root { --content-padding: 14px; --sidebar-width: 72px; } }
+/* ── 16. RESPONSIVE ────────────────────────────────────────────────────── */
+@media (max-width: 1280px) { :root { --pad: 22px; } }
+@media (max-width: 1024px) { :root { --pad: 16px; } }
+@media (max-width: 768px)  { :root { --pad: 12px; --sidebar-w: var(--sidebar-wc); } }
