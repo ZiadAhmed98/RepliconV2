@@ -9,6 +9,7 @@ import Login              from './components/Login';
 import ToastStack         from './components/Toast';
 import GlobalSearch       from './components/GlobalSearch';
 import KeyboardShortcuts  from './components/KeyboardShortcuts';
+import ChatBot            from './components/ChatBot';
 
 import Dashboard       from './pages/Dashboard';
 import Employee        from './pages/Employee';
@@ -158,6 +159,7 @@ function AppContent() {
       <GlobalSearch  dataMatrix={dataMatrix} isOpen={searchOpen}    onClose={() => setSearchOpen(false)} />
       <KeyboardShortcuts isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       <ToastStack />
+      <ChatBot dataMatrix={dataMatrix} />
     </div>
   );
 }

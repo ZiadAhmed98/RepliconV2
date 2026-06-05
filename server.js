@@ -737,7 +737,108 @@ app.post('/api/v1/clients/edit', requireAuth, async (req, res) => {
 });
 
 // ============================================================================
-// AI INSIGHTS — generate + feedback loop
+// AI CHAT — streaming conversational assistant with full workforce context
+// ============================================================================
+app.post('/api/v1/chat', requireAuth, async (req, res) => {
+  const { message, history = [], context } = req.body || {};
+  if (!message?.trim()) return res.status(400).json({ error: 'message required' });
+
+  const apiKey = (process.env.ANTHROPIC_API_KEY || '').trim();
+  if (!apiKey) return res.status(503).json({ error: 'AI not configured. Add ANTHROPIC_API_KEY to .env.' });
+
+  const dataCtx = context || readJSON(SUMMARY_FILE, {});
+  const today   = new Date().toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+  const company = (process.env.REPLICON_COMPANY || 'the company');
+
+  const systemPrompt = `You are an AI workforce management assistant for ${company}, a professional services firm using Replicon for time tracking and project management.
+Today is ${today}.
+
+You have COMPLETE access to live workforce data. Answer ANY question the user asks — treat this exactly like Claude.ai but with full knowledge of the company's people, projects, clients, budgets, and compliance.
+
+THINGS YOU CAN DO:
+- Employee lookup: "Where is [name]?", "What is [name] working on?", "How many hours has [name] logged?"
+- Availability: "Who has capacity for new work?", "Who is free next week?", "Who is underutilized?"
+- Project status: "Tell me about project X", "What's the burn rate on Y?", "Which projects are over budget?"
+- Forecasting: "When will project X run out of budget?", "At current burn, when does Y complete?" — show your math
+- Compliance: "Who hasn't submitted timesheets?", "Who is missing daily/weekly entries?"
+- Assignment recommendations: "Who should I assign to a new project?" — explain your reasoning with actual utilization %
+- Client analysis: "What work are we doing for client X?", "Which clients generate the most revenue hours?"
+- Risk identification: "Which projects are at risk?", "What should I watch out for?"
+- Team health: "Give me a team summary", "How is overall utilization?", "Who is overloaded?"
+- General conversation: comparisons, trends, what-ifs, follow-up questions — anything
+
+HOW TO RESPOND:
+- ALWAYS use real names, exact numbers, and project names from the data — never invent figures
+- For forecasts: show the calculation (e.g. "burning 12h/week with 200h remaining = ~17 weeks to budget exhaustion")
+- For recommendations: explain reasoning ("Sarah has 38% utilization vs expected ~100%, giving her clear capacity")
+- Use **bold** for key names/numbers, bullet points for lists, headings for multi-section answers
+- If data is insufficient to answer fully, say what you DO know and what additional data would help
+- Match the user's tone — brief question = brief answer, detailed question = detailed answer
+- Respond in the same language the user writes in
+
+LIVE WORKFORCE DATA (as of ${today}):
+${JSON.stringify(dataCtx, null, 2)}`;
+
+  const messages = [
+    ...history.filter(m => m.content).slice(-20).map(m => ({ role: m.role, content: m.content })),
+    { role: 'user', content: message },
+  ];
+
+  // Stream SSE to client
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  try {
+    const upstream = await axios.post(
+      'https://api.anthropic.com/v1/messages',
+      { model: 'claude-sonnet-4-6', max_tokens: 4096, stream: true, system: systemPrompt, messages },
+      {
+        headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+        responseType: 'stream',
+        timeout: 90000,
+      }
+    );
+
+    let buf = '';
+    upstream.data.on('data', (chunk) => {
+      buf += chunk.toString();
+      const lines = buf.split('\n');
+      buf = lines.pop() ?? '';
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6).trim();
+        if (raw === '[DONE]') continue;
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta') {
+            res.write(`data: ${JSON.stringify({ text: parsed.delta.text })}\n\n`);
+          }
+        } catch {}
+      }
+    });
+
+    upstream.data.on('end', () => {
+      res.write('data: [DONE]\n\n');
+      res.end();
+      logger.info({ user: req.user.name, msgLen: message.length }, 'Chat stream completed');
+    });
+
+    upstream.data.on('error', (err) => {
+      logger.error({ err: err.message }, 'Chat stream error');
+      res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+      res.end();
+    });
+
+  } catch (err) {
+    logger.error({ err: err.message }, 'Chat API failed');
+    const errMsg = err.response?.data?.error?.message || err.message;
+    res.write(`data: ${JSON.stringify({ error: 'Claude request failed: ' + errMsg })}\n\n`);
+    res.end();
+  }
+});
+
 // ============================================================================
 // AI INSIGHTS — persistent feedback, open-ended Claude, auto-generation
 // ============================================================================
