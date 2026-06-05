@@ -269,67 +269,52 @@ function TaskPicker({ value, allClients, allProjects, allTasks, onChange, disabl
           </>
         )}
 
-        {step === 'task' && (
-          <>
-            {/* Render tasks: summary tasks are non-clickable phase headers; milestones are already filtered out */}
-            {taskList.filter(t => !t.parentTaskId).map(parent => {
-              const subs = taskList.filter(t => t.parentTaskId === parent.id);
-              if (isSummary(parent)) {
-                // Phase/summary row — non-clickable header, children are the real tasks
+        {step === 'task' && (() => {
+          // Flatten ALL leaf tasks (non-summary, non-milestone) regardless of nesting depth.
+          // Build a breadcrumb path by walking up parentTaskId in rawTaskList.
+          const allProjectTasks = rawTaskList; // includes summaries, used for path lookup
+          const leafTasks = taskList.filter(t => !isSummary(t));
+
+          const getPath = (t) => {
+            const parts = [];
+            let cur = t.parentTaskId ? allProjectTasks.find(x => x.id === t.parentTaskId) : null;
+            while (cur) {
+              parts.unshift(cur.name);
+              cur = cur.parentTaskId ? allProjectTasks.find(x => x.id === cur.parentTaskId) : null;
+            }
+            return parts.join(' › ');
+          };
+
+          return (
+            <>
+              {leafTasks.map(t => {
+                const path = getPath(t);
                 return (
-                  <React.Fragment key={parent.id}>
-                    <div style={{
-                      padding: '6px 12px', background: 'rgba(99,102,241,0.06)',
-                      fontSize: '0.72rem', fontWeight: 700, color: '#a78bfa',
-                      textTransform: 'uppercase', letterSpacing: '0.05em',
-                      userSelect: 'none', borderBottom: '1px solid rgba(99,102,241,0.1)',
-                      display: 'flex', alignItems: 'center', gap: '6px',
-                    }}>
-                      <i className='bx bx-folder' style={{ fontSize: '0.85rem' }} />
-                      {parent.name}
-                    </div>
-                    {subs.filter(s => !isSummary(s)).map(s => (
-                      <div key={s.id} onClick={() => pickTask(s)}
-                        style={{ padding: '8px 12px 8px 28px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.08)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                        <span style={{ fontSize: '0.82rem', color: 'var(--text-main)' }}>↳ {s.name}</span>
-                        {s.estimatedHours > 0 && <span style={{ fontSize: '0.7rem', color: '#818cf8', flexShrink: 0, marginLeft: '8px' }}>{s.estimatedHours}h</span>}
-                      </div>
-                    ))}
-                  </React.Fragment>
-                );
-              }
-              // Regular top-level task — clickable, with any direct child tasks below it
-              return (
-                <React.Fragment key={parent.id}>
-                  <div onClick={() => pickTask(parent)}
-                    style={{ padding: '9px 12px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                  <div key={t.id} onClick={() => pickTask(t)}
+                    style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.03)' }}
                     onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.08)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-main)' }}>{parent.name}</span>
-                    {parent.estimatedHours > 0 && <span style={{ fontSize: '0.7rem', color: '#818cf8', flexShrink: 0, marginLeft: '8px' }}>{parent.estimatedHours}h</span>}
-                  </div>
-                  {subs.filter(s => !isSummary(s)).map(s => (
-                    <div key={s.id} onClick={() => pickTask(s)}
-                      style={{ padding: '7px 12px 7px 28px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.06)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>↳ {s.name}</span>
-                      {s.estimatedHours > 0 && <span style={{ fontSize: '0.7rem', color: '#818cf8', flexShrink: 0, marginLeft: '8px' }}>{s.estimatedHours}h</span>}
+                    {path && (
+                      <div style={{ fontSize: '0.67rem', color: '#818cf8', opacity: 0.65, marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {path}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '0.84rem', fontWeight: 500, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
+                      {t.estimatedHours > 0 && <span style={{ fontSize: '0.7rem', color: '#818cf8', flexShrink: 0 }}>{t.estimatedHours}h</span>}
                     </div>
-                  ))}
-                </React.Fragment>
-              );
-            })}
-            {taskList.length === 0 && (
-              <div style={{ padding: '16px', color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center' }}>
-                {tempPrj ? `No tasks for ${tempPrj.name}` : 'No tasks'}<br />
-                <span style={{ fontSize: '0.72rem', opacity: 0.7 }}>Add tasks in Admin → Projects</span>
-              </div>
-            )}
-          </>
-        )}
+                  </div>
+                );
+              })}
+              {leafTasks.length === 0 && (
+                <div style={{ padding: '20px 16px', color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center' }}>
+                  {tempPrj ? `No assignable tasks for ${tempPrj.name}` : 'No tasks'}<br />
+                  <span style={{ fontSize: '0.72rem', opacity: 0.7 }}>Add leaf tasks in Admin → Projects</span>
+                </div>
+              )}
+            </>
+          );
+        })()}
       </div>
     </div>
   );
@@ -375,111 +360,7 @@ function TaskPicker({ value, allClients, allProjects, allTasks, onChange, disabl
 
 // ── TimesheetRow ──────────────────────────────────────────────────────────────
 
-// ── NoteCell — inline expandable "what I worked on" field ────────────────────
-function NoteCell({ rowId, projectId, taskId, initialNote, readOnly }) {
-  const [note,     setNote]     = useState(initialNote || '');
-  const [editing,  setEditing]  = useState(false);
-  const [saving,   setSaving]   = useState(false);
-  const textareaRef = useRef(null);
-  const saveTimer   = useRef(null);
-
-  // Auto-resize textarea height to fit content
-  useEffect(() => {
-    if (editing && textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-      textareaRef.current.focus();
-    }
-  }, [editing, note]);
-
-  const saveNote = async (val) => {
-    setSaving(true);
-    try {
-      await fetch(`/api/v1/psa/timesheet-rows/${rowId}`, {
-        method: 'PUT', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, taskId, note: val }),
-      });
-    } finally { setSaving(false); }
-  };
-
-  const handleBlur = () => {
-    setEditing(false);
-    clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => saveNote(note), 300);
-  };
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Escape') { setEditing(false); }
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleBlur(); }
-  };
-
-  if (readOnly) {
-    return note ? (
-      <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.45)', fontStyle: 'italic', padding: '4px 6px', lineHeight: 1.4, maxWidth: '140px', wordBreak: 'break-word' }}>
-        "{note}"
-      </div>
-    ) : null;
-  }
-
-  if (editing) {
-    return (
-      <div style={{ position: 'relative' }}>
-        <textarea
-          ref={textareaRef}
-          value={note}
-          onChange={e => setNote(e.target.value)}
-          onBlur={handleBlur}
-          onKeyDown={handleKeyDown}
-          placeholder="What did you work on?"
-          rows={2}
-          style={{
-            width: '140px', minHeight: '52px', resize: 'none', overflowY: 'hidden',
-            background: 'rgba(250,204,21,0.06)', border: '1px solid rgba(250,204,21,0.25)',
-            borderRadius: '8px', padding: '6px 8px', color: 'var(--text-main)',
-            fontSize: '0.78rem', fontFamily: 'inherit', lineHeight: 1.45,
-            boxSizing: 'border-box', outline: 'none', display: 'block',
-          }}
-        />
-        {saving && <span style={{ position: 'absolute', bottom: '4px', right: '6px', fontSize: '0.62rem', color: 'rgba(250,204,21,0.5)' }}>saving…</span>}
-      </div>
-    );
-  }
-
-  // Collapsed state
-  return note ? (
-    <div onClick={() => setEditing(true)}
-      title="Click to edit note"
-      style={{
-        cursor: 'pointer', maxWidth: '140px', padding: '4px 8px',
-        background: 'rgba(250,204,21,0.05)', border: '1px solid rgba(250,204,21,0.12)',
-        borderRadius: '7px', display: 'flex', alignItems: 'flex-start', gap: '5px',
-      }}
-      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(250,204,21,0.1)'; e.currentTarget.style.borderColor = 'rgba(250,204,21,0.25)'; }}
-      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(250,204,21,0.05)'; e.currentTarget.style.borderColor = 'rgba(250,204,21,0.12)'; }}>
-      <i className='bx bx-comment-detail' style={{ color: 'rgba(250,204,21,0.5)', fontSize: '0.8rem', marginTop: '1px', flexShrink: 0 }} />
-      <span style={{ fontSize: '0.73rem', color: 'rgba(255,255,255,0.5)', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', fontStyle: 'italic' }}>
-        {note}
-      </span>
-    </div>
-  ) : (
-    <button onClick={() => setEditing(true)}
-      style={{
-        background: 'none', border: '1px dashed rgba(255,255,255,0.08)', borderRadius: '7px',
-        padding: '4px 8px', cursor: 'pointer', color: 'rgba(255,255,255,0.18)',
-        fontSize: '0.73rem', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '4px',
-        transition: 'all 0.15s',
-      }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(250,204,21,0.25)'; e.currentTarget.style.color = 'rgba(250,204,21,0.6)'; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.18)'; }}>
-      <i className='bx bx-plus' style={{ fontSize: '0.8rem' }} /> note
-    </button>
-  );
-}
-
-// ── TimesheetRow ──────────────────────────────────────────────────────────────
-
-function TimesheetRow({ row, dayKeys, allClients, allProjects, allTasks, readOnly, todayKey, onUpdate, onDelete }) {
+function TimesheetRow({ row, dayKeys, allClients, allProjects, allTasks, readOnly, todayKey, onUpdate, onDelete, colCount }) {
   const [sel, setSel] = useState({
     clientId:    row.clientId    || null,
     clientName:  row.clientName  || null,
@@ -488,15 +369,19 @@ function TimesheetRow({ row, dayKeys, allClients, allProjects, allTasks, readOnl
     taskId:      row.taskId      || null,
     taskName:    row.taskName    || null,
   });
-  const [hours, setHours] = useState(() => {
+  const [hours,    setHours]    = useState(() => {
     const h = {};
     dayKeys.forEach(dk => { h[dk] = row.hours?.[dk] != null ? String(row.hours[dk]) : ''; });
     return h;
   });
-  const [saving, setSaving] = useState(false);
-  const saveTimer = useRef(null);
+  const [note,     setNote]     = useState(row.note || '');
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [saving,   setSaving]   = useState(false);
+  const [noteSaving, setNoteSaving] = useState(false);
+  const saveTimer  = useRef(null);
+  const noteTimer  = useRef(null);
+  const textareaRef = useRef(null);
 
-  // Re-sync when row gets updated from parent (e.g. after addEventAsRow)
   useEffect(() => {
     setSel({
       clientId: row.clientId || null, clientName: row.clientName || null,
@@ -506,19 +391,23 @@ function TimesheetRow({ row, dayKeys, allClients, allProjects, allTasks, readOnl
     const h = {};
     dayKeys.forEach(dk => { h[dk] = row.hours?.[dk] != null ? String(row.hours[dk]) : ''; });
     setHours(h);
+    setNote(row.note || '');
   }, [row.id]);
+
+  useEffect(() => {
+    if (noteOpen && textareaRef.current) textareaRef.current.focus();
+  }, [noteOpen]);
 
   const handlePickerChange = async (newSel) => {
     setSel(newSel);
     const r = await fetch(`/api/v1/psa/timesheet-rows/${row.id}`, {
       method: 'PUT', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ projectId: newSel.projectId, taskId: newSel.taskId }),
+      body: JSON.stringify({ projectId: newSel.projectId, taskId: newSel.taskId, note }),
     });
     if (r.ok) {
       const d = await r.json();
-      const merged = { ...d.row, hours: getCurrentHoursObj() };
-      onUpdate(merged);
+      onUpdate({ ...d.row, hours: getCurrentHoursObj() });
     }
   };
 
@@ -554,7 +443,25 @@ function TimesheetRow({ row, dayKeys, allClients, allProjects, allTasks, readOnl
     saveTimer.current = setTimeout(saveHours, 250);
   };
 
+  const saveNote = async (val) => {
+    setNoteSaving(true);
+    try {
+      await fetch(`/api/v1/psa/timesheet-rows/${row.id}`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: sel.projectId, taskId: sel.taskId, note: val }),
+      });
+    } finally { setNoteSaving(false); }
+  };
+
+  const handleNoteChange = (val) => {
+    setNote(val);
+    clearTimeout(noteTimer.current);
+    noteTimer.current = setTimeout(() => saveNote(val), 600);
+  };
+
   const rowTotal = dayKeys.reduce((s, dk) => s + (parseFloat(hours[dk]) || 0), 0);
+  const hasNote  = note.trim().length > 0;
 
   const numStyle = (dk) => ({
     width: '52px', height: '34px', textAlign: 'center',
@@ -562,39 +469,100 @@ function TimesheetRow({ row, dayKeys, allClients, allProjects, allTasks, readOnl
     border: `1px solid ${dk === todayKey ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.06)'}`,
     borderRadius: '6px', color: 'var(--text-main)', fontSize: '0.85rem', fontFamily: 'inherit',
     opacity: (!sel.projectId || readOnly) ? 0.3 : 1,
+    // hide spinner arrows
+    MozAppearance: 'textfield',
   });
 
   return (
-    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-      <td style={{ padding: '6px 8px' }}>
-        <TaskPicker value={sel} allClients={allClients} allProjects={allProjects} allTasks={allTasks} onChange={handlePickerChange} disabled={readOnly} />
-      </td>
-      {/* Note cell */}
-      <td style={{ padding: '6px 6px', verticalAlign: 'middle' }}>
-        <NoteCell rowId={row.id} projectId={sel.projectId} taskId={sel.taskId} initialNote={row.note || ''} readOnly={readOnly} />
-      </td>
-      {dayKeys.map(dk => (
-        <td key={dk} style={{ padding: '6px 3px', textAlign: 'center', background: dk === todayKey ? 'rgba(99,102,241,0.03)' : 'transparent' }}>
-          <input type="number" min="0" max="24" step="0.5"
-            value={hours[dk]}
-            onChange={e => setHours(h => ({ ...h, [dk]: e.target.value }))}
-            onBlur={handleHoursBlur}
-            disabled={!sel.projectId || readOnly}
-            style={numStyle(dk)} />
+    <React.Fragment>
+      <tr style={{ borderBottom: noteOpen ? 'none' : '1px solid rgba(255,255,255,0.04)' }}>
+        <td style={{ padding: '6px 8px' }}>
+          <TaskPicker value={sel} allClients={allClients} allProjects={allProjects} allTasks={allTasks} onChange={handlePickerChange} disabled={readOnly} />
         </td>
-      ))}
-      <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700, fontSize: '0.88rem', color: rowTotal > 0 ? '#818cf8' : 'var(--text-muted)', whiteSpace: 'nowrap', minWidth: '50px' }}>
-        {rowTotal > 0 ? rowTotal.toFixed(2) : '—'}
-      </td>
-      <td style={{ padding: '6px 6px', textAlign: 'center' }}>
-        {!readOnly && (
-          <button onClick={onDelete}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(239,68,68,0.4)', fontSize: '1.1rem', padding: '2px 5px', lineHeight: 1, borderRadius: '4px' }}
-            onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-            onMouseLeave={e => e.currentTarget.style.color = 'rgba(239,68,68,0.4)'}>×</button>
-        )}
-      </td>
-    </tr>
+        {dayKeys.map(dk => (
+          <td key={dk} style={{ padding: '6px 3px', textAlign: 'center', background: dk === todayKey ? 'rgba(99,102,241,0.03)' : 'transparent' }}>
+            <input type="number" min="0" max="24" step="0.5"
+              value={hours[dk]}
+              onChange={e => setHours(h => ({ ...h, [dk]: e.target.value }))}
+              onBlur={handleHoursBlur}
+              disabled={!sel.projectId || readOnly}
+              className="no-spin"
+              style={numStyle(dk)} />
+          </td>
+        ))}
+        <td style={{ padding: '6px 6px', textAlign: 'right', fontWeight: 700, fontSize: '0.88rem', color: rowTotal > 0 ? '#818cf8' : 'var(--text-muted)', whiteSpace: 'nowrap', minWidth: '50px' }}>
+          {rowTotal > 0 ? rowTotal.toFixed(2) : '—'}
+        </td>
+        <td style={{ padding: '6px 6px', textAlign: 'center', verticalAlign: 'middle' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+            {!readOnly && (
+              <button onClick={() => setNoteOpen(o => !o)}
+                title={hasNote ? 'View / edit note' : 'Add note'}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', lineHeight: 1, borderRadius: '4px', position: 'relative' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(250,204,21,0.08)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                <i className='bx bx-pencil' style={{ fontSize: '0.95rem', color: hasNote ? 'rgba(250,204,21,0.75)' : 'rgba(255,255,255,0.2)' }} />
+                {hasNote && <span style={{ position: 'absolute', top: '0', right: '0', width: '5px', height: '5px', background: '#fbbf24', borderRadius: '50%' }} />}
+              </button>
+            )}
+            {readOnly && hasNote && (
+              <button onClick={() => setNoteOpen(o => !o)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>
+                <i className='bx bx-comment-detail' style={{ fontSize: '0.9rem', color: 'rgba(250,204,21,0.5)' }} />
+              </button>
+            )}
+            {!readOnly && (
+              <button onClick={onDelete}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(239,68,68,0.35)', fontSize: '1rem', padding: '2px 4px', lineHeight: 1, borderRadius: '4px' }}
+                onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                onMouseLeave={e => e.currentTarget.style.color = 'rgba(239,68,68,0.35)'}>×</button>
+            )}
+          </div>
+        </td>
+      </tr>
+
+      {/* Expandable note row */}
+      {noteOpen && (
+        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+          <td colSpan={colCount} style={{ padding: '0 10px 10px 10px' }}>
+            <div style={{
+              background: 'rgba(250,204,21,0.04)', border: '1px solid rgba(250,204,21,0.15)',
+              borderRadius: '10px', padding: '10px 12px', display: 'flex', gap: '10px', alignItems: 'flex-start',
+            }}>
+              <i className='bx bx-pencil' style={{ color: 'rgba(250,204,21,0.5)', fontSize: '0.95rem', marginTop: '3px', flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '0.7rem', color: 'rgba(250,204,21,0.5)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
+                  What did you work on?
+                  {noteSaving && <span style={{ marginLeft: '8px', color: 'rgba(255,255,255,0.25)', fontWeight: 400, textTransform: 'none' }}>saving…</span>}
+                </div>
+                {readOnly ? (
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-main)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{note || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No note added</span>}</p>
+                ) : (
+                  <textarea
+                    ref={textareaRef}
+                    value={note}
+                    onChange={e => handleNoteChange(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Escape') setNoteOpen(false); }}
+                    placeholder="Briefly summarize what you worked on — e.g. 'Reviewed DNS config, updated MX records'"
+                    rows={3}
+                    style={{
+                      width: '100%', resize: 'vertical', minHeight: '60px',
+                      background: 'transparent', border: 'none', outline: 'none',
+                      color: 'var(--text-main)', fontSize: '0.85rem', fontFamily: 'inherit',
+                      lineHeight: 1.5, boxSizing: 'border-box', padding: 0,
+                    }}
+                  />
+                )}
+              </div>
+              <button onClick={() => setNoteOpen(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.2)', fontSize: '0.95rem', padding: '1px 3px', lineHeight: 1, flexShrink: 0 }}
+                onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.6)'}
+                onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.2)'}>×</button>
+            </div>
+          </td>
+        </tr>
+      )}
+    </React.Fragment>
   );
 }
 
@@ -831,6 +799,14 @@ function CalendarPanel({ dayKeys, weekDays, allProjects, allTasks, timesheet, on
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
+// Inject once to hide spinner arrows on number inputs
+const _noSpinStyle = document.createElement('style');
+_noSpinStyle.textContent = 'input.no-spin::-webkit-inner-spin-button,input.no-spin::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input.no-spin{-moz-appearance:textfield}';
+if (!document.head.querySelector('[data-mds-nospin]')) {
+  _noSpinStyle.setAttribute('data-mds-nospin', '1');
+  document.head.appendChild(_noSpinStyle);
+}
+
 export default function MyTimesheet() {
   const { toast } = useToast();
 
@@ -1000,17 +976,13 @@ export default function MyTimesheet() {
             <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: '260px' }} />
-                <col style={{ width: '160px' }} />
                 {dayKeys.map(dk => <col key={dk} style={{ width: '64px' }} />)}
-                <col style={{ width: '56px' }} /><col style={{ width: '34px' }} />
+                <col style={{ width: '56px' }} /><col style={{ width: '50px' }} />
               </colgroup>
               <thead>
                 <tr style={{ background: 'rgba(255,255,255,0.02)' }}>
                   <th style={{ ...th, textAlign: 'left', paddingLeft: '10px', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)' }}>
                     Client / <span style={{ color: 'var(--text-main)' }}>Project</span> / Task *
-                  </th>
-                  <th style={{ ...th, textAlign: 'left', paddingLeft: '6px', color: 'rgba(250,204,21,0.4)' }}>
-                    <i className='bx bx-comment-detail' style={{ marginRight: '4px' }} />Note
                   </th>
                   {weekDays.map((d, i) => (
                     <th key={dayKeys[i]} style={{ ...th, background: dayKeys[i] === todayKey ? 'rgba(99,102,241,0.06)' : 'transparent', color: dayKeys[i] === todayKey ? '#818cf8' : 'var(--text-muted)', borderRadius: 0 }}>
@@ -1023,16 +995,16 @@ export default function MyTimesheet() {
               </thead>
               <tbody>
                 {(timesheet?.rows || []).length === 0 && (
-                  <tr><td colSpan={11} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                  <tr><td colSpan={dayKeys.length + 3} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                     <i className='bx bx-time-five' style={{ fontSize: '30px', display: 'block', marginBottom: '8px', opacity: 0.3 }} />
                     No time entries yet — click <strong>+ Add Row</strong> or import from calendar below
                   </td></tr>
                 )}
                 {(timesheet?.rows || []).map(row => (
-                  <TimesheetRow key={row.id} row={row} dayKeys={dayKeys} allClients={allClients} allProjects={allProjects} allTasks={allTasks} readOnly={isSubmitted} todayKey={todayKey} onUpdate={handleRowUpdate} onDelete={() => handleDeleteRow(row.id)} />
+                  <TimesheetRow key={row.id} row={row} dayKeys={dayKeys} allClients={allClients} allProjects={allProjects} allTasks={allTasks} readOnly={isSubmitted} todayKey={todayKey} onUpdate={handleRowUpdate} onDelete={() => handleDeleteRow(row.id)} colCount={dayKeys.length + 3} />
                 ))}
                 {!isSubmitted && (
-                  <tr><td colSpan={11} style={{ padding: 0 }}>
+                  <tr><td colSpan={dayKeys.length + 3} style={{ padding: 0 }}>
                     <button onClick={handleAddRow} disabled={addingRow}
                       style={{ width: '100%', background: 'none', border: 'none', padding: '11px 12px', cursor: 'pointer', color: 'rgba(99,102,241,0.65)', fontSize: '0.83rem', fontFamily: 'inherit', fontWeight: 600, textAlign: 'left', display: 'flex', alignItems: 'center', gap: '5px' }}
                       onMouseEnter={e => { e.currentTarget.style.background='rgba(99,102,241,0.04)'; e.currentTarget.style.color='#818cf8'; }}
@@ -1045,7 +1017,6 @@ export default function MyTimesheet() {
               <tfoot>
                 <tr style={{ background: 'rgba(255,255,255,0.02)', borderTop: '2px solid rgba(255,255,255,0.07)' }}>
                   <td style={{ padding: '11px 10px', fontWeight: 700, fontSize: '0.83rem', color: 'var(--text-main)' }}>Total Hours</td>
-                  <td />
                   {dayKeys.map(dk => (
                     <td key={dk} style={{ padding: '11px 4px', textAlign: 'center', fontWeight: 700, fontSize: '0.88rem', color: colTotals[dk] > 0 ? '#818cf8' : 'var(--text-muted)', background: dk === todayKey ? 'rgba(99,102,241,0.04)' : 'transparent' }}>
                       {colTotals[dk] > 0 ? colTotals[dk].toFixed(2) : '0.00'}
