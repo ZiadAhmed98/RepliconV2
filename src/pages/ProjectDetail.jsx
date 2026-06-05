@@ -148,7 +148,13 @@ function TaskModal({ task, tasks, projectId, onSave, onClose }) {
 
 // ── XML Import Modal ──────────────────────────────────────────────────────────
 
-const XML_FORMAT_HINT = `<tasks>
+const XML_FORMAT_HINT = `Supported formats:
+
+1. MS Project XML — Export your .mpp via File > Save As > XML (*.xml)
+   Duration is parsed automatically (1 day = 8 hrs). OutlineLevel builds hierarchy.
+
+2. Simple custom XML:
+<tasks>
   <task name="Phase 1: Assessment" code="T001" estimatedHours="16" startDate="2026-06-01" endDate="2026-06-15">
     <task name="Kickoff Meeting"         code="T001.1" estimatedHours="2"  />
     <task name="Requirements Gathering"  code="T001.2" estimatedHours="14" />
@@ -224,7 +230,7 @@ function XmlImportModal({ projectId, onImported, onClose }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
           <div>
             <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)' }}>Import Tasks from XML</h3>
-            <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Upload an XML file — nested &lt;task&gt; elements become sub-tasks</p>
+            <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Upload MS Project XML (.mpp exported as XML) or nested &lt;task&gt; format</p>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.3rem', padding: '4px' }}>×</button>
         </div>
@@ -292,20 +298,24 @@ function XmlImportModal({ projectId, onImported, onClose }) {
                 </thead>
                 <tbody>
                   {preview.map((t, i) => {
-                    const isChild = !!t._parentTempId;
+                    const isChild   = !!t._parentTempId;
+                    const isSummary = !!t.isSummary;
                     return (
                       <tr key={i}
-                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.025)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        style={{ background: isSummary ? 'rgba(99,102,241,0.04)' : 'transparent' }}
+                        onMouseEnter={e => e.currentTarget.style.background = isSummary ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.025)'}
+                        onMouseLeave={e => e.currentTarget.style.background = isSummary ? 'rgba(99,102,241,0.04)' : 'transparent'}>
                         <td style={{ ...td, color: 'var(--text-muted)', fontSize: '0.72rem' }}>{i + 1}</td>
                         <td style={{ ...td, paddingLeft: isChild ? '28px' : '12px' }}>
-                          {isChild && <span style={{ color: 'var(--text-muted)', marginRight: '6px' }}>↳</span>}
-                          <span style={{ fontWeight: isChild ? 400 : 600, color: isChild ? 'var(--text-muted)' : 'var(--text-main)' }}>{t.name}</span>
+                          {isSummary && <i className='bx bx-folder' style={{ color: '#818cf8', marginRight: '6px', fontSize: '0.85rem', verticalAlign: 'middle' }} />}
+                          {!isSummary && isChild && <span style={{ color: 'var(--text-muted)', marginRight: '6px' }}>↳</span>}
+                          <span style={{ fontWeight: isSummary ? 700 : isChild ? 400 : 500, color: isSummary ? '#a78bfa' : isChild ? 'var(--text-muted)' : 'var(--text-main)' }}>{t.name}</span>
+                          {isSummary && <span style={{ marginLeft: '7px', fontSize: '0.68rem', background: 'rgba(99,102,241,0.15)', color: '#818cf8', borderRadius: '4px', padding: '1px 5px' }}>phase</span>}
                         </td>
                         <td style={td}>{t.code ? <code style={{ background: 'rgba(255,255,255,0.06)', borderRadius: '4px', padding: '1px 6px', fontSize: '0.76rem' }}>{t.code}</code> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
                         <td style={{ ...td, color: 'var(--text-muted)', fontSize: '0.8rem' }}>{isChild ? parentName(t) : '—'}</td>
                         <td style={{ ...td, textAlign: 'right', color: t.estimatedHours > 0 ? '#818cf8' : 'var(--text-muted)', fontWeight: t.estimatedHours > 0 ? 600 : 400 }}>
-                          {t.estimatedHours > 0 ? `${t.estimatedHours}h` : '—'}
+                          {t.estimatedHours > 0 ? `${t.estimatedHours}h` : isSummary ? <span style={{ fontSize: '0.7rem', opacity: 0.5 }}>Σ</span> : '—'}
                         </td>
                         <td style={{ ...td, color: 'var(--text-muted)', fontSize: '0.8rem' }}>{t.startDate || '—'}</td>
                         <td style={{ ...td, color: 'var(--text-muted)', fontSize: '0.8rem' }}>{t.endDate   || '—'}</td>

@@ -1893,10 +1893,93 @@ app.delete('/api/v1/psa/projects/:id', requireAuth, (req, res) => {
 // XML PARSER (server-side, no external deps)
 // ============================================================================
 
+// Parse ISO 8601 duration to hours (e.g. PT8H, PT0H30M, P1D, P1DT8H).
+// MS Project exports 1 day = 8 working hours.
+function parseDurationToHours(dur) {
+  if (!dur) return 0;
+  const m = dur.match(/^P(?:(\d+(?:\.\d+)?)D)?(?:T(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?)?$/);
+  if (!m) return 0;
+  const days    = parseFloat(m[1] || 0);
+  const hours   = parseFloat(m[2] || 0);
+  const minutes = parseFloat(m[3] || 0);
+  return days * 8 + hours + minutes / 60;
+}
+
 function parseTasksXml(xmlStr) {
   let counter = 0;
   const allTasks = [];
 
+  // ── MODE 1: MS Project MSPDI XML (exported from .mpp) ──────────────────────
+  // Detected by <Task> elements containing child XML elements like <Name>, <Duration>
+  const isMSProject = /<Task[\s>]/.test(xmlStr) && /<Name>/.test(xmlStr);
+
+  if (isMSProject) {
+    const taskRe = /<Task>([\s\S]*?)<\/Task>/g;
+    let taskMatch;
+    const rawTasks = [];
+
+    function elText(block, tag) {
+      const re = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`);
+      const m = block.match(re);
+      return m ? m[1].trim() : null;
+    }
+
+    while ((taskMatch = taskRe.exec(xmlStr)) !== null) {
+      const block = taskMatch[1];
+      const uid   = elText(block, 'UID');
+      const name  = elText(block, 'Name');
+      if (!name || uid === '0') continue; // skip project-summary row
+
+      const outlineLevelStr = elText(block, 'OutlineLevel');
+      const outlineLevel    = outlineLevelStr ? parseInt(outlineLevelStr, 10) : 1;
+      const isSummary       = elText(block, 'Summary') === '1';
+      const isMilestone     = elText(block, 'Milestone') === '1';
+      const durStr          = elText(block, 'ManualDuration') || elText(block, 'Duration');
+      const durHours        = parseDurationToHours(durStr);
+      const startRaw        = elText(block, 'ManualStart') || elText(block, 'Start');
+      const finishRaw       = elText(block, 'ManualFinish') || elText(block, 'Finish');
+
+      rawTasks.push({
+        name,
+        outlineLevel,
+        isSummary,
+        isMilestone,
+        durHours,
+        startDate: startRaw ? startRaw.slice(0, 10) : null,
+        endDate:   finishRaw ? finishRaw.slice(0, 10) : null,
+      });
+    }
+
+    // Build parent hierarchy from OutlineLevel stack
+    const levelStack = []; // [{tempId, outlineLevel}]
+    for (const t of rawTasks) {
+      while (levelStack.length > 0 && levelStack[levelStack.length - 1].outlineLevel >= t.outlineLevel) {
+        levelStack.pop();
+      }
+      const parentTempId = levelStack.length > 0 ? levelStack[levelStack.length - 1].tempId : null;
+      const tempId = `t${counter++}`;
+
+      allTasks.push({
+        _tempId:        tempId,
+        _parentTempId:  parentTempId,
+        name:           t.name,
+        code:           null,
+        description:    t.isSummary ? 'Phase / Summary' : t.isMilestone ? 'Milestone' : null,
+        startDate:      t.startDate,
+        endDate:        t.endDate,
+        status:         'open',
+        // Round to nearest 0.25h; summary tasks carry 0 (their children sum up)
+        estimatedHours: t.isSummary ? 0 : Math.round(t.durHours * 4) / 4,
+        isSummary:      t.isSummary,
+      });
+
+      levelStack.push({ tempId, outlineLevel: t.outlineLevel });
+    }
+
+    return allTasks;
+  }
+
+  // ── MODE 2: Simple <task attr="..." /> attribute format ─────────────────────
   function getAttr(attrsStr, name) {
     const re = new RegExp(`(?:^|\\s)${name}="([^"]*?)"`);
     const m = (' ' + attrsStr).match(re);
@@ -1946,12 +2029,12 @@ function parseTasksXml(xmlStr) {
     allTasks.push({
       _tempId:       tempId,
       _parentTempId: parentTempId || null,
-      name:          g('name')         || '(unnamed)',
-      code:          g('code')         || null,
-      description:   g('description') || null,
-      startDate:     g('startDate')    || null,
-      endDate:       g('endDate')      || null,
-      status:        g('status')       || 'open',
+      name:          g('name')          || '(unnamed)',
+      code:          g('code')          || null,
+      description:   g('description')  || null,
+      startDate:     g('startDate')     || null,
+      endDate:       g('endDate')       || null,
+      status:        g('status')        || 'open',
       estimatedHours: parseFloat(g('estimatedHours')) || 0,
     });
     node.children.forEach(child => processNode(child, tempId));
@@ -1969,7 +2052,7 @@ app.post('/api/v1/psa/parse-xml', requireAuth, (req, res) => {
   if (!xml || typeof xml !== 'string') return res.status(400).json({ error: 'xml string required' });
   try {
     const tasks = parseTasksXml(xml);
-    if (tasks.length === 0) return res.status(400).json({ error: 'No <task> elements found in XML' });
+    if (tasks.length === 0) return res.status(400).json({ error: 'No tasks found in XML. Supported formats: MS Project XML (.mpp exported as XML) or simple <task name="..." estimatedHours="..."> format.' });
     res.json({ tasks });
   } catch (e) {
     res.status(400).json({ error: e.message || 'XML parse error' });
@@ -2152,9 +2235,9 @@ app.get('/api/v1/psa/timesheets', requireAuth, (req, res) => {
   res.json({ timesheet: { ...ts, rows: buildTimesheetRows(ts.id) } });
 });
 
-// POST /api/v1/psa/timesheet-rows — add a blank row
+// POST /api/v1/psa/timesheet-rows — add a row (optionally pre-set project/task)
 app.post('/api/v1/psa/timesheet-rows', requireAuth, (req, res) => {
-  const { timesheetId, note } = req.body || {};
+  const { timesheetId, note, projectId, taskId } = req.body || {};
   if (!timesheetId) return res.status(400).json({ error: 'timesheetId required' });
   const ts = db.prepare('SELECT * FROM psa_timesheets WHERE id=? AND userId=?').get(timesheetId, req.user.id);
   if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
@@ -2164,7 +2247,7 @@ app.post('/api/v1/psa/timesheet-rows', requireAuth, (req, res) => {
   const id  = crypto.randomUUID();
   const now = new Date().toISOString();
   db.prepare('INSERT INTO psa_timesheet_rows (id,timesheetId,projectId,taskId,note,sortOrder,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?,?)')
-    .run(id, timesheetId, null, null, note || null, (maxOrd?.m ?? -1) + 1, now, now);
+    .run(id, timesheetId, projectId || null, taskId || null, note || null, (maxOrd?.m ?? -1) + 1, now, now);
   res.status(201).json({ row: buildSingleRow(id) });
 });
 
