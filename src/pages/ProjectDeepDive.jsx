@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Chart from 'react-apexcharts';
 import styles from './ProjectDeepDive.module.css';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -12,6 +13,8 @@ const getOpts = (id, custom={}) => baseChartOptions({
 });
 
 export default function ProjectDeepDive({ dataMatrix }) {
+  const [searchParams] = useSearchParams();
+
   const validProjects = useMemo(() => {
     if (!dataMatrix?.dimensionTable) return [];
     return Object.keys(dataMatrix.dimensionTable).filter(k=>dataMatrix.dimensionTable[k].status!=='Archived').sort();
@@ -19,9 +22,18 @@ export default function ProjectDeepDive({ dataMatrix }) {
 
   const [selectedProject, setSelectedProject] = useState('');
 
+  // If GlobalSearch navigated here with ?project=, honour it immediately
+  const urlProject = searchParams.get('project');
   useEffect(() => {
-    if (validProjects.length > 0 && !selectedProject) setSelectedProject(validProjects[0]);
-  }, [validProjects, selectedProject]);
+    if (!validProjects.length || !urlProject) return;
+    const decoded = decodeURIComponent(urlProject);
+    if (validProjects.includes(decoded)) setSelectedProject(decoded);
+  }, [urlProject, validProjects]);
+
+  // Default to first project when no URL param
+  useEffect(() => {
+    if (validProjects.length > 0 && !selectedProject && !urlProject) setSelectedProject(validProjects[0]);
+  }, [validProjects, selectedProject, urlProject]);
 
   const pData = useMemo(() => {
     if (!selectedProject || !dataMatrix) return null;

@@ -29,9 +29,8 @@ const style = {
   }),
   logoIcon: {
     width: '36px', height: '36px', borderRadius: '10px', flexShrink: 0,
-    background: 'linear-gradient(135deg, #7c3aed 0%, #2563eb 100%)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    boxShadow: '0 0 16px rgba(124,58,237,0.5), inset 0 1px 0 rgba(255,255,255,0.2)',
+    overflow: 'hidden',
   },
   logoText: { overflow: 'hidden' },
   nav: { flex: 1, padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: '3px' },
@@ -108,12 +107,12 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
       {/* Logo */}
       <div style={style.logo(collapsed)}>
         <div style={style.logoIcon}>
-          <i className='bx bx-hive' style={{ color: '#fff', fontSize: '1.2rem' }} />
+          <img src="/logo.png" alt="Liveroute" style={{ width: '36px', height: '36px', borderRadius: '10px', objectFit: 'contain', display: 'block' }} />
         </div>
         {!collapsed && (
           <div style={style.logoText}>
             <div style={{ fontWeight: 800, fontSize: '14px', color: '#fafafa', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
-              MDS Premium
+              Liveroute Replicon
             </div>
             <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', letterSpacing: '0.05em', textTransform: 'uppercase', marginTop: '1px' }}>
               Analytics V2

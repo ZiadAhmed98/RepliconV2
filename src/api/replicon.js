@@ -6,14 +6,14 @@ const api = axios.create({
   headers:         { 'Content-Type': 'application/json' },
 });
 
-// 5.5 — Auto-logout on 401, re-throw everything else
+// 5.5 — Auto-logout on 401, re-throw everything else.
+// Skip /api/v1/me so App.jsx's catch block can still try the localStorage fallback
+// before deciding the user is logged out.
 api.interceptors.response.use(
   res => res,
   err => {
-    if (err.response?.status === 401) {
-      // Clear any stale localStorage session if it exists
+    if (err.response?.status === 401 && !err.config?.url?.endsWith('/api/v1/me')) {
       localStorage.removeItem('mds_dashboard_session');
-      // Let App.jsx handle the redirect via state
       window.dispatchEvent(new CustomEvent('mds:unauthorized'));
     }
     return Promise.reject(err);

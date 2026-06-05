@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Chart    from 'react-apexcharts';
 import ApexCharts from 'apexcharts';
 import jsPDF    from 'jspdf';
@@ -29,6 +30,8 @@ function PdfButton({ onClick }) {
 }
 
 export default function Employee({ dataMatrix, sessionUser }) {
+  const [searchParams] = useSearchParams();
+
   const sortedRoster = useMemo(() => {
     if (!dataMatrix?.roster) return [];
     return [...dataMatrix.roster].sort((a,b) => {
@@ -40,12 +43,22 @@ export default function Employee({ dataMatrix, sessionUser }) {
 
   const [selectedEmpName, setSelectedEmpName] = useState('');
 
+  // If GlobalSearch navigated here with ?name=, honour it immediately
+  const urlName = searchParams.get('name');
   useEffect(() => {
-    if (sortedRoster.length > 0 && !selectedEmpName) {
+    if (!sortedRoster.length || !urlName) return;
+    const decoded = decodeURIComponent(urlName);
+    const match = sortedRoster.find(e => e.name === decoded);
+    if (match) setSelectedEmpName(match.name);
+  }, [urlName, sortedRoster]);
+
+  // Default to logged-in user (or first in list) when no URL param
+  useEffect(() => {
+    if (sortedRoster.length > 0 && !selectedEmpName && !urlName) {
       const match = sortedRoster.find(e => sessionUser && e.name.toLowerCase().includes(sessionUser.name.toLowerCase()));
       setSelectedEmpName(match ? match.name : sortedRoster[0].name);
     }
-  }, [sortedRoster, sessionUser, selectedEmpName]);
+  }, [sortedRoster, sessionUser, selectedEmpName, urlName]);
 
   const getWorkingDays = (start, end) => {
     let days=0, cur=new Date(start); cur.setHours(0,0,0,0);

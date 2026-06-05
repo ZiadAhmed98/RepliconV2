@@ -45,7 +45,7 @@ export default function GlobalSearch({ dataMatrix, isOpen, onClose }) {
       if (e.key === 'Escape') onClose();
       if (e.key === 'ArrowDown') setFocused(f => Math.min(f + 1, results.length - 1));
       if (e.key === 'ArrowUp')   setFocused(f => Math.max(f - 1, 0));
-      if (e.key === 'Enter' && results[focused]) navigate(results[focused].route + results[focused].param);
+      if (e.key === 'Enter' && results[focused]) { navigate(results[focused].route + results[focused].param); onClose(); }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
