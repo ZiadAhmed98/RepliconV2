@@ -22,8 +22,9 @@ const NAV = [
       { to: '/clients/edit',   icon: 'bx-edit',        label: 'Edit Client'   },
     ],
   },
-  { to: '/ai-insights', icon: 'bx-brain',     label: 'AI Insights', perm: 'aiInsights', glow: true },
-  { to: '/settings',    icon: 'bx-cog',       label: 'Settings',    perm: 'settings'   },
+  { to: '/ai-insights',   icon: 'bx-brain',      label: 'AI Insights', perm: 'aiInsights',   glow: true },
+  { to: '/my-timesheet', icon: 'bx-calendar-check', label: 'My Time',    perm: 'myTimesheet'  },
+  { to: '/settings',     icon: 'bx-cog',       label: 'Settings',    perm: 'settings'   },
 ];
 
 // ── Inline style helpers ───────────────────────────────────────────────────

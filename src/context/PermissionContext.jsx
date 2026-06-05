@@ -21,6 +21,8 @@ export function usePermissions() {
 export function useCan(page) {
   const { permissions, isAdmin } = useContext(PermissionContext);
   if (page === 'settings') return isAdmin;
+  // myTimesheet is always visible to all authenticated users
+  if (page === 'myTimesheet') return true;
   // If permissions object is empty (old session format), allow everything
   if (Object.keys(permissions).length === 0) return true;
   return isAdmin || permissions[page] === true;

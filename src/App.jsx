@@ -21,6 +21,7 @@ import ClientCreate    from './pages/ClientCreate';
 import ClientEdit      from './pages/ClientEdit';
 import AIInsights      from './pages/AIInsights';
 import Settings        from './pages/Settings';
+import MyTimesheet     from './pages/MyTimesheet';
 
 import { useRepliconData }    from './hooks/useRepliconData';
 import { repliconApi }        from './api/replicon';
@@ -171,6 +172,7 @@ function AppContent() {
                 <Route path="/clients/create" element={<GuardedRoute page="clients"  ><ClientCreate     dataMatrix={dataMatrix} /></GuardedRoute>} />
                 <Route path="/clients/edit"   element={<GuardedRoute page="clients"  ><ClientEdit       dataMatrix={dataMatrix} /></GuardedRoute>} />
                 <Route path="/ai-insights"    element={<GuardedRoute page="aiInsights"><AIInsights      dataMatrix={dataMatrix} /></GuardedRoute>} />
+                <Route path="/my-timesheet"   element={<GuardedRoute page="myTimesheet"><MyTimesheet    dataMatrix={dataMatrix} /></GuardedRoute>} />
                 <Route path="/settings"       element={<GuardedRoute page="settings" ><Settings         sessionUser={sessionUser} /></GuardedRoute>} />
               </Routes>
             )}
