@@ -26,6 +26,22 @@ const DEFAULT_VISIBILITY = {
   skillsGap: true, riskMatrix: true, rolloffs: true, locations: true, deepEffort: true,
 };
 
+// ── Section drag-and-drop ──────────────────────────────────────────────────
+const SECTION_ORDER_KEY = 'mds_dashboard_section_order';
+const DEFAULT_SECTIONS  = ['mainCharts','capacity','risk','gantt','heatmapSkills','waterfallTree','complianceQuadrant','riskRolloffs','locations','deepEffort'];
+const SECTION_LABELS    = {
+  mainCharts:         'Portfolio Burn · Clients · Employees',
+  capacity:           'Burn vs Capacity · Billable',
+  risk:               'Leakage · At-Risk · Status',
+  gantt:              'Project Gantt Timeline',
+  heatmapSkills:      'Team Heatmap · Skills Gap',
+  waterfallTree:      'Budget Waterfall · Day Activity',
+  complianceQuadrant: 'Compliance Trend · Client Quadrant',
+  riskRolloffs:       'Risk Matrix · Rolloffs',
+  locations:          'Locations Overview',
+  deepEffort:         'Deep Effort Analysis',
+};
+
 // ── Lazy chart wrapper ─────────────────────────────────────────────────────
 function LazyChart({ children }) {
   const ref = useRef(null);
@@ -74,6 +90,14 @@ export default function Dashboard({ dataMatrix }) {
     catch { return DEFAULT_VISIBILITY; }
   });
   const [showCustomize,   setShowCustomize]   = useState(false);
+  const [sectionOrder, setSectionOrder] = useState(() => {
+    try { const s = JSON.parse(localStorage.getItem(SECTION_ORDER_KEY)||'null'); return Array.isArray(s)&&s.length ? s : [...DEFAULT_SECTIONS]; }
+    catch { return [...DEFAULT_SECTIONS]; }
+  });
+  const [dragMode,   setDragMode]   = useState(false);
+  const [dragOverId, setDragOverId] = useState(null);
+  const [draggingId, setDraggingId] = useState(null);
+  const dragSourceId = useRef(null);
 
   const [filters, setFilters] = useState({ client: 'All', project: 'All', program: 'All', timePreset: 'All Time', dateFrom: '', dateTo: '' });
   const filterPanelRef = useRef(null);
@@ -93,6 +117,23 @@ export default function Dashboard({ dataMatrix }) {
     setVisibility(next);
     localStorage.setItem(VISIBILITY_KEY, JSON.stringify(next));
   };
+
+  const handleDragStart = useCallback((e, id) => { dragSourceId.current=id; setDraggingId(id); e.dataTransfer.effectAllowed='move'; }, []);
+  const handleDragOver  = useCallback((e, id) => { e.preventDefault(); if(id!==dragSourceId.current) setDragOverId(id); }, []);
+  const handleDrop      = useCallback((e, tgt) => {
+    e.preventDefault();
+    const src = dragSourceId.current;
+    dragSourceId.current=null; setDragOverId(null); setDraggingId(null);
+    if(!src||src===tgt) return;
+    setSectionOrder(prev => {
+      const n=[...prev], fi=n.indexOf(src), ti=n.indexOf(tgt);
+      if(fi<0||ti<0) return prev;
+      n.splice(fi,1); n.splice(ti,0,src);
+      localStorage.setItem(SECTION_ORDER_KEY,JSON.stringify(n)); return n;
+    });
+  }, []);
+  const handleDragEnd   = useCallback(() => { dragSourceId.current=null; setDragOverId(null); setDraggingId(null); }, []);
+  const resetLayout     = useCallback(() => { setSectionOrder([...DEFAULT_SECTIONS]); localStorage.removeItem(SECTION_ORDER_KEY); }, []);
 
   // ── Metrics computation ──────────────────────────────────────────────────
   const metrics = useMemo(() => {
@@ -424,6 +465,21 @@ export default function Dashboard({ dataMatrix }) {
   // At-risk colors by burn %
   const atRiskColors = metrics.atRisk.map(r => r.burn >= 100 ? '#ff3b30' : r.burn >= 85 ? '#ff9f0a' : '#ffd60a');
 
+  // Drag-and-drop section helpers
+  const S = id => ({
+    style: { order: sectionOrder.indexOf(id), opacity: draggingId===id?0.35:1, outline: dragOverId===id&&draggingId!==id?'2px dashed rgba(168,85,247,0.7)':'2px solid transparent', borderRadius: '12px', transition: 'opacity 0.15s', position: 'relative' },
+    draggable: dragMode || false,
+    onDragStart: dragMode ? (e)=>handleDragStart(e,id) : undefined,
+    onDragOver:  dragMode ? (e)=>handleDragOver(e,id)  : undefined,
+    onDrop:      dragMode ? (e)=>handleDrop(e,id)      : undefined,
+    onDragEnd:   dragMode ? handleDragEnd               : undefined,
+  });
+  const dh = id => dragMode ? (
+    <div style={{display:'flex',alignItems:'center',gap:'6px',padding:'4px 8px',marginBottom:'-2px',fontSize:'11px',color:'rgba(168,85,247,0.65)',userSelect:'none',pointerEvents:'none'}}>
+      <i className='bx bx-dots-vertical-rounded' style={{fontSize:'15px'}} />{SECTION_LABELS[id]}
+    </div>
+  ) : null;
+
   return (
     <div ref={dashboardRef}>
       <style>{`.apexcharts-svg,.apexcharts-canvas{background:transparent!important}`}</style>
@@ -441,6 +497,7 @@ export default function Dashboard({ dataMatrix }) {
           </div>
         </div>
         <div className={styles.actionHeader}>
+          <button className={styles.actionBtn} style={dragMode?{color:'#a855f7',background:'rgba(168,85,247,0.15)'}:{}} title={dragMode?"Exit layout edit mode":"Reorder sections (drag & drop)"} onClick={() => setDragMode(v=>!v)}><i className={`bx ${dragMode?'bx-check':'bx-move'}`} /></button>
           <button className={styles.actionBtn} title="Customize visible charts" onClick={() => setShowCustomize(v=>!v)}><i className='bx bx-layout' /></button>
           <button className={styles.actionBtn} title="Toggle Filters" onClick={() => setShowFilters(!showFilters)}><i className='bx bx-filter-alt' /></button>
         </div>
@@ -490,6 +547,11 @@ export default function Dashboard({ dataMatrix }) {
                 {key.replace(/([A-Z])/g,' $1').replace(/^./,s=>s.toUpperCase())}
               </label>
             ))}
+            <div style={{paddingTop:'12px',borderTop:'1px solid rgba(255,255,255,0.06)',marginTop:'4px'}}>
+              <button onClick={resetLayout} style={{width:'100%',padding:'7px',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'8px',color:'var(--text-muted)',cursor:'pointer',fontSize:'0.82rem',fontFamily:'inherit',display:'flex',alignItems:'center',justifyContent:'center',gap:'6px'}}>
+                <i className='bx bx-reset' /> Reset Section Order
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -542,6 +604,17 @@ export default function Dashboard({ dataMatrix }) {
         </div>
       </div>
 
+      {/* ── Drag mode banner ── */}
+      {dragMode && (
+        <div style={{background:'rgba(168,85,247,0.08)',border:'1px solid rgba(168,85,247,0.2)',borderRadius:'10px',padding:'8px 16px',marginBottom:'8px',display:'flex',alignItems:'center',gap:'10px',fontSize:'13px',color:'rgba(168,85,247,0.85)'}}>
+          <i className='bx bx-move' /> Drag sections to reorder
+          <div style={{flex:1}}/>
+          <button onClick={resetLayout} style={{background:'none',border:'1px solid rgba(168,85,247,0.3)',borderRadius:'6px',padding:'3px 10px',cursor:'pointer',color:'rgba(168,85,247,0.7)',fontSize:'12px',fontFamily:'inherit'}}>Reset Order</button>
+          <button onClick={()=>setDragMode(false)} style={{background:'rgba(168,85,247,0.2)',border:'1px solid rgba(168,85,247,0.4)',borderRadius:'6px',padding:'3px 10px',cursor:'pointer',color:'#a855f7',fontSize:'12px',fontFamily:'inherit',fontWeight:600}}>Done</button>
+        </div>
+      )}
+      <div style={{display:'flex',flexDirection:'column'}}>
+      <div {...S('mainCharts')}>{dh('mainCharts')}
       {/* ── Row 1: Portfolio Burn · Top Clients · Top Employees ── */}
       <div className={styles.chartRow}>
         {visibility.portfolioBurn && (
@@ -609,6 +682,8 @@ export default function Dashboard({ dataMatrix }) {
         )}
       </div>
 
+      </div>
+      <div {...S('capacity')}>{dh('capacity')}
       {/* ── Row 2: Burn vs Capacity + Forecast · Billable Donut ── */}
       <div className={styles.chartRowHalf}>
         {visibility.burnCapacity && (
@@ -669,6 +744,8 @@ export default function Dashboard({ dataMatrix }) {
         )}
       </div>
 
+      </div>
+      <div {...S('risk')}>{dh('risk')}
       {/* ── Row 3: Leakage · At-Risk · Status ── */}
       <div className={styles.chartRow}>
         {visibility.leakage && (
@@ -732,6 +809,8 @@ export default function Dashboard({ dataMatrix }) {
         )}
       </div>
 
+      </div>
+      <div {...S('gantt')}>{dh('gantt')}
       {/* ── Row 4: Gantt (full-width) ── */}
       {visibility.gantt && (
         <div className={styles.chartRow}>
@@ -762,6 +841,8 @@ export default function Dashboard({ dataMatrix }) {
         </div>
       )}
 
+      </div>
+      <div {...S('heatmapSkills')}>{dh('heatmapSkills')}
       {/* ── Row 5: Resource Heatmap · Client Profitability Quadrant ── */}
       <div className={styles.chartRowHalf}>
         {visibility.heatmap && (
@@ -830,6 +911,8 @@ export default function Dashboard({ dataMatrix }) {
         )}
       </div>
 
+      </div>
+      <div {...S('waterfallTree')}>{dh('waterfallTree')}
       {/* ── Row 6: Waterfall · Treemap ── */}
       <div className={styles.chartRowHalf}>
         {visibility.waterfall && (
@@ -880,6 +963,8 @@ export default function Dashboard({ dataMatrix }) {
         )}
       </div>
 
+      </div>
+      <div {...S('complianceQuadrant')}>{dh('complianceQuadrant')}
       {/* ── Row 7: Compliance Trend · Skills Gap Radar ── */}
       <div className={styles.chartRowHalf}>
         {visibility.complianceTrend && (
@@ -928,6 +1013,8 @@ export default function Dashboard({ dataMatrix }) {
         )}
       </div>
 
+      </div>
+      <div {...S('riskRolloffs')}>{dh('riskRolloffs')}
       {/* ── Row 8: Risk Matrix · Rolloffs ── */}
       <div className={styles.chartRowHalf}>
         {visibility.riskMatrix && (
@@ -976,6 +1063,8 @@ export default function Dashboard({ dataMatrix }) {
         )}
       </div>
 
+      </div>
+      <div {...S('locations')}>{dh('locations')}
       {/* ── Row 9: Locations ── */}
       {visibility.locations && (
         <div className={styles.chartRowHalf}>
@@ -1014,6 +1103,8 @@ export default function Dashboard({ dataMatrix }) {
         </div>
       )}
 
+      </div>
+      <div {...S('deepEffort')}>{dh('deepEffort')}
       {/* ── Deep Effort Chart ── */}
       {visibility.deepEffort && (
         <div className={styles.chartRow}>
@@ -1047,7 +1138,8 @@ export default function Dashboard({ dataMatrix }) {
             </div>
           </div>
         </div>
-      )}
+      )}</div>
+      </div>{/* end flex sections */}
 
       <div id="pdf-table-container" style={{display:'none',padding:'20px',background:'#0a0a0c'}} />
     </div>
