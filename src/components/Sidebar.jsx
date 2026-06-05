@@ -22,6 +22,7 @@ const NAV = [
       { to: '/clients/edit',   icon: 'bx-edit',        label: 'Edit Client'   },
     ],
   },
+  { to: '/employees',    icon: 'bx-group',         label: 'Employees',  perm: 'employees'    },
   { to: '/ai-insights',   icon: 'bx-brain',      label: 'AI Insights', perm: 'aiInsights',   glow: true },
   { to: '/my-timesheet', icon: 'bx-calendar-check', label: 'My Time',    perm: 'myTimesheet'  },
   { to: '/settings',     icon: 'bx-cog',       label: 'Settings',    perm: 'settings'   },

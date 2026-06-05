@@ -11,6 +11,7 @@ import { z }                 from 'zod';
 import crypto                from 'crypto';
 import pino                  from 'pino';
 import { promisify }         from 'util';
+import Database              from 'better-sqlite3';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
@@ -121,6 +122,30 @@ if (!existsSync(DATA_DIR_RBAC)) mkdirSync(DATA_DIR_RBAC, { recursive: true });
 
 const USERS_FILE = path.join(DATA_DIR_RBAC, 'users.json');
 const AUDIT_FILE = path.join(DATA_DIR_RBAC, 'audit-log.json');
+
+// ── SQLite database (single file, persisted in ./data volume) ────────────────
+const db = new Database(path.join(DATA_DIR_RBAC, 'mds.db'));
+db.pragma('journal_mode = WAL');  // safe concurrent reads
+db.pragma('foreign_keys = ON');
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS employees (
+    id          TEXT PRIMARY KEY,
+    firstName   TEXT NOT NULL,
+    lastName    TEXT NOT NULL,
+    displayName TEXT,
+    email       TEXT UNIQUE,
+    employeeId  TEXT UNIQUE,
+    role        TEXT NOT NULL DEFAULT 'resource',
+    skills      TEXT NOT NULL DEFAULT '[]',
+    supervisorId TEXT REFERENCES employees(id) ON DELETE SET NULL,
+    startDate   TEXT,
+    endDate     TEXT,
+    status      TEXT NOT NULL DEFAULT 'active',
+    createdAt   TEXT NOT NULL,
+    updatedAt   TEXT NOT NULL
+  );
+`);
 
 const ALL_PAGES = ['dashboard','employees','timesheets','projects','clients','aiInsights','chatbot','myTimesheet'];
 
@@ -1377,6 +1402,110 @@ function generateAlgorithmicInsights(s, fbCounts) {
   return insights.sort((a, b) => (b._boost || 0) - (a._boost || 0) || (sevW[b.severity] || 0) - (sevW[a.severity] || 0))
     .map(({ _boost, ...i }) => i);
 }
+
+// ============================================================================
+// EMPLOYEE DIRECTORY (SQLite)
+// ============================================================================
+
+const employeeSchema = z.object({
+  firstName:   z.string().min(1),
+  lastName:    z.string().min(1),
+  displayName: z.string().optional(),
+  email:       z.string().email().optional().or(z.literal('')),
+  employeeId:  z.string().optional(),
+  role:        z.enum(['admin', 'pm', 'resource']).default('resource'),
+  skills:      z.array(z.string()).default([]),
+  supervisorId: z.string().nullable().optional(),
+  startDate:   z.string().optional(),
+  endDate:     z.string().nullable().optional(),
+  status:      z.enum(['active', 'inactive']).default('active'),
+});
+
+// GET /api/v1/employees
+app.get('/api/v1/employees', requireAuth, (req, res) => {
+  const { status, role, search } = req.query;
+  let query = 'SELECT * FROM employees WHERE 1=1';
+  const params = [];
+  if (status) { query += ' AND status = ?'; params.push(status); }
+  if (role)   { query += ' AND role = ?';   params.push(role); }
+  if (search) {
+    query += ' AND (firstName LIKE ? OR lastName LIKE ? OR email LIKE ? OR employeeId LIKE ?)';
+    const like = `%${search}%`;
+    params.push(like, like, like, like);
+  }
+  query += ' ORDER BY lastName, firstName';
+  const rows = db.prepare(query).all(...params);
+  const employees = rows.map(r => ({ ...r, skills: JSON.parse(r.skills || '[]') }));
+  res.json({ employees });
+});
+
+// GET /api/v1/employees/:id
+app.get('/api/v1/employees/:id', requireAuth, (req, res) => {
+  const row = db.prepare('SELECT * FROM employees WHERE id = ?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Employee not found' });
+  res.json({ employee: { ...row, skills: JSON.parse(row.skills || '[]') } });
+});
+
+// POST /api/v1/employees — admin only
+app.post('/api/v1/employees', requireAuth, (req, res) => {
+  if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin only' });
+  const parsed = employeeSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+  const d = parsed.data;
+  const now = new Date().toISOString();
+  const id  = crypto.randomUUID();
+  try {
+    db.prepare(`
+      INSERT INTO employees (id, firstName, lastName, displayName, email, employeeId, role, skills, supervisorId, startDate, endDate, status, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, d.firstName, d.lastName, d.displayName || `${d.firstName} ${d.lastName}`,
+           d.email || null, d.employeeId || null, d.role, JSON.stringify(d.skills),
+           d.supervisorId || null, d.startDate || null, d.endDate || null, d.status, now, now);
+    auditLog(req.user.id, 'EMPLOYEE_CREATE', { id, name: `${d.firstName} ${d.lastName}` });
+    const row = db.prepare('SELECT * FROM employees WHERE id = ?').get(id);
+    res.status(201).json({ employee: { ...row, skills: JSON.parse(row.skills) } });
+  } catch (err) {
+    if (err.message.includes('UNIQUE')) return res.status(409).json({ error: 'Email or Employee ID already exists' });
+    throw err;
+  }
+});
+
+// PUT /api/v1/employees/:id — admin only
+app.put('/api/v1/employees/:id', requireAuth, (req, res) => {
+  if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin only' });
+  const existing = db.prepare('SELECT * FROM employees WHERE id = ?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Employee not found' });
+  const parsed = employeeSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+  const d = parsed.data;
+  const now = new Date().toISOString();
+  try {
+    db.prepare(`
+      UPDATE employees SET firstName=?, lastName=?, displayName=?, email=?, employeeId=?,
+        role=?, skills=?, supervisorId=?, startDate=?, endDate=?, status=?, updatedAt=?
+      WHERE id=?
+    `).run(d.firstName, d.lastName, d.displayName || `${d.firstName} ${d.lastName}`,
+           d.email || null, d.employeeId || null, d.role, JSON.stringify(d.skills),
+           d.supervisorId || null, d.startDate || null, d.endDate || null, d.status, now, req.params.id);
+    auditLog(req.user.id, 'EMPLOYEE_UPDATE', { id: req.params.id });
+    const row = db.prepare('SELECT * FROM employees WHERE id = ?').get(req.params.id);
+    res.json({ employee: { ...row, skills: JSON.parse(row.skills) } });
+  } catch (err) {
+    if (err.message.includes('UNIQUE')) return res.status(409).json({ error: 'Email or Employee ID already exists' });
+    throw err;
+  }
+});
+
+// DELETE /api/v1/employees/:id — soft delete (sets inactive), admin only
+app.delete('/api/v1/employees/:id', requireAuth, (req, res) => {
+  if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin only' });
+  const existing = db.prepare('SELECT * FROM employees WHERE id = ?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Employee not found' });
+  db.prepare('UPDATE employees SET status=?, updatedAt=? WHERE id=?')
+    .run('inactive', new Date().toISOString(), req.params.id);
+  auditLog(req.user.id, 'EMPLOYEE_DEACTIVATE', { id: req.params.id });
+  res.json({ ok: true });
+});
 
 // ============================================================================
 // MICROSOFT GRAPH — Smart Timesheet Integration
