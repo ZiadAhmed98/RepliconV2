@@ -25,4 +25,4 @@ services:
       - "${DB_UI_PORT:-8888}:8080"
     volumes:
       - ./data:/data
-    command: ["-H", "0.0.0.0", "-p", "8080", "/data/mds.db"]
+    command: ["sqlite_web", "-H", "0.0.0.0", "-p", "8080", "/data/mds.db"]
