@@ -270,46 +270,72 @@ function TaskPicker({ value, allClients, allProjects, allTasks, onChange, disabl
         )}
 
         {step === 'task' && (() => {
-          // Flatten ALL leaf tasks (non-summary, non-milestone) regardless of nesting depth.
-          // Build a breadcrumb path by walking up parentTaskId in rawTaskList.
-          const allProjectTasks = rawTaskList; // includes summaries, used for path lookup
+          // Group leaf tasks under their nearest summary/phase ancestor.
+          // rawTaskList has all tasks for the project (summaries + leaves), ordered by sortOrder.
+          const allProjTasks = rawTaskList;
+
+          const nearestSummary = (t) => {
+            let cur = t.parentTaskId ? allProjTasks.find(x => x.id === t.parentTaskId) : null;
+            while (cur) {
+              if (isSummary(cur)) return cur;
+              cur = cur.parentTaskId ? allProjTasks.find(x => x.id === cur.parentTaskId) : null;
+            }
+            return null;
+          };
+
           const leafTasks = taskList.filter(t => !isSummary(t));
 
-          const getPath = (t) => {
-            const parts = [];
-            let cur = t.parentTaskId ? allProjectTasks.find(x => x.id === t.parentTaskId) : null;
-            while (cur) {
-              parts.unshift(cur.name);
-              cur = cur.parentTaskId ? allProjectTasks.find(x => x.id === cur.parentTaskId) : null;
-            }
-            return parts.join(' › ');
-          };
+          // Build ordered groups preserving the sortOrder from the server
+          const groupMap = new Map(); // summaryId|'__top__' → { header, tasks[] }
+          for (const t of leafTasks) {
+            const anc = nearestSummary(t);
+            const key = anc ? anc.id : '__top__';
+            if (!groupMap.has(key)) groupMap.set(key, { header: anc, tasks: [] });
+            groupMap.get(key).tasks.push(t);
+          }
+
+          // Sort groups by the position of their header in allProjTasks
+          const groups = [...groupMap.values()].sort((a, b) => {
+            if (!a.header) return -1;
+            if (!b.header) return 1;
+            return allProjTasks.findIndex(x => x.id === a.header.id) - allProjTasks.findIndex(x => x.id === b.header.id);
+          });
 
           return (
             <>
-              {leafTasks.map(t => {
-                const path = getPath(t);
-                return (
-                  <div key={t.id} onClick={() => pickTask(t)}
-                    style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.03)' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.08)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    {path && (
-                      <div style={{ fontSize: '0.67rem', color: '#818cf8', opacity: 0.65, marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {path}
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '0.84rem', fontWeight: 500, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
+              {groups.map((g, gi) => (
+                <React.Fragment key={g.header?.id || '__top__'}>
+                  {g.header && (
+                    <div style={{
+                      padding: '7px 12px',
+                      background: gi === 0 ? 'rgba(99,102,241,0.05)' : 'rgba(99,102,241,0.05)',
+                      borderTop: gi > 0 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                      borderBottom: '1px solid rgba(99,102,241,0.1)',
+                      fontSize: '0.74rem', fontWeight: 700, color: '#a78bfa',
+                      userSelect: 'none', display: 'flex', alignItems: 'center', gap: '6px',
+                    }}>
+                      <i className='bx bx-folder' style={{ fontSize: '0.8rem', opacity: 0.8 }} />
+                      {g.header.name}
+                    </div>
+                  )}
+                  {g.tasks.map(t => (
+                    <div key={t.id} onClick={() => pickTask(t)}
+                      style={{ padding: '8px 14px 8px 20px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.08)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                      <span style={{ fontSize: '0.83rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '7px', overflow: 'hidden' }}>
+                        <span style={{ color: 'rgba(99,102,241,0.5)', flexShrink: 0, fontSize: '0.75rem' }}>—</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
+                      </span>
                       {t.estimatedHours > 0 && <span style={{ fontSize: '0.7rem', color: '#818cf8', flexShrink: 0 }}>{t.estimatedHours}h</span>}
                     </div>
-                  </div>
-                );
-              })}
+                  ))}
+                </React.Fragment>
+              ))}
               {leafTasks.length === 0 && (
                 <div style={{ padding: '20px 16px', color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center' }}>
                   {tempPrj ? `No assignable tasks for ${tempPrj.name}` : 'No tasks'}<br />
-                  <span style={{ fontSize: '0.72rem', opacity: 0.7 }}>Add leaf tasks in Admin → Projects</span>
+                  <span style={{ fontSize: '0.72rem', opacity: 0.7 }}>Add tasks in Admin → Projects</span>
                 </div>
               )}
             </>
