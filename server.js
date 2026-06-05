@@ -208,7 +208,7 @@ app.post('/api/v1/logout', (req, res) => {
 // ============================================================================
 // DASHBOARD DATA (6.1 Streaming SSE — sends each source as it arrives)
 // ============================================================================
-app.get('/api/v1/dashboard', async (req, res) => {
+app.get('/api/v1/dashboard', requireAuth, async (req, res) => {
   const token   = (process.env.REPLICON_TOKEN   || '').trim();
   const company = (process.env.REPLICON_COMPANY || '').trim();
   const headers = { Authorization: `Bearer ${token}`, 'X-Replicon-Security-Context': 'User', 'Content-Type': 'application/json' };
@@ -400,7 +400,7 @@ const projectSchema = z.object({
 // ============================================================================
 // STREAMING PROJECT CREATION
 // ============================================================================
-app.post('/api/v1/projects', async (req, res) => {
+app.post('/api/v1/projects', requireAuth, async (req, res) => {
   const parse = projectSchema.safeParse(req.body);
   if (!parse.success) {
     return res.status(400).json({ error: 'Validation failed', issues: parse.error.issues });
@@ -562,7 +562,7 @@ app.post('/api/v1/projects', async (req, res) => {
 // ============================================================================
 // TIMESHEET ACTIONS (4.9 Audit Logging — was missing in original!)
 // ============================================================================
-app.post('/api/v1/timesheets/action', async (req, res) => {
+app.post('/api/v1/timesheets/action', requireAuth, async (req, res) => {
   const { action, uris } = req.body || {};
   if (!action || !Array.isArray(uris) || uris.length === 0) {
     return res.status(400).json({ error: 'action and uris[] are required.' });
