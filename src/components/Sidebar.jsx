@@ -4,28 +4,13 @@ import { usePermissions } from '../context/PermissionContext';
 
 // ── Navigation structure ───────────────────────────────────────────────────
 const NAV = [
-  { to: '/',           icon: 'bx-line-chart',   label: 'Dashboard',  perm: 'dashboard'  },
-  { to: '/employee',   icon: 'bx-user-pin',      label: 'Employees',  perm: 'employees'  },
-  { to: '/timesheets', icon: 'bx-time-five',     label: 'Timesheets', perm: 'timesheets', badge: true },
-  {
-    label: 'Projects', icon: 'bx-folder', group: true, perm: 'projects',
-    children: [
-      { to: '/projects',      icon: 'bx-bar-chart-alt-2', label: 'Analytics'    },
-      { to: '/new-project',   icon: 'bx-plus-circle',     label: 'Add Project'  },
-      { to: '/projects/edit', icon: 'bx-edit',            label: 'Edit Project' },
-    ],
-  },
-  {
-    label: 'Clients', icon: 'bx-briefcase', group: true, perm: 'clients',
-    children: [
-      { to: '/clients/create', icon: 'bx-plus-circle', label: 'Create Client' },
-      { to: '/clients/edit',   icon: 'bx-edit',        label: 'Edit Client'   },
-    ],
-  },
-  { to: '/employees',    icon: 'bx-group',         label: 'Employees',  perm: 'employees'    },
-  { to: '/ai-insights',   icon: 'bx-brain',      label: 'AI Insights', perm: 'aiInsights',   glow: true },
-  { to: '/my-timesheet', icon: 'bx-calendar-check', label: 'My Time',    perm: 'myTimesheet'  },
-  { to: '/settings',     icon: 'bx-cog',       label: 'Settings',    perm: 'settings'   },
+  { to: '/',            icon: 'bx-line-chart',      label: 'Dashboard',  perm: 'dashboard'  },
+  { to: '/employees',   icon: 'bx-group',           label: 'Employees',  perm: 'employees'  },
+  { to: '/clients',     icon: 'bx-briefcase',       label: 'Clients',    perm: 'clients'    },
+  { to: '/timesheets',  icon: 'bx-time-five',       label: 'Timesheets', perm: 'timesheets', badge: true },
+  { to: '/my-timesheet',icon: 'bx-calendar-check',  label: 'My Time',    perm: 'myTimesheet' },
+  { to: '/ai-insights', icon: 'bx-brain',           label: 'AI Insights',perm: 'aiInsights', glow: true },
+  { to: '/settings',    icon: 'bx-cog',             label: 'Settings',   perm: 'settings'   },
 ];
 
 // ── Inline style helpers ───────────────────────────────────────────────────

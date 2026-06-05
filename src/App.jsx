@@ -23,6 +23,7 @@ import AIInsights      from './pages/AIInsights';
 import Settings        from './pages/Settings';
 import MyTimesheet     from './pages/MyTimesheet';
 import Employees       from './pages/Employees';
+import Clients         from './pages/Clients';
 
 import { useRepliconData }    from './hooks/useRepliconData';
 import { repliconApi }        from './api/replicon';
@@ -175,6 +176,7 @@ function AppContent() {
                 <Route path="/ai-insights"    element={<GuardedRoute page="aiInsights"><AIInsights      dataMatrix={dataMatrix} /></GuardedRoute>} />
                 <Route path="/my-timesheet"   element={<GuardedRoute page="myTimesheet"><MyTimesheet    dataMatrix={dataMatrix} /></GuardedRoute>} />
                 <Route path="/employees"      element={<GuardedRoute page="employees" ><Employees       sessionUser={sessionUser} /></GuardedRoute>} />
+                <Route path="/clients"        element={<GuardedRoute page="clients"  ><Clients         sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/settings"       element={<GuardedRoute page="settings" ><Settings         sessionUser={sessionUser} /></GuardedRoute>} />
               </Routes>
             )}
