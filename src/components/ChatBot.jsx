@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styles from './ChatBot.module.css';
+import { useCan } from '../context/PermissionContext';
 
 const SUGGESTIONS = [
   'Who are you and what can you help with?',
@@ -263,7 +264,9 @@ function Message({ msg, isStreaming, feedback, onFeedback, onNavigate, onAction 
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function ChatBot({ dataMatrix }) {
+  const canChat = useCan('chatbot');
   const navigate = useNavigate();
+  if (!canChat) return null;
 
   const [open,        setOpen]        = useState(false);
   const [input,       setInput]       = useState('');

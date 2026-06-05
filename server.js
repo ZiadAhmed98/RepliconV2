@@ -122,7 +122,7 @@ if (!existsSync(DATA_DIR_RBAC)) mkdirSync(DATA_DIR_RBAC, { recursive: true });
 const USERS_FILE = path.join(DATA_DIR_RBAC, 'users.json');
 const AUDIT_FILE = path.join(DATA_DIR_RBAC, 'audit-log.json');
 
-const ALL_PAGES = ['dashboard','employees','timesheets','projects','clients','aiInsights'];
+const ALL_PAGES = ['dashboard','employees','timesheets','projects','clients','aiInsights','chatbot'];
 
 function allPermissions() {
   return Object.fromEntries(ALL_PAGES.map(p => [p, true]));
@@ -271,6 +271,13 @@ async function handleLogin(req, res) {
     logger.warn({ username: id, ip: req.ip }, 'Failed login attempt — wrong password');
     return res.status(401).json({ error: 'Invalid credentials.' });
   }
+
+  // Fill in any missing permission keys added after user was created
+  let permChanged = false;
+  ALL_PAGES.forEach(p => {
+    if (user.permissions[p] === undefined) { user.permissions[p] = true; permChanged = true; }
+  });
+  if (permChanged) { users[id] = user; saveUsers(users); }
 
   const sessionUser = {
     id:          user.id,

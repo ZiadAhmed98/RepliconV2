@@ -8,6 +8,7 @@ const ALL_PAGES = [
   { key: 'projects',   label: 'Projects'     },
   { key: 'clients',    label: 'Clients'      },
   { key: 'aiInsights', label: 'AI Insights'  },
+  { key: 'chatbot',    label: 'AI Chatbot'   },
 ];
 
 const S = {
