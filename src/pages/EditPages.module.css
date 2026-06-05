@@ -1,0 +1,134 @@
+/* Shared styles for Create/Edit pages — Obsidian Glass V2 */
+
+.container { width: 100%; color: var(--text-1); }
+
+/* ── Page header ─────────────────────────────────────────────────────────── */
+.pageHeader { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; flex-wrap: wrap; gap: 14px; }
+.titleArea h1 {
+  font-size: 1.65rem; font-weight: 800; letter-spacing: -0.04em; margin: 0 0 5px;
+  background: linear-gradient(135deg, #fafafa 0%, rgba(255,255,255,0.7) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.titleArea p { font-size: 0.875rem; color: var(--text-3); margin: 0; font-weight: 500; }
+
+/* ── Selector ribbon ─────────────────────────────────────────────────────── */
+.selectorRibbon {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  background: var(--bg-card); backdrop-filter: blur(28px) saturate(130%);
+  -webkit-backdrop-filter: blur(28px) saturate(130%);
+  padding: 14px 20px; border-radius: var(--r-xl);
+  border: 1px solid var(--border); box-shadow: var(--shadow-card); margin-bottom: 22px;
+}
+.selectorRibbon label { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.07em; white-space: nowrap; }
+.selectorRibbon select { flex: 1; min-width: 200px; }
+
+/* ── Glass card ──────────────────────────────────────────────────────────── */
+.card {
+  background: var(--bg-card); backdrop-filter: blur(28px) saturate(130%);
+  -webkit-backdrop-filter: blur(28px) saturate(130%);
+  border-radius: var(--r-xl); border: 1px solid var(--border);
+  box-shadow: var(--shadow-card); position: relative; overflow: hidden;
+  transition: box-shadow 0.25s;
+}
+.card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+  pointer-events: none;
+}
+.card:hover { box-shadow: var(--shadow-card-hover); }
+
+.cardHeader {
+  padding: 18px 24px; border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.cardHeader h3 { font-size: 14px; font-weight: 700; color: var(--text-1); margin: 0; letter-spacing: -0.015em; display: flex; align-items: center; gap: 8px; }
+.cardHeader h3 i { color: var(--violet); font-size: 1rem; }
+.cardBody { padding: 24px; }
+
+/* ── Form grid ───────────────────────────────────────────────────────────── */
+.formGrid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 28px; row-gap: 18px; }
+.formGrid.threeCol { grid-template-columns: 1fr 1fr 1fr; }
+.spanAll { grid-column: 1 / -1; }
+
+.formGroup { display: flex; flex-direction: column; gap: 6px; }
+.formGroup label { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.07em; }
+
+/* ── Segment control ─────────────────────────────────────────────────────── */
+.segment {
+  display: flex; background: rgba(0,0,0,0.2); border: 1px solid var(--border);
+  border-radius: var(--r-md); padding: 3px; height: 42px;
+}
+.segment button {
+  flex: 1; background: transparent; border: none; color: var(--text-3);
+  font-size: var(--t-sm); font-weight: 500; cursor: pointer; transition: all 0.2s;
+  border-radius: var(--r-sm); font-family: inherit;
+}
+.segment button.active {
+  background: rgba(139,92,246,0.14); color: #c4b5fd; font-weight: 600;
+  border: 1px solid rgba(139,92,246,0.25); box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+.segment button:hover:not(.active) { background: rgba(255,255,255,0.05); color: var(--text-2); }
+
+/* ── Team manager ────────────────────────────────────────────────────────── */
+.teamSection { display: flex; flex-direction: column; gap: 8px; }
+.teamRow     { display: flex; align-items: center; gap: 8px; }
+.teamRow select { flex: 1; }
+.removeBtn {
+  width: 34px; height: 34px; border-radius: var(--r-sm); flex-shrink: 0;
+  background: var(--danger-bg); border: 1px solid rgba(239,68,68,0.25);
+  color: var(--danger); cursor: pointer; transition: all 0.15s;
+  display: flex; align-items: center; justify-content: center; font-size: 0.9rem;
+}
+.removeBtn:hover { background: rgba(239,68,68,0.2); border-color: rgba(239,68,68,0.4); }
+.addTeamBtn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(139,92,246,0.08); border: 1px solid rgba(139,92,246,0.2);
+  color: #a78bfa; padding: 6px 14px; border-radius: var(--r-sm);
+  font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; font-family: inherit;
+}
+.addTeamBtn:hover { background: rgba(139,92,246,0.14); border-color: rgba(139,92,246,0.35); }
+
+/* ── Submit bar ──────────────────────────────────────────────────────────── */
+.submitBar {
+  display: flex; justify-content: flex-end; align-items: center; gap: 12px;
+  padding: 18px 24px; border-top: 1px solid var(--border);
+  background: rgba(255,255,255,0.01);
+}
+.btnPrimary {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: linear-gradient(135deg, #7c3aed, #2563eb); color: #fff; border: none;
+  padding: 11px 28px; border-radius: var(--r-full); font-size: var(--t-sm);
+  font-weight: 700; cursor: pointer; transition: all 0.2s; font-family: inherit;
+  box-shadow: 0 2px 14px rgba(109,40,217,0.4); letter-spacing: -0.01em;
+}
+.btnPrimary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 24px rgba(109,40,217,0.55); }
+.btnPrimary:disabled { background: rgba(255,255,255,0.05); color: var(--text-3); box-shadow: none; cursor: not-allowed; }
+.btnGhost {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--bg-input); color: var(--text-2); border: 1px solid var(--border);
+  padding: 11px 20px; border-radius: var(--r-full); font-size: var(--t-sm);
+  font-weight: 500; cursor: pointer; transition: all 0.15s; font-family: inherit;
+}
+.btnGhost:hover { background: rgba(255,255,255,0.08); border-color: var(--border-hover); color: var(--text-1); }
+
+/* ── Status messages ─────────────────────────────────────────────────────── */
+.successMsg {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--success-bg); border: 1px solid rgba(16,185,129,0.3);
+  color: var(--success); padding: 12px 16px; border-radius: var(--r-md);
+  font-size: 0.875rem; font-weight: 500; margin-bottom: 16px;
+}
+.errorMsg {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--danger-bg); border: 1px solid rgba(239,68,68,0.3);
+  color: var(--danger); padding: 12px 16px; border-radius: var(--r-md);
+  font-size: 0.875rem; font-weight: 500; margin-bottom: 16px;
+}
+.loadingMsg {
+  display: flex; align-items: center; gap: 10px;
+  color: var(--text-3); font-size: 0.875rem; font-style: italic;
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 900px) { .formGrid, .formGrid.threeCol { grid-template-columns: 1fr; } .selectorRibbon { flex-direction: column; align-items: stretch; } }

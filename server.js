@@ -610,6 +610,285 @@ app.post('/api/timesheets/action', async (req, res) => {
 });
 
 // ============================================================================
+// HELPERS — replicon headers + UUID
+// ============================================================================
+function repliconHeaders() {
+  return { Authorization: `Bearer ${(process.env.REPLICON_TOKEN||'').trim()}`, 'X-Replicon-Security-Context': 'User', 'Content-Type': 'application/json' };
+}
+function repliconBase() { return `https://ap1.replicon.com/${(process.env.REPLICON_COMPANY||'').trim()}/services`; }
+function newUUID() { return crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex'); }
+
+// ============================================================================
+// PROJECTS — search, details, edit
+// ============================================================================
+
+// GET /api/v1/projects/search — returns [{uri, name}] for all non-archived projects
+app.get('/api/v1/projects/search', requireAuth, async (req, res) => {
+  try {
+    const data = await wcfRequest('Project Search',
+      `${repliconBase()}/ProjectListService1.svc/GetData`,
+      { page: 1, pagesize: 1000, columnUris: ['urn:replicon:project-list-column:project'], sort: [], filterExpression: null },
+      repliconHeaders());
+    const rows = data.d?.rows || data.rows || [];
+    const projects = rows.map(r => ({ uri: r.cells?.[0]?.uri, name: r.cells?.[0]?.textValue })).filter(p => p.uri && p.name);
+    res.json({ projects });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/v1/projects/details — { projectUri } → full project details
+app.post('/api/v1/projects/details', requireAuth, async (req, res) => {
+  const { projectUri } = req.body || {};
+  if (!projectUri) return res.status(400).json({ error: 'projectUri required' });
+  try {
+    const data = await wcfRequest('Project Details',
+      `${repliconBase()}/ProjectService1.svc/BulkGetProjectDetails3`,
+      { projects: [{ uri: projectUri }] }, repliconHeaders());
+    const detail = (data.d || data)[0] || null;
+    res.json({ detail });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/v1/projects/edit — edit existing project
+app.post('/api/v1/projects/edit', requireAuth, async (req, res) => {
+  const { projectUri, modifications } = req.body || {};
+  if (!projectUri || !modifications) return res.status(400).json({ error: 'projectUri + modifications required' });
+  try {
+    const result = await wcfRequest('Edit Project',
+      `${repliconBase()}/ProjectService1.svc/CreateProjectOrApplyModifications`,
+      { target: { uri: projectUri }, modifications, unitOfWorkId: newUUID() },
+      repliconHeaders());
+    auditLog(req.user.name, 'PROJECT_EDITED', { projectUri });
+    res.json({ success: true, result });
+  } catch (err) {
+    logger.error({ err }, 'Project edit failed');
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================================
+// CLIENTS — search, details, create, edit
+// ============================================================================
+
+// GET /api/v1/clients/search — returns [{uri, name}] for all clients
+app.get('/api/v1/clients/search', requireAuth, async (req, res) => {
+  try {
+    const data = await wcfRequest('Client Search',
+      `${repliconBase()}/ClientListService1.svc/GetData`,
+      { page: 1, pagesize: 1000, columnUris: ['urn:replicon:client-list-column:client'], sort: [], filterExpression: null },
+      repliconHeaders());
+    const rows = data.d?.rows || data.rows || [];
+    const clients = rows.map(r => ({ uri: r.cells?.[0]?.uri, name: r.cells?.[0]?.textValue })).filter(c => c.uri && c.name);
+    res.json({ clients });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/v1/clients/details — { clientUri } → full client details
+app.post('/api/v1/clients/details', requireAuth, async (req, res) => {
+  const { clientUri } = req.body || {};
+  if (!clientUri) return res.status(400).json({ error: 'clientUri required' });
+  try {
+    const data = await wcfRequest('Client Details',
+      `${repliconBase()}/ClientService1.svc/BulkGetClientDetails`,
+      { clientUris: [clientUri] }, repliconHeaders());
+    const detail = (data.d || data)[0] || null;
+    res.json({ detail });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/v1/clients/create — create new client
+app.post('/api/v1/clients/create', requireAuth, async (req, res) => {
+  const { name, code, description } = req.body || {};
+  if (!name) return res.status(400).json({ error: 'Client name required' });
+  try {
+    const modifications = {
+      nameToApply:        { value: name },
+      ...(code        ? { codeToApply:        { value: code }        } : {}),
+      ...(description ? { descriptionToApply: { value: description } } : {}),
+      statusToApply: true,
+    };
+    const result = await wcfRequest('Create Client',
+      `${repliconBase()}/ClientService1.svc/CreateClientOrApplyModifications`,
+      { modifications, clientModificationOptionUri: 'urn:replicon:client-modification-option:save', unitOfWorkId: newUUID() },
+      repliconHeaders());
+    auditLog(req.user.name, 'CLIENT_CREATED', { name });
+    res.json({ success: true, clientUri: result?.d?.uri || result?.d || result });
+  } catch (err) {
+    logger.error({ err }, 'Client create failed');
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/clients/edit — edit existing client
+app.post('/api/v1/clients/edit', requireAuth, async (req, res) => {
+  const { clientUri, modifications } = req.body || {};
+  if (!clientUri || !modifications) return res.status(400).json({ error: 'clientUri + modifications required' });
+  try {
+    const result = await wcfRequest('Edit Client',
+      `${repliconBase()}/ClientService1.svc/CreateClientOrApplyModifications`,
+      { target: { uri: clientUri }, modifications, clientModificationOptionUri: 'urn:replicon:client-modification-option:save', unitOfWorkId: newUUID() },
+      repliconHeaders());
+    auditLog(req.user.name, 'CLIENT_EDITED', { clientUri });
+    res.json({ success: true, result });
+  } catch (err) {
+    logger.error({ err }, 'Client edit failed');
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================================
+// AI INSIGHTS — generate + feedback loop
+// ============================================================================
+const insightFeedback = [];   // { type, helpful, ts } — in-memory, resets on restart
+
+app.post('/api/v1/insights/feedback', requireAuth, (req, res) => {
+  const { type, helpful } = req.body || {};
+  if (!type || helpful === undefined) return res.status(400).json({ error: 'type + helpful required' });
+  insightFeedback.push({ type, helpful: !!helpful, ts: Date.now(), user: req.user.name });
+  if (insightFeedback.length > 500) insightFeedback.splice(0, insightFeedback.length - 500);
+  res.json({ success: true });
+});
+
+app.post('/api/v1/insights/generate', requireAuth, async (req, res) => {
+  const { summary } = req.body || {};
+  if (!summary) return res.status(400).json({ error: 'summary required' });
+
+  // Build feedback context for prompt
+  const fbCounts = {};
+  insightFeedback.forEach(f => {
+    fbCounts[f.type] = fbCounts[f.type] || { pos: 0, neg: 0 };
+    f.helpful ? fbCounts[f.type].pos++ : fbCounts[f.type].neg++;
+  });
+  const topPositive = Object.entries(fbCounts).filter(([,v])=>v.pos>v.neg).sort((a,b)=>b[1].pos-a[1].pos).slice(0,5).map(([t])=>t);
+  const topNegative = Object.entries(fbCounts).filter(([,v])=>v.neg>v.pos).map(([t])=>t);
+
+  const apiKey = (process.env.ANTHROPIC_API_KEY || '').trim();
+
+  // If no API key, return algorithmic insights
+  if (!apiKey) {
+    const insights = generateAlgorithmicInsights(summary, fbCounts);
+    return res.json({ insights, source: 'algorithmic', feedbackCount: insightFeedback.length });
+  }
+
+  const feedbackNote = topPositive.length
+    ? `\nUser feedback: focus on insights about [${topPositive.join(', ')}]. Avoid: [${topNegative.join(', ')}].`
+    : '';
+
+  const prompt = `You are a workforce analytics AI for a professional services company using Replicon.
+Analyze the following data summary and return exactly 6 actionable insights as a JSON array.
+Each insight must have: { "type": string, "title": string, "body": string (2 sentences max), "severity": "info"|"warning"|"critical"|"positive", "metric": { "label": string, "value": string }, "chartSuggestion": string }
+${feedbackNote}
+
+Data Summary:
+${JSON.stringify(summary, null, 2)}
+
+Return ONLY valid JSON array, no explanation, no markdown.`;
+
+  try {
+    const response = await axios.post(
+      'https://api.anthropic.com/v1/messages',
+      { model: 'claude-haiku-4-5-20251001', max_tokens: 1500, messages: [{ role: 'user', content: prompt }] },
+      { headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, timeout: 20000 }
+    );
+    const text = response.data?.content?.[0]?.text || '[]';
+    const start = text.indexOf('['); const end = text.lastIndexOf(']');
+    const insights = JSON.parse(start > -1 ? text.slice(start, end + 1) : '[]');
+    res.json({ insights, source: 'claude', feedbackCount: insightFeedback.length });
+  } catch (err) {
+    logger.warn({ err: err.message }, 'Claude insights failed — falling back to algorithmic');
+    const insights = generateAlgorithmicInsights(summary, fbCounts);
+    res.json({ insights, source: 'algorithmic', feedbackCount: insightFeedback.length });
+  }
+});
+
+function generateAlgorithmicInsights(s, fbCounts) {
+  const insights = [];
+  const boost = (type) => (fbCounts[type]?.pos || 0) - (fbCounts[type]?.neg || 0);
+
+  const utilizationRate = s.totalCapacityHrs > 0 ? Math.round((s.actualHrs / s.totalCapacityHrs) * 100) : 0;
+  insights.push({
+    type: 'utilization',
+    title: 'Team Utilization Rate',
+    body: `Your team is operating at ${utilizationRate}% capacity this month. ${utilizationRate > 85 ? 'Risk of burnout — consider rebalancing workloads.' : utilizationRate < 60 ? 'Significant idle capacity — review project pipeline.' : 'Utilization is in the healthy 60–85% range.'}`,
+    severity: utilizationRate > 90 ? 'critical' : utilizationRate < 60 ? 'warning' : 'positive',
+    metric: { label: 'Utilization', value: `${utilizationRate}%` },
+    chartSuggestion: 'radialBar',
+    _boost: boost('utilization'),
+  });
+
+  if (s.billableHrs != null) {
+    const billRatio = s.actualHrs > 0 ? Math.round((s.billableHrs / s.actualHrs) * 100) : 0;
+    insights.push({
+      type: 'billable_ratio',
+      title: 'Billable vs Non-Billable Split',
+      body: `${billRatio}% of logged hours are billable. ${billRatio < 70 ? 'Internal overhead is high — investigate internal project allocation.' : 'Billable ratio is strong.'}`,
+      severity: billRatio < 70 ? 'warning' : 'positive',
+      metric: { label: 'Billable %', value: `${billRatio}%` },
+      chartSuggestion: 'donut',
+      _boost: boost('billable_ratio'),
+    });
+  }
+
+  if (s.atRiskProjects?.length > 0) {
+    const worst = s.atRiskProjects[0];
+    insights.push({
+      type: 'budget_risk',
+      title: 'Budget Overrun Alert',
+      body: `${s.atRiskProjects.length} project(s) exceed their hour budget. "${worst.name}" is at ${worst.burn}% burn — immediate review recommended.`,
+      severity: 'critical',
+      metric: { label: 'Over-budget', value: `${s.atRiskProjects.length} projects` },
+      chartSuggestion: 'bar',
+      _boost: boost('budget_risk'),
+    });
+  }
+
+  if (s.complianceDailyDeficits != null) {
+    insights.push({
+      type: 'compliance',
+      title: 'Timesheet Compliance',
+      body: `${s.complianceDailyDeficits} daily deficits detected. ${s.complianceDailyDeficits > 5 ? 'Compliance is a concern — send reminders to affected engineers.' : 'Compliance is tracking well.'}`,
+      severity: s.complianceDailyDeficits > 5 ? 'warning' : 'positive',
+      metric: { label: 'Daily deficits', value: String(s.complianceDailyDeficits) },
+      chartSuggestion: 'line',
+      _boost: boost('compliance'),
+    });
+  }
+
+  if (s.topClients?.length > 0) {
+    const top = s.topClients[0];
+    const concentration = s.actualHrs > 0 ? Math.round((top.val / s.actualHrs) * 100) : 0;
+    insights.push({
+      type: 'client_concentration',
+      title: 'Client Revenue Concentration',
+      body: `"${top.name}" represents ${concentration}% of total hours. ${concentration > 40 ? 'High dependency on a single client — diversification risk.' : 'Client portfolio is well-diversified.'}`,
+      severity: concentration > 40 ? 'warning' : 'info',
+      metric: { label: 'Top client share', value: `${concentration}%` },
+      chartSuggestion: 'pie',
+      _boost: boost('client_concentration'),
+    });
+  }
+
+  if (s.rolloffs?.length > 0) {
+    const soonest = s.rolloffs[0];
+    const daysLeft = Math.round((soonest.end - Date.now()) / 86400000);
+    insights.push({
+      type: 'rolloffs',
+      title: 'Upcoming Resource Roll-offs',
+      body: `${s.rolloffs.length} project(s) have engineers rolling off soon. "${soonest.name}" ends in ~${daysLeft} days — plan redeployment now.`,
+      severity: daysLeft < 14 ? 'critical' : 'warning',
+      metric: { label: 'Upcoming roll-offs', value: `${s.rolloffs.length}` },
+      chartSuggestion: 'timeline',
+      _boost: boost('rolloffs'),
+    });
+  }
+
+  // Sort by feedback boost, then severity weight
+  const sevW = { critical: 3, warning: 2, info: 1, positive: 0 };
+  return insights.sort((a, b) => (b._boost || 0) - (a._boost || 0) || (sevW[b.severity] || 0) - (sevW[a.severity] || 0))
+    .map(({ _boost, ...i }) => i)
+    .slice(0, 6);
+}
+
+// ============================================================================
 // STATIC + SPA FALLBACK
 // ============================================================================
 app.use(express.static(path.join(__dirname, 'dist'), {

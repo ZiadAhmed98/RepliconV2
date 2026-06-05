@@ -15,6 +15,10 @@ import Employee        from './pages/Employee';
 import ProjectDeepDive from './pages/ProjectDeepDive';
 import TimesheetOps    from './pages/TimesheetOps';
 import SmartInitiator  from './pages/SmartInitiator';
+import ProjectEdit     from './pages/ProjectEdit';
+import ClientCreate    from './pages/ClientCreate';
+import ClientEdit      from './pages/ClientEdit';
+import AIInsights      from './pages/AIInsights';
 
 import { useRepliconData }    from './hooks/useRepliconData';
 import { repliconApi }        from './api/replicon';
@@ -136,11 +140,15 @@ function AppContent() {
         <main className="dashboard-container" style={{ flex: 1 }}>
           {dataMatrix && (
             <Routes>
-              <Route path="/"            element={<Dashboard       dataMatrix={dataMatrix} />} />
-              <Route path="/employee"    element={<Employee         dataMatrix={dataMatrix} sessionUser={sessionUser} />} />
-              <Route path="/projects"    element={<ProjectDeepDive  dataMatrix={dataMatrix} />} />
-              <Route path="/timesheets"  element={<TimesheetOps     dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} />} />
-              <Route path="/new-project" element={<SmartInitiator   dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} />} />
+              <Route path="/"               element={<Dashboard       dataMatrix={dataMatrix} />} />
+              <Route path="/employee"       element={<Employee         dataMatrix={dataMatrix} sessionUser={sessionUser} />} />
+              <Route path="/projects"       element={<ProjectDeepDive  dataMatrix={dataMatrix} />} />
+              <Route path="/timesheets"     element={<TimesheetOps     dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} />} />
+              <Route path="/new-project"    element={<SmartInitiator   dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} />} />
+              <Route path="/projects/edit"  element={<ProjectEdit      dataMatrix={dataMatrix} />} />
+              <Route path="/clients/create" element={<ClientCreate     dataMatrix={dataMatrix} />} />
+              <Route path="/clients/edit"   element={<ClientEdit       dataMatrix={dataMatrix} />} />
+              <Route path="/ai-insights"    element={<AIInsights       dataMatrix={dataMatrix} />} />
             </Routes>
           )}
         </main>

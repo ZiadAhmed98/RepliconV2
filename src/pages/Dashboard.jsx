@@ -309,6 +309,39 @@ export default function Dashboard({ dataMatrix }) {
     const sortedOverburn = overburnData.sort((a,b)=>b.overburn-a.overburn).slice(0,10);
     const maxBf = Math.ceil(Math.max(0,...sortedOverburn.map(p=>Math.max(p.act,p.est)))*1.1)||10;
 
+    // ── Month-over-month KPI trends ───────────────────────────────────────────
+    const _now   = new Date();
+    const _cmKey = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}`;
+    const _pmDate = new Date(_now.getFullYear(), _now.getMonth()-1, 1);
+    const _pmKey = `${_pmDate.getFullYear()}-${String(_pmDate.getMonth()+1).padStart(2,'0')}`;
+    const _cmStart = new Date(_now.getFullYear(), _now.getMonth(), 1).getTime();
+    const _pmStart = new Date(_now.getFullYear(), _now.getMonth()-1, 1).getTime();
+    const _pmEnd   = _cmStart - 1;
+    const _tpct = (cur, prev) => prev > 0 ? Math.round((cur - prev) / prev * 100) : null;
+
+    // Hours trend
+    const _cmHrs = timeTrendMap[_cmKey] || 0;
+    const _pmHrs = timeTrendMap[_pmKey] || 0;
+
+    // Clients active this vs last month
+    const _cmClients = new Set(factTable.filter(r=>r.date>=_cmStart&&r.client&&r.client!=='Unknown').map(r=>r.client));
+    const _pmClients = new Set(factTable.filter(r=>r.date>=_pmStart&&r.date<=_pmEnd&&r.client&&r.client!=='Unknown').map(r=>r.client));
+
+    // Active projects this vs last month
+    const _cmProjects = new Set(factTable.filter(r=>r.date>=_cmStart&&r.project&&r.project!=='Unknown').map(r=>r.project));
+    const _pmProjects = new Set(factTable.filter(r=>r.date>=_pmStart&&r.date<=_pmEnd&&r.project&&r.project!=='Unknown').map(r=>r.project));
+
+    // Billable hours trend
+    const _cmBill = factTable.filter(r=>r.date>=_cmStart&&!(r.program||'').toLowerCase().includes('internal')).reduce((s,r)=>s+r.act,0);
+    const _pmBill = factTable.filter(r=>r.date>=_pmStart&&r.date<=_pmEnd&&!(r.program||'').toLowerCase().includes('internal')).reduce((s,r)=>s+r.act,0);
+
+    const kpiTrends = {
+      clients:  _tpct(_cmClients.size, _pmClients.size),
+      projects: _tpct(_cmProjects.size, _pmProjects.size),
+      hours:    _tpct(_cmHrs, _pmHrs),
+      billable: _tpct(_cmBill, _pmBill),
+    };
+
     return {
       kpis: { totalProjects: activeProjectsSet.size, activeProjects: activeStatus, completedProjects: compStatus, actual: Math.round(tAct), estimated: Math.round(tEst), quoted: Math.round(tQuoted) },
       billable: Math.round(billableHrs), overhead: Math.round(overheadHrs),
@@ -322,8 +355,7 @@ export default function Dashboard({ dataMatrix }) {
       deepEffort: { labels: projLabels, act: projAct, est: projEst, quoted: projQuoted },
       compliance, activeClientsCount: activeClientsSet.size,
       dropdowns: { clients: Array.from(allClients).sort(), projects: Array.from(allProjects).sort(), programs: Array.from(allPrograms).sort() },
-      dimensionTable,
-      // New chart data
+      dimensionTable, kpiTrends,
       heatmapData, ganttData, waterfallData, forecastData, complianceTrend,
       clientQuadrant, skillsGap, riskMatrix,
     };
@@ -430,25 +462,35 @@ export default function Dashboard({ dataMatrix }) {
         )}
       </div>
 
-      {/* ── KPI Grid (8 cards) ── */}
+      {/* ── KPI Grid ── */}
       <div className={styles.kpiGrid}>
         {[
-          { label:'Active Clients',    val: metrics.activeClientsCount,       color: undefined,                 icon:'bx-briefcase',    sub:'Portfolio' },
-          { label:'Total Projects',    val: metrics.kpis.totalProjects,        color: undefined,                 icon:'bx-folder',       sub:'Baseline' },
-          { label:'In Progress',       val: metrics.kpis.activeProjects,       color:'var(--accent-blue)',        icon:'bx-pulse',        sub:'Current' },
-          { label:'Completed',         val: metrics.kpis.completedProjects,    color:'var(--accent-green)',       icon:'bx-check-circle', sub:'Current' },
-          { label:'Actual Hours',      val: fmtInt(metrics.kpis.actual),       color: undefined,                 icon:'bx-time',         sub:'Period' },
-          { label:'Estimated Hours',   val: fmtInt(metrics.kpis.estimated),    color: undefined,                 icon:'bx-target-lock',  sub:'Baseline' },
-          { label:'Quoted Hours',      val: fmtInt(metrics.kpis.quoted),       color: undefined,                 icon:'bx-file',         sub:'Contracted' },
-        ].map((k,i) => (
+          { label:'Active Clients',  val: metrics.activeClientsCount,    color:undefined,               icon:'bx-briefcase',    trend: metrics.kpiTrends.clients  },
+          { label:'Total Projects',  val: metrics.kpis.totalProjects,    color:undefined,               icon:'bx-folder',       trend: metrics.kpiTrends.projects },
+          { label:'In Progress',     val: metrics.kpis.activeProjects,   color:'var(--blue)',            icon:'bx-pulse',        trend: null },
+          { label:'Completed',       val: metrics.kpis.completedProjects,color:'var(--emerald)',         icon:'bx-check-circle', trend: null },
+          { label:'Actual Hours',    val: fmtInt(metrics.kpis.actual),   color:undefined,               icon:'bx-time',         trend: metrics.kpiTrends.hours    },
+          { label:'Billable Hours',  val: fmtInt(metrics.billable),      color:undefined,               icon:'bx-dollar-circle',trend: metrics.kpiTrends.billable },
+          { label:'Quoted Hours',    val: fmtInt(metrics.kpis.quoted),   color:undefined,               icon:'bx-file',         trend: null },
+        ].map((k,i) => {
+          const t = k.trend;
+          const tUp   = t !== null && t > 0;
+          const tDown = t !== null && t < 0;
+          const tFlat = t !== null && t === 0;
+          return (
           <div key={i} className="kpi-card">
             <div>
               <p>{k.label}</p>
               <h3 style={k.color?{color:k.color}:{}}>{k.val}</h3>
+              {t !== null && t !== undefined && (
+                <span className={`kpi-delta ${tUp?'up':tDown?'down':'flat'}`} style={{marginTop:'6px'}}>
+                  {tUp?'↑':tDown?'↓':'→'} {Math.abs(t)}% MoM
+                </span>
+              )}
             </div>
-            <div className="trend"><i className={`bx ${k.icon}`} /><span>{k.sub}</span></div>
+            <div className="trend"><i className={`bx ${k.icon}`} /><span style={{color: tUp?'var(--emerald)':tDown?'var(--rose)':'var(--text-3)'}}>{t===null?'Lifetime':tFlat?'No change':tUp?`+${t}% this month`:`${t}% this month`}</span></div>
           </div>
-        ))}
+        ); })}
 
         {/* Compliance card */}
         <div className={`kpi-card ${styles.complianceCard}`} onClick={()=>setIsCompModalOpen(true)}>
