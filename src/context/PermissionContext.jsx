@@ -1,12 +1,13 @@
 import React, { createContext, useContext } from 'react';
 
-const PermissionContext = createContext({ permissions: {}, isAdmin: false });
+const PermissionContext = createContext({ permissions: {}, isAdmin: false, ready: false });
 
 export function PermissionProvider({ sessionUser, children }) {
   const permissions = sessionUser?.permissions || {};
   const isAdmin     = sessionUser?.isAdmin || false;
+  const ready       = !!(sessionUser?.permissions);
   return (
-    <PermissionContext.Provider value={{ permissions, isAdmin }}>
+    <PermissionContext.Provider value={{ permissions, isAdmin, ready }}>
       {children}
     </PermissionContext.Provider>
   );

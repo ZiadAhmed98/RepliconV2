@@ -26,12 +26,14 @@ import { useRepliconData }    from './hooks/useRepliconData';
 import { repliconApi }        from './api/replicon';
 import { ThemeProvider }      from './context/ThemeContext';
 import { ToastProvider }      from './context/ToastContext';
-import { PermissionProvider, useCan } from './context/PermissionContext';
+import { PermissionProvider, useCan, usePermissions } from './context/PermissionContext';
 
 const SIDEBAR_COLLAPSED_KEY = 'mds_sidebar_collapsed';
 
 function GuardedRoute({ page, children }) {
+  const { ready } = usePermissions();
   const can = useCan(page);
+  if (!ready) return null;
   if (!can) return <div style={{ padding: '60px 40px', color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>You don't have permission to view this page.</div>;
   return children;
 }
@@ -126,7 +128,12 @@ function AppContent() {
 
   if (!sessionUser) {
     return (
-      <Login onLoginSuccess={(user) => setSessionUser(user)} />
+      <Login onLoginSuccess={async () => {
+        try {
+          const { user } = await repliconApi.me();
+          setSessionUser(user);
+        } catch { /* ignore */ }
+      }} />
     );
   }
 
