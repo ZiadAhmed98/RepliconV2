@@ -28,9 +28,15 @@ function fmtDate(isoStr) {
   return new Date(isoStr).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 }
 
+// Format a Date in the LOCAL timezone as YYYY-MM-DD (avoids UTC-shift issues)
+function toLocalDate(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
 function getDayKey(isoStr) {
   if (!isoStr) return '';
-  return new Date(isoStr).toISOString().split('T')[0];
+  return toLocalDate(new Date(isoStr));
 }
 
 function getDaysOfWeek(monday) {
@@ -184,7 +190,7 @@ function EntryCard({ entry, projects, onUpdate, onDelete, onCategorize }) {
 // ── Manual Entry Modal ─────────────────────────────────────────────────────
 
 function AddEntryModal({ weekDays, projects, onAdd, onClose }) {
-  const [form, setForm] = useState({ date: weekDays[0]?.toISOString().split('T')[0] || '', title: '', hours: 1, project: '', category: 'meeting', notes: '' });
+  const [form, setForm] = useState({ date: weekDays[0] ? toLocalDate(weekDays[0]) : '', title: '', hours: 1, project: '', category: 'meeting', notes: '' });
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   return (
@@ -195,7 +201,7 @@ function AddEntryModal({ weekDays, projects, onAdd, onClose }) {
           <div>
             <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '5px' }}>Date</label>
             <select value={form.date} onChange={e => set('date', e.target.value)} style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '9px', padding: '9px 12px', color: 'var(--text-main)', fontSize: '0.88rem', fontFamily: 'inherit', boxSizing: 'border-box' }}>
-              {weekDays.map(d => { const v = d.toISOString().split('T')[0]; return <option key={v} value={v}>{fmtDate(d.toISOString())}</option>; })}
+              {weekDays.map(d => { const v = toLocalDate(d); return <option key={v} value={v}>{fmtDate(d.toISOString())}</option>; })}
             </select>
           </div>
           <div>
@@ -255,7 +261,7 @@ export default function MyTimesheet({ dataMatrix }) {
   const [showAdd, setShowAdd]       = useState(false);
   const [categorizing, setCategorizing] = useState(false);
 
-  const weekStart = monday.toISOString().split('T')[0];
+  const weekStart = toLocalDate(monday);
   const weekDays  = getDaysOfWeek(monday);
 
   // Extract project list from Replicon data for AI categorization
@@ -385,7 +391,7 @@ export default function MyTimesheet({ dataMatrix }) {
         seen.add(ev.id);
         // Compute the correct week for this event and save it there
         const evMonday = getMondayOf(new Date(ev.start));
-        const evWeekStart = evMonday.toISOString().split('T')[0];
+        const evWeekStart = toLocalDate(evMonday);
         await fetch('/api/v1/timesheets/entry', {
           method: 'POST', credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -435,7 +441,7 @@ export default function MyTimesheet({ dataMatrix }) {
 
   // ── Group entries by day ──
   const byDay = weekDays.map(d => {
-    const key = d.toISOString().split('T')[0];
+    const key = toLocalDate(d);
     return { date: d, key, items: entries.filter(e => e.date === key).sort((a, b) => new Date(a.start || 0) - new Date(b.start || 0)) };
   });
 
@@ -540,7 +546,7 @@ export default function MyTimesheet({ dataMatrix }) {
       ) : (
         byDay.map(({ date, key, items }) => {
           const dayHours = items.reduce((s, e) => s + (e.hours || 0), 0);
-          const isToday  = key === new Date().toISOString().split('T')[0];
+          const isToday  = key === toLocalDate(new Date());
           return (
             <div key={key} style={{ marginBottom: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>

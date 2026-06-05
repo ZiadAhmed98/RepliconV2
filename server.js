@@ -1510,8 +1510,13 @@ app.get('/api/v1/timesheets/week', requireAuth, (req, res) => {
 
 // POST /api/v1/timesheets/entry — create or update an entry
 app.post('/api/v1/timesheets/entry', requireAuth, (req, res) => {
-  const { weekStart, entry } = req.body;
-  if (!weekStart || !entry) return res.status(400).json({ error: 'weekStart and entry required' });
+  const { weekStart: rawWeekStart, entry } = req.body;
+  if (!rawWeekStart || !entry) return res.status(400).json({ error: 'weekStart and entry required' });
+
+  // Normalise to Monday so reads and writes always use the same key.
+  // Parse with noon UTC to avoid date-shift in UTC+ timezones from date-only strings.
+  const monday = getMondayOf(new Date(rawWeekStart + 'T12:00:00Z'));
+  const weekStart = monday.toISOString().split('T')[0];
 
   const data = loadTimesheets();
   if (!data.entries) data.entries = {};
