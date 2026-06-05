@@ -163,6 +163,7 @@ select option { background: #0d0d18 !important; color: #fafafa !important; }
 
 input[type="text"], input[type="password"], input[type="email"],
 input[type="number"], input[type="search"], input[type="date"],
+input:not([type]),
 select, textarea {
   background: var(--bg-input) !important;
   color: var(--text-1) !important;
