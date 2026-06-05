@@ -1,16 +1,33 @@
 import React, { useState } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate, Link } from 'react-router-dom';
 import { usePermissions } from '../context/PermissionContext';
 
 // ── Navigation structure ───────────────────────────────────────────────────
 const NAV = [
-  { to: '/',            icon: 'bx-line-chart',      label: 'Dashboard',  perm: 'dashboard'  },
-  { to: '/employees',   icon: 'bx-group',           label: 'Employees',  perm: 'employees'  },
-  { to: '/clients',     icon: 'bx-briefcase',       label: 'Clients',    perm: 'clients'    },
-  { to: '/timesheets',  icon: 'bx-time-five',       label: 'Timesheets', perm: 'timesheets', badge: true },
-  { to: '/my-timesheet',icon: 'bx-calendar-check',  label: 'My Time',    perm: 'myTimesheet' },
-  { to: '/ai-insights', icon: 'bx-brain',           label: 'AI Insights',perm: 'aiInsights', glow: true },
-  { to: '/settings',    icon: 'bx-cog',             label: 'Settings',   perm: 'settings'   },
+  // ── Analytics / Replicon views (read-only dashboard data) ──
+  { to: '/',             icon: 'bx-line-chart',       label: 'Dashboard',   perm: 'dashboard'  },
+  { to: '/employee',     icon: 'bx-user-pin',         label: 'Workforce',   perm: 'employees'  },
+  { to: '/timesheets',   icon: 'bx-time-five',        label: 'Timesheets',  perm: 'timesheets', badge: true },
+  {
+    label: 'Projects', icon: 'bx-folder', group: true, perm: 'projects',
+    children: [
+      { to: '/projects',      icon: 'bx-bar-chart-alt-2', label: 'Analytics'    },
+      { to: '/new-project',   icon: 'bx-plus-circle',     label: 'Add Project'  },
+      { to: '/projects/edit', icon: 'bx-edit',            label: 'Edit Project' },
+    ],
+  },
+  { to: '/ai-insights',  icon: 'bx-brain',            label: 'AI Insights', perm: 'aiInsights', glow: true },
+  { to: '/my-timesheet', icon: 'bx-calendar-check',   label: 'My Time',     perm: 'myTimesheet' },
+
+  // ── Admin — data management (PSA build) ──
+  {
+    label: 'Admin', icon: 'bx-shield', group: true, perm: 'settings',
+    children: [
+      { to: '/employees', icon: 'bx-group',     label: 'Employees' },
+      { to: '/clients',   icon: 'bx-briefcase', label: 'Clients'   },
+    ],
+  },
+  { to: '/settings',    icon: 'bx-cog',            label: 'Settings',    perm: 'settings'   },
 ];
 
 // ── Inline style helpers ───────────────────────────────────────────────────
@@ -242,23 +259,29 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
           {!collapsed && <span style={{ fontSize: '12px', fontWeight: 500, fontFamily: 'inherit' }}>Collapse</span>}
         </button>
 
-        <div
-          style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: collapsed ? '10px 18px' : '10px 12px', borderRadius: '12px', cursor: 'pointer', transition: 'all 0.15s' }}
-          onClick={onLogout}
-          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-          title={collapsed ? `${userName} — logout` : undefined}
-        >
-          <div style={S.avatar}>{userName.charAt(0).toUpperCase()}</div>
-          {!collapsed && (
-            <>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: collapsed ? '10px 12px' : '6px 8px' }}>
+          {/* Avatar + name → profile */}
+          <Link to="/profile" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 8px', borderRadius: '10px', textDecoration: 'none', transition: 'background 0.15s', minWidth: 0 }}
+            title={collapsed ? `${userName} — My Profile` : undefined}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(168,85,247,0.1)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+          >
+            <div style={S.avatar}>{userName.charAt(0).toUpperCase()}</div>
+            {!collapsed && (
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: '12px', fontWeight: 600, color: '#fafafa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{userName}</div>
-                <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginTop: '1px' }}>Click to logout</div>
+                <div style={{ fontSize: '10px', color: 'rgba(168,85,247,0.5)', marginTop: '1px' }}>My Profile</div>
               </div>
-              <i className='bx bx-log-out' style={{ color: 'rgba(239,68,68,0.6)', fontSize: '14px', flexShrink: 0 }} />
-            </>
-          )}
+            )}
+          </Link>
+          {/* Logout icon */}
+          <button onClick={onLogout} title="Logout"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px 8px', borderRadius: '8px', color: 'rgba(239,68,68,0.5)', fontSize: '15px', flexShrink: 0, transition: 'all 0.15s' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; e.currentTarget.style.color = '#ef4444'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'rgba(239,68,68,0.5)'; }}
+          >
+            <i className='bx bx-log-out' />
+          </button>
         </div>
       </div>
     </aside>

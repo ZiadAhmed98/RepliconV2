@@ -24,6 +24,7 @@ import Settings        from './pages/Settings';
 import MyTimesheet     from './pages/MyTimesheet';
 import Employees       from './pages/Employees';
 import Clients         from './pages/Clients';
+import Profile         from './pages/Profile';
 
 import { useRepliconData }    from './hooks/useRepliconData';
 import { repliconApi }        from './api/replicon';
@@ -177,6 +178,7 @@ function AppContent() {
                 <Route path="/my-timesheet"   element={<GuardedRoute page="myTimesheet"><MyTimesheet    dataMatrix={dataMatrix} /></GuardedRoute>} />
                 <Route path="/employees"      element={<GuardedRoute page="employees" ><Employees       sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/clients"        element={<GuardedRoute page="clients"  ><Clients         sessionUser={sessionUser} /></GuardedRoute>} />
+                <Route path="/profile"        element={<Profile />} />
                 <Route path="/settings"       element={<GuardedRoute page="settings" ><Settings         sessionUser={sessionUser} /></GuardedRoute>} />
               </Routes>
             )}

@@ -130,6 +130,7 @@ db.pragma('foreign_keys = ON');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS employees (
+    userId      TEXT UNIQUE,
     id          TEXT PRIMARY KEY,
     firstName   TEXT NOT NULL,
     lastName    TEXT NOT NULL,
@@ -162,6 +163,10 @@ db.exec(`
     updatedAt        TEXT NOT NULL
   );
 `);
+
+// Safe migrations — ignored if column already exists
+try { db.exec('ALTER TABLE employees ADD COLUMN userId TEXT'); } catch {}
+try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_emp_userId ON employees(userId) WHERE userId IS NOT NULL'); } catch {}
 
 const ALL_PAGES = ['dashboard','employees','timesheets','projects','clients','aiInsights','chatbot','myTimesheet'];
 
@@ -1521,6 +1526,67 @@ app.delete('/api/v1/employees/:id', requireAuth, (req, res) => {
     .run('inactive', new Date().toISOString(), req.params.id);
   auditLog(req.user.id, 'EMPLOYEE_DEACTIVATE', { id: req.params.id });
   res.json({ ok: true });
+});
+
+// ============================================================================
+// USER PROFILE (links auth session → employee record)
+// ============================================================================
+
+// GET /api/v1/profile — return current user's linked employee record (or null)
+app.get('/api/v1/profile', requireAuth, (req, res) => {
+  const emp = db.prepare(`
+    SELECT e.*, sup.firstName || ' ' || sup.lastName AS supervisorName
+    FROM employees e
+    LEFT JOIN employees sup ON e.supervisorId = sup.id
+    WHERE e.userId = ?
+  `).get(req.user.id);
+  const users = loadUsers();
+  const user  = users[req.user.id] || {};
+  res.json({
+    employee: emp ? { ...emp, skills: JSON.parse(emp.skills || '[]') } : null,
+    user: { id: req.user.id, name: user.name, isAdmin: user.isAdmin || false },
+  });
+});
+
+// PUT /api/v1/profile — create or update the current user's employee record
+app.put('/api/v1/profile', requireAuth, (req, res) => {
+  const profileSchema = employeeSchema.extend({ status: z.enum(['active']).default('active') });
+  const parsed = profileSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+  const d   = parsed.data;
+  const now = new Date().toISOString();
+  const existing = db.prepare('SELECT id FROM employees WHERE userId = ?').get(req.user.id);
+
+  if (existing) {
+    db.prepare(`
+      UPDATE employees SET firstName=?, lastName=?, displayName=?, email=?, employeeId=?,
+        role=?, skills=?, supervisorId=?, startDate=?, endDate=?, status='active', updatedAt=?
+      WHERE userId=?
+    `).run(d.firstName, d.lastName, d.displayName || `${d.firstName} ${d.lastName}`,
+           d.email || null, d.employeeId || null, d.role, JSON.stringify(d.skills),
+           d.supervisorId || null, d.startDate || null, d.endDate || null, now, req.user.id);
+  } else {
+    const id = crypto.randomUUID();
+    try {
+      db.prepare(`
+        INSERT INTO employees (id, userId, firstName, lastName, displayName, email, employeeId, role, skills, supervisorId, startDate, endDate, status, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+      `).run(id, req.user.id, d.firstName, d.lastName, d.displayName || `${d.firstName} ${d.lastName}`,
+             d.email || null, d.employeeId || null, d.role, JSON.stringify(d.skills),
+             d.supervisorId || null, d.startDate || null, d.endDate || null, now, now);
+    } catch (err) {
+      if (err.message.includes('UNIQUE')) return res.status(409).json({ error: 'Email or Employee ID already used by another employee' });
+      throw err;
+    }
+  }
+
+  const row = db.prepare(`
+    SELECT e.*, sup.firstName || ' ' || sup.lastName AS supervisorName
+    FROM employees e LEFT JOIN employees sup ON e.supervisorId = sup.id
+    WHERE e.userId = ?
+  `).get(req.user.id);
+  auditLog(req.user.id, 'PROFILE_UPDATE', { name: `${d.firstName} ${d.lastName}` });
+  res.json({ employee: { ...row, skills: JSON.parse(row.skills || '[]') } });
 });
 
 // ============================================================================
