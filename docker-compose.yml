@@ -22,7 +22,7 @@ services:
     container_name: mds_db_ui_${NODE_ENV}
     restart: unless-stopped
     ports:
-      - "${DB_UI_PORT:-8080}:8080"
+      - "${DB_UI_PORT:-8888}:8080"
     volumes:
       - ./data:/data
     command: ["-H", "0.0.0.0", "-p", "8080", "/data/mds.db"]
