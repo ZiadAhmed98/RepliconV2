@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useToast } from '../context/ToastContext';
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
@@ -100,22 +101,44 @@ function aiMatch(title, allProjects, allTasks) {
 }
 
 // ── TaskPicker ────────────────────────────────────────────────────────────────
-// Single cascading client → project → task dropdown
+// Single cascading client → project → task dropdown.
+// Rendered via portal so it escapes overflow:auto table wrappers.
 
 function TaskPicker({ value, allClients, allProjects, allTasks, onChange, disabled }) {
-  const [open,   setOpen]   = useState(false);
-  const [step,   setStep]   = useState('client'); // 'client' | 'project' | 'task'
-  const [search, setSearch] = useState('');
+  const [open,    setOpen]    = useState(false);
+  const [step,    setStep]    = useState('client'); // 'client' | 'project' | 'task'
+  const [search,  setSearch]  = useState('');
   const [tempCli, setTempCli] = useState(null);
   const [tempPrj, setTempPrj] = useState(null);
-  const ref = useRef(null);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0 });
+  const triggerRef = useRef(null);
+  const dropRef    = useRef(null);
+
+  const updatePos = useCallback(() => {
+    if (!triggerRef.current) return;
+    const r = triggerRef.current.getBoundingClientRect();
+    // Clamp so dropdown never overflows the right edge of the viewport
+    const left = Math.min(r.left, window.innerWidth - 308);
+    setDropPos({ top: r.bottom + 4, left: Math.max(4, left) });
+  }, []);
 
   useEffect(() => {
     if (!open) return;
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
+    updatePos();
+    const handleClose = (e) => {
+      if (triggerRef.current?.contains(e.target)) return;
+      if (dropRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', handleClose);
+    window.addEventListener('scroll', updatePos, true);
+    window.addEventListener('resize', updatePos);
+    return () => {
+      document.removeEventListener('mousedown', handleClose);
+      window.removeEventListener('scroll', updatePos, true);
+      window.removeEventListener('resize', updatePos);
+    };
+  }, [open, updatePos]);
 
   const openPicker = () => {
     if (disabled) return;
@@ -135,12 +158,12 @@ function TaskPicker({ value, allClients, allProjects, allTasks, onChange, disabl
     setOpen(true);
   };
 
-  const pickClient = (c) => { setTempCli(c); setTempPrj(null); setStep('project'); setSearch(''); };
+  const pickClient  = (c) => { setTempCli(c); setTempPrj(null); setStep('project'); setSearch(''); };
   const pickProject = (p) => { setTempPrj(p); setStep('task'); setSearch(''); };
-  const pickTask = (t) => {
+  const pickTask    = (t) => {
     onChange({
-      clientId:    tempCli?.id    || null,
-      clientName:  tempCli?.name  || null,
+      clientId:    tempCli?.id   || null,
+      clientName:  tempCli?.name || null,
       projectId:   tempPrj?.id   || null,
       projectName: tempPrj?.name || null,
       taskId:      t.id,
@@ -153,14 +176,166 @@ function TaskPicker({ value, allClients, allProjects, allTasks, onChange, disabl
     onChange({ clientId: null, clientName: null, projectId: null, projectName: null, taskId: null, taskName: null });
   };
 
-  const filt = (arr, key) => search ? arr.filter(x => x[key].toLowerCase().includes(search.toLowerCase())) : arr;
+  const filt = (arr, key) => search
+    ? arr.filter(x => (x[key] || '').toLowerCase().includes(search.toLowerCase()))
+    : arr;
+
   const projList = filt(tempCli ? allProjects.filter(p => p.clientId === tempCli.id) : allProjects, 'name');
-  const taskList = filt(tempPrj ? allTasks.filter(t => t.projectId === tempPrj.id)  : [], 'name');
+
+  // For the task step: exclude milestones entirely, keep summary tasks but make them non-clickable headers
+  const rawTaskList = tempPrj ? allTasks.filter(t => t.projectId === tempPrj.id) : [];
+  const taskList    = filt(rawTaskList.filter(t => t.description !== 'Milestone'), 'name');
+  const isSummary   = (t) => t.description === 'Phase / Summary';
 
   const hasValue = !!value.projectId;
 
+  // ── Dropdown content (shared between portal and inline) ───────────────────
+  const dropdownContent = (
+    <div ref={dropRef} style={{
+      position: 'fixed',
+      top:  `${dropPos.top}px`,
+      left: `${dropPos.left}px`,
+      zIndex: 9999,
+      background: '#0d0d1a',
+      border: '1px solid rgba(255,255,255,0.12)',
+      borderRadius: '12px',
+      overflow: 'hidden',
+      boxShadow: '0 16px 48px rgba(0,0,0,0.7)',
+      width: '304px',
+      display: 'flex',
+      flexDirection: 'column',
+      maxHeight: '400px',
+    }}>
+      {/* Breadcrumb + step label */}
+      <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
+        {step !== 'client' && tempCli && (
+          <button onClick={() => { setStep('client'); setTempPrj(null); setSearch(''); }}
+            style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: '5px', padding: '2px 7px', cursor: 'pointer', color: '#818cf8', fontSize: '0.72rem', fontFamily: 'inherit' }}>
+            {tempCli.name} ×
+          </button>
+        )}
+        {step === 'task' && tempPrj && (
+          <button onClick={() => { setStep('project'); setSearch(''); }}
+            style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: '5px', padding: '2px 7px', cursor: 'pointer', color: '#818cf8', fontSize: '0.72rem', fontFamily: 'inherit' }}>
+            {tempPrj.name} ×
+          </button>
+        )}
+        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>
+          {step === 'client' ? '1. Client' : step === 'project' ? '2. Project' : '3. Task *'}
+        </span>
+      </div>
+
+      {/* Search */}
+      <div style={{ padding: '7px 8px', borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
+        <input autoFocus value={search} onChange={e => setSearch(e.target.value)}
+          placeholder={`Search ${step}…`}
+          style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '5px 9px', color: 'var(--text-main)', fontSize: '0.8rem', fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none' }} />
+      </div>
+
+      {/* Scrollable items — fixed height, overflow: auto so it never grows the dropdown */}
+      <div style={{ overflowY: 'auto', flex: 1 }}>
+        {step === 'client' && (
+          <>
+            {filt(allClients, 'name').map(c => (
+              <div key={c.id} onClick={() => pickClient(c)}
+                style={{ padding: '9px 12px', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-main)', borderBottom: '1px solid rgba(255,255,255,0.03)' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.08)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                {c.name}
+              </div>
+            ))}
+            {filt(allClients, 'name').length === 0 && (
+              <div style={{ padding: '16px', color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center' }}>No clients</div>
+            )}
+          </>
+        )}
+
+        {step === 'project' && (
+          <>
+            {projList.map(p => (
+              <div key={p.id} onClick={() => pickProject(p)}
+                style={{ padding: '9px 12px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.03)' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.08)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-main)' }}>{p.name}</div>
+                {p.code && <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{p.code}</div>}
+              </div>
+            ))}
+            {projList.length === 0 && (
+              <div style={{ padding: '16px', color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center' }}>
+                No projects{tempCli ? ` for ${tempCli.name}` : ''}
+              </div>
+            )}
+          </>
+        )}
+
+        {step === 'task' && (
+          <>
+            {/* Render tasks: summary tasks are non-clickable phase headers; milestones are already filtered out */}
+            {taskList.filter(t => !t.parentTaskId).map(parent => {
+              const subs = taskList.filter(t => t.parentTaskId === parent.id);
+              if (isSummary(parent)) {
+                // Phase/summary row — non-clickable header, children are the real tasks
+                return (
+                  <React.Fragment key={parent.id}>
+                    <div style={{
+                      padding: '6px 12px', background: 'rgba(99,102,241,0.06)',
+                      fontSize: '0.72rem', fontWeight: 700, color: '#a78bfa',
+                      textTransform: 'uppercase', letterSpacing: '0.05em',
+                      userSelect: 'none', borderBottom: '1px solid rgba(99,102,241,0.1)',
+                      display: 'flex', alignItems: 'center', gap: '6px',
+                    }}>
+                      <i className='bx bx-folder' style={{ fontSize: '0.85rem' }} />
+                      {parent.name}
+                    </div>
+                    {subs.filter(s => !isSummary(s)).map(s => (
+                      <div key={s.id} onClick={() => pickTask(s)}
+                        style={{ padding: '8px 12px 8px 28px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.08)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <span style={{ fontSize: '0.82rem', color: 'var(--text-main)' }}>↳ {s.name}</span>
+                        {s.estimatedHours > 0 && <span style={{ fontSize: '0.7rem', color: '#818cf8', flexShrink: 0, marginLeft: '8px' }}>{s.estimatedHours}h</span>}
+                      </div>
+                    ))}
+                  </React.Fragment>
+                );
+              }
+              // Regular top-level task — clickable, with any direct child tasks below it
+              return (
+                <React.Fragment key={parent.id}>
+                  <div onClick={() => pickTask(parent)}
+                    style={{ padding: '9px 12px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.08)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-main)' }}>{parent.name}</span>
+                    {parent.estimatedHours > 0 && <span style={{ fontSize: '0.7rem', color: '#818cf8', flexShrink: 0, marginLeft: '8px' }}>{parent.estimatedHours}h</span>}
+                  </div>
+                  {subs.filter(s => !isSummary(s)).map(s => (
+                    <div key={s.id} onClick={() => pickTask(s)}
+                      style={{ padding: '7px 12px 7px 28px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.06)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>↳ {s.name}</span>
+                      {s.estimatedHours > 0 && <span style={{ fontSize: '0.7rem', color: '#818cf8', flexShrink: 0, marginLeft: '8px' }}>{s.estimatedHours}h</span>}
+                    </div>
+                  ))}
+                </React.Fragment>
+              );
+            })}
+            {taskList.length === 0 && (
+              <div style={{ padding: '16px', color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center' }}>
+                {tempPrj ? `No tasks for ${tempPrj.name}` : 'No tasks'}<br />
+                <span style={{ fontSize: '0.72rem', opacity: 0.7 }}>Add tasks in Admin → Projects</span>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+
   return (
-    <div ref={ref} style={{ position: 'relative', minWidth: 0 }}>
+    <div ref={triggerRef} style={{ minWidth: 0 }}>
       {/* Trigger cell */}
       <div onClick={openPicker} style={{
         background: open ? 'rgba(99,102,241,0.1)' : 'rgba(255,255,255,0.03)',
@@ -192,114 +367,113 @@ function TaskPicker({ value, allClients, allProjects, allTasks, onChange, disabl
         )}
       </div>
 
-      {/* Dropdown */}
-      {open && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 600,
-          background: '#0d0d1a', border: '1px solid rgba(255,255,255,0.12)',
-          borderRadius: '12px', overflow: 'hidden', boxShadow: '0 16px 48px rgba(0,0,0,0.7)',
-          width: '300px',
-        }}>
-          {/* Breadcrumb + step label */}
-          <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {step !== 'client' && tempCli && (
-              <button onClick={() => { setStep('client'); setTempPrj(null); setSearch(''); }}
-                style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: '5px', padding: '2px 7px', cursor: 'pointer', color: '#818cf8', fontSize: '0.72rem', fontFamily: 'inherit' }}>
-                {tempCli.name} ×
-              </button>
-            )}
-            {step === 'task' && tempPrj && (
-              <button onClick={() => { setStep('project'); setSearch(''); }}
-                style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: '5px', padding: '2px 7px', cursor: 'pointer', color: '#818cf8', fontSize: '0.72rem', fontFamily: 'inherit' }}>
-                {tempPrj.name} ×
-              </button>
-            )}
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>
-              {step === 'client' ? '1. Client' : step === 'project' ? '2. Project' : '3. Task *'}
-            </span>
-          </div>
-
-          {/* Search */}
-          <div style={{ padding: '7px 8px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            <input autoFocus value={search} onChange={e => setSearch(e.target.value)}
-              placeholder={`Search ${step}…`}
-              style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '5px 9px', color: 'var(--text-main)', fontSize: '0.8rem', fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none' }} />
-          </div>
-
-          {/* Items */}
-          <div style={{ maxHeight: '260px', overflowY: 'auto' }}>
-            {step === 'client' && (
-              <>
-                <div onClick={() => pickClient(null)}
-                  style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-muted)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                  — All Clients —
-                </div>
-                {filt(allClients, 'name').map(c => (
-                  <div key={c.id} onClick={() => pickClient(c)}
-                    style={{ padding: '9px 12px', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-main)', borderBottom: '1px solid rgba(255,255,255,0.03)' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.08)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    {c.name}
-                  </div>
-                ))}
-                {filt(allClients, 'name').length === 0 && <div style={{ padding: '16px', color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center' }}>No clients</div>}
-              </>
-            )}
-
-            {step === 'project' && (
-              <>
-                {projList.map(p => (
-                  <div key={p.id} onClick={() => pickProject(p)}
-                    style={{ padding: '9px 12px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.03)' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.08)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-main)' }}>{p.name}</div>
-                    {p.code && <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{p.code}</div>}
-                  </div>
-                ))}
-                {projList.length === 0 && <div style={{ padding: '16px', color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center' }}>No projects{tempCli ? ` for ${tempCli.name}` : ''}</div>}
-              </>
-            )}
-
-            {step === 'task' && (
-              <>
-                {taskList.filter(t => !t.parentTaskId).map(parent => {
-                  const subs = taskList.filter(t => t.parentTaskId === parent.id);
-                  return (
-                    <React.Fragment key={parent.id}>
-                      <div onClick={() => pickTask(parent)}
-                        style={{ padding: '9px 12px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.08)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-main)' }}>{parent.name}</span>
-                        {parent.estimatedHours > 0 && <span style={{ fontSize: '0.7rem', color: '#818cf8', flexShrink: 0, marginLeft: '8px' }}>{parent.estimatedHours}h</span>}
-                      </div>
-                      {subs.map(s => (
-                        <div key={s.id} onClick={() => pickTask(s)}
-                          style={{ padding: '7px 12px 7px 26px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.06)'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>↳ {s.name}</span>
-                          {s.estimatedHours > 0 && <span style={{ fontSize: '0.7rem', color: '#818cf8', flexShrink: 0, marginLeft: '8px' }}>{s.estimatedHours}h</span>}
-                        </div>
-                      ))}
-                    </React.Fragment>
-                  );
-                })}
-                {taskList.length === 0 && (
-                  <div style={{ padding: '16px', color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center' }}>
-                    {tempPrj ? `No tasks for ${tempPrj.name}` : 'No tasks'}<br />
-                    <span style={{ fontSize: '0.72rem', opacity: 0.7 }}>Add tasks in Admin → Projects</span>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Dropdown via portal — escapes overflow:auto table wrapper */}
+      {open && createPortal(dropdownContent, document.body)}
     </div>
+  );
+}
+
+// ── TimesheetRow ──────────────────────────────────────────────────────────────
+
+// ── NoteCell — inline expandable "what I worked on" field ────────────────────
+function NoteCell({ rowId, projectId, taskId, initialNote, readOnly }) {
+  const [note,     setNote]     = useState(initialNote || '');
+  const [editing,  setEditing]  = useState(false);
+  const [saving,   setSaving]   = useState(false);
+  const textareaRef = useRef(null);
+  const saveTimer   = useRef(null);
+
+  // Auto-resize textarea height to fit content
+  useEffect(() => {
+    if (editing && textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+      textareaRef.current.focus();
+    }
+  }, [editing, note]);
+
+  const saveNote = async (val) => {
+    setSaving(true);
+    try {
+      await fetch(`/api/v1/psa/timesheet-rows/${rowId}`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, taskId, note: val }),
+      });
+    } finally { setSaving(false); }
+  };
+
+  const handleBlur = () => {
+    setEditing(false);
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => saveNote(note), 300);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Escape') { setEditing(false); }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleBlur(); }
+  };
+
+  if (readOnly) {
+    return note ? (
+      <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.45)', fontStyle: 'italic', padding: '4px 6px', lineHeight: 1.4, maxWidth: '140px', wordBreak: 'break-word' }}>
+        "{note}"
+      </div>
+    ) : null;
+  }
+
+  if (editing) {
+    return (
+      <div style={{ position: 'relative' }}>
+        <textarea
+          ref={textareaRef}
+          value={note}
+          onChange={e => setNote(e.target.value)}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+          placeholder="What did you work on?"
+          rows={2}
+          style={{
+            width: '140px', minHeight: '52px', resize: 'none', overflowY: 'hidden',
+            background: 'rgba(250,204,21,0.06)', border: '1px solid rgba(250,204,21,0.25)',
+            borderRadius: '8px', padding: '6px 8px', color: 'var(--text-main)',
+            fontSize: '0.78rem', fontFamily: 'inherit', lineHeight: 1.45,
+            boxSizing: 'border-box', outline: 'none', display: 'block',
+          }}
+        />
+        {saving && <span style={{ position: 'absolute', bottom: '4px', right: '6px', fontSize: '0.62rem', color: 'rgba(250,204,21,0.5)' }}>saving…</span>}
+      </div>
+    );
+  }
+
+  // Collapsed state
+  return note ? (
+    <div onClick={() => setEditing(true)}
+      title="Click to edit note"
+      style={{
+        cursor: 'pointer', maxWidth: '140px', padding: '4px 8px',
+        background: 'rgba(250,204,21,0.05)', border: '1px solid rgba(250,204,21,0.12)',
+        borderRadius: '7px', display: 'flex', alignItems: 'flex-start', gap: '5px',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(250,204,21,0.1)'; e.currentTarget.style.borderColor = 'rgba(250,204,21,0.25)'; }}
+      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(250,204,21,0.05)'; e.currentTarget.style.borderColor = 'rgba(250,204,21,0.12)'; }}>
+      <i className='bx bx-comment-detail' style={{ color: 'rgba(250,204,21,0.5)', fontSize: '0.8rem', marginTop: '1px', flexShrink: 0 }} />
+      <span style={{ fontSize: '0.73rem', color: 'rgba(255,255,255,0.5)', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', fontStyle: 'italic' }}>
+        {note}
+      </span>
+    </div>
+  ) : (
+    <button onClick={() => setEditing(true)}
+      style={{
+        background: 'none', border: '1px dashed rgba(255,255,255,0.08)', borderRadius: '7px',
+        padding: '4px 8px', cursor: 'pointer', color: 'rgba(255,255,255,0.18)',
+        fontSize: '0.73rem', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '4px',
+        transition: 'all 0.15s',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(250,204,21,0.25)'; e.currentTarget.style.color = 'rgba(250,204,21,0.6)'; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.18)'; }}>
+      <i className='bx bx-plus' style={{ fontSize: '0.8rem' }} /> note
+    </button>
   );
 }
 
@@ -394,6 +568,10 @@ function TimesheetRow({ row, dayKeys, allClients, allProjects, allTasks, readOnl
     <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
       <td style={{ padding: '6px 8px' }}>
         <TaskPicker value={sel} allClients={allClients} allProjects={allProjects} allTasks={allTasks} onChange={handlePickerChange} disabled={readOnly} />
+      </td>
+      {/* Note cell */}
+      <td style={{ padding: '6px 6px', verticalAlign: 'middle' }}>
+        <NoteCell rowId={row.id} projectId={sel.projectId} taskId={sel.taskId} initialNote={row.note || ''} readOnly={readOnly} />
       </td>
       {dayKeys.map(dk => (
         <td key={dk} style={{ padding: '6px 3px', textAlign: 'center', background: dk === todayKey ? 'rgba(99,102,241,0.03)' : 'transparent' }}>
@@ -611,7 +789,7 @@ function CalendarPanel({ dayKeys, weekDays, allProjects, allTasks, timesheet, on
                         <>
                           {linkingId === ev.id ? (
                             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', flexShrink: 0, flexDirection: 'column', minWidth: '230px' }}>
-                              <TaskPicker value={linkSel} allClients={[]} allProjects={allProjects} allTasks={allTasks} onChange={setLinkSel} />
+                              <TaskPicker value={linkSel} allClients={allClients} allProjects={allProjects} allTasks={allTasks} onChange={setLinkSel} />
                               <div style={{ display: 'flex', gap: '6px' }}>
                                 <button onClick={() => handleAddWithLink(ev)} disabled={!linkSel.projectId || adding}
                                   style={{ background: 'linear-gradient(135deg,#7c3aed,#a855f7)', border: 'none', borderRadius: '6px', padding: '5px 12px', cursor: 'pointer', color: '#fff', fontSize: '0.78rem', fontFamily: 'inherit', fontWeight: 600, opacity: (!linkSel.projectId || adding) ? 0.5 : 1 }}>
@@ -822,6 +1000,7 @@ export default function MyTimesheet() {
             <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: '260px' }} />
+                <col style={{ width: '160px' }} />
                 {dayKeys.map(dk => <col key={dk} style={{ width: '64px' }} />)}
                 <col style={{ width: '56px' }} /><col style={{ width: '34px' }} />
               </colgroup>
@@ -829,6 +1008,9 @@ export default function MyTimesheet() {
                 <tr style={{ background: 'rgba(255,255,255,0.02)' }}>
                   <th style={{ ...th, textAlign: 'left', paddingLeft: '10px', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)' }}>
                     Client / <span style={{ color: 'var(--text-main)' }}>Project</span> / Task *
+                  </th>
+                  <th style={{ ...th, textAlign: 'left', paddingLeft: '6px', color: 'rgba(250,204,21,0.4)' }}>
+                    <i className='bx bx-comment-detail' style={{ marginRight: '4px' }} />Note
                   </th>
                   {weekDays.map((d, i) => (
                     <th key={dayKeys[i]} style={{ ...th, background: dayKeys[i] === todayKey ? 'rgba(99,102,241,0.06)' : 'transparent', color: dayKeys[i] === todayKey ? '#818cf8' : 'var(--text-muted)', borderRadius: 0 }}>
@@ -841,7 +1023,7 @@ export default function MyTimesheet() {
               </thead>
               <tbody>
                 {(timesheet?.rows || []).length === 0 && (
-                  <tr><td colSpan={10} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                  <tr><td colSpan={11} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                     <i className='bx bx-time-five' style={{ fontSize: '30px', display: 'block', marginBottom: '8px', opacity: 0.3 }} />
                     No time entries yet — click <strong>+ Add Row</strong> or import from calendar below
                   </td></tr>
@@ -850,7 +1032,7 @@ export default function MyTimesheet() {
                   <TimesheetRow key={row.id} row={row} dayKeys={dayKeys} allClients={allClients} allProjects={allProjects} allTasks={allTasks} readOnly={isSubmitted} todayKey={todayKey} onUpdate={handleRowUpdate} onDelete={() => handleDeleteRow(row.id)} />
                 ))}
                 {!isSubmitted && (
-                  <tr><td colSpan={10} style={{ padding: 0 }}>
+                  <tr><td colSpan={11} style={{ padding: 0 }}>
                     <button onClick={handleAddRow} disabled={addingRow}
                       style={{ width: '100%', background: 'none', border: 'none', padding: '11px 12px', cursor: 'pointer', color: 'rgba(99,102,241,0.65)', fontSize: '0.83rem', fontFamily: 'inherit', fontWeight: 600, textAlign: 'left', display: 'flex', alignItems: 'center', gap: '5px' }}
                       onMouseEnter={e => { e.currentTarget.style.background='rgba(99,102,241,0.04)'; e.currentTarget.style.color='#818cf8'; }}
@@ -863,6 +1045,7 @@ export default function MyTimesheet() {
               <tfoot>
                 <tr style={{ background: 'rgba(255,255,255,0.02)', borderTop: '2px solid rgba(255,255,255,0.07)' }}>
                   <td style={{ padding: '11px 10px', fontWeight: 700, fontSize: '0.83rem', color: 'var(--text-main)' }}>Total Hours</td>
+                  <td />
                   {dayKeys.map(dk => (
                     <td key={dk} style={{ padding: '11px 4px', textAlign: 'center', fontWeight: 700, fontSize: '0.88rem', color: colTotals[dk] > 0 ? '#818cf8' : 'var(--text-muted)', background: dk === todayKey ? 'rgba(99,102,241,0.04)' : 'transparent' }}>
                       {colTotals[dk] > 0 ? colTotals[dk].toFixed(2) : '0.00'}
