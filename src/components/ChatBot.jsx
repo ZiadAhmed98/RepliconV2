@@ -1,15 +1,16 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import styles from './ChatBot.module.css';
 
 const SUGGESTIONS = [
+  'Who are you and what can you help with?',
   'Give me a full team health summary',
   'Who has capacity for a new project?',
-  'Which projects are at risk of going over budget?',
-  'Forecast completion dates for active projects',
+  'Which projects are at risk?',
   "Who hasn't submitted timesheets this week?",
-  'Which client generates the most hours?',
+  'Add a new client to the system',
   'Who is underutilized right now?',
-  'Who should I assign to a new engagement?',
+  'Forecast completion for our active projects',
 ];
 
 // ── Markdown renderer ────────────────────────────────────────────────────────
@@ -39,7 +40,35 @@ function isSepRow(cells) {
   return cells.every(c => /^:?-+:?$/.test(c));
 }
 
-function renderMarkdown(text) {
+// Action button with async state
+function ActionButton({ type, data, label, onAction }) {
+  const [phase, setPhase]   = useState('idle'); // idle | loading | done | error
+  const [result, setResult] = useState('');
+
+  const handleClick = async () => {
+    setPhase('loading');
+    try {
+      const msg = await onAction(type, data);
+      setResult(msg || 'Done.');
+      setPhase('done');
+    } catch (e) {
+      setResult(e.message || 'Something went wrong.');
+      setPhase('error');
+    }
+  };
+
+  if (phase === 'done')  return <div className={styles.actionDone}><i className="bx bx-check-circle" /> {result}</div>;
+  if (phase === 'error') return <div className={styles.actionErr}><i className="bx bx-x-circle" /> {result}</div>;
+
+  return (
+    <button className={styles.actionBtn} onClick={handleClick} disabled={phase === 'loading'}>
+      <i className={`bx ${phase === 'loading' ? 'bx-loader-alt bx-spin' : 'bx-bolt-circle'}`} />
+      {label}
+    </button>
+  );
+}
+
+function renderMarkdown(text, { onNavigate, onAction } = {}) {
   if (!text) return null;
   const lines      = text.split('\n');
   const elements   = [];
@@ -97,14 +126,45 @@ function renderMarkdown(text) {
   for (const line of lines) {
     const trimmed = line.trim();
 
+    // Table lines
     if (trimmed.startsWith('|')) {
       flushList();
       tableLines.push(line);
       continue;
     }
-
     flushTable();
 
+    // Navigate button: [NAVIGATE:/path|Label]
+    if (/^\[NAVIGATE:/.test(trimmed)) {
+      flushList();
+      const match = trimmed.match(/^\[NAVIGATE:([^\]|]+)\|([^\]]+)\]$/);
+      if (match) {
+        const [, path, label] = match;
+        elements.push(
+          <button key={elKey++} className={styles.navBtn} onClick={() => onNavigate?.(path.trim())}>
+            <i className="bx bx-right-arrow-alt" /> {label.trim()}
+          </button>
+        );
+      }
+      continue;
+    }
+
+    // Action button: [ACTION:type|{json}|Label]
+    if (/^\[ACTION:/.test(trimmed)) {
+      flushList();
+      const match = trimmed.match(/^\[ACTION:([^|]+)\|(.*)\|([^\]|]+)\]$/);
+      if (match) {
+        const [, type, jsonStr, label] = match;
+        let data = {};
+        try { data = JSON.parse(jsonStr); } catch {}
+        elements.push(
+          <ActionButton key={elKey++} type={type.trim()} data={data} label={label.trim()} onAction={onAction} />
+        );
+      }
+      continue;
+    }
+
+    // Standard markdown
     if (/^#{1,3}\s/.test(line)) {
       flushList();
       elements.push(
@@ -151,7 +211,7 @@ function TypingDots() {
   );
 }
 
-function Message({ msg, isStreaming, feedback, onFeedback }) {
+function Message({ msg, isStreaming, feedback, onFeedback, onNavigate, onAction }) {
   const isUser     = msg.role === 'user';
   const showDots   = !isUser && isStreaming && !msg.content;
   const isComplete = !isUser && !isStreaming && !!msg.content;
@@ -166,7 +226,7 @@ function Message({ msg, isStreaming, feedback, onFeedback }) {
             ? <TypingDots />
             : isUser
               ? msg.content
-              : renderMarkdown(msg.content)}
+              : renderMarkdown(msg.content, { onNavigate, onAction })}
         </div>
 
         {isComplete && (
@@ -203,6 +263,8 @@ function Message({ msg, isStreaming, feedback, onFeedback }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function ChatBot({ dataMatrix }) {
+  const navigate = useNavigate();
+
   const [open,        setOpen]        = useState(false);
   const [input,       setInput]       = useState('');
   const [history,     setHistory]     = useState([]);
@@ -220,6 +282,7 @@ export default function ChatBot({ dataMatrix }) {
     const now   = Date.now();
     const ms30  = 30 * 86400000;
     const ms7   =  7 * 86400000;
+    const ms90  = 90 * 86400000;
     const EXPECTED_30D = 176;
 
     const hrs30 = {}, hrs7 = {}, empProjects = {};
@@ -227,8 +290,10 @@ export default function ChatBot({ dataMatrix }) {
       if (r.act <= 0) return;
       if (r.date >= now - ms30) hrs30[r.user] = (hrs30[r.user] || 0) + r.act;
       if (r.date >= now - ms7)  hrs7[r.user]  = (hrs7[r.user]  || 0) + r.act;
-      if (!empProjects[r.user]) empProjects[r.user] = new Set();
-      empProjects[r.user].add(r.project);
+      if (r.date >= now - ms30) {
+        if (!empProjects[r.user]) empProjects[r.user] = new Set();
+        empProjects[r.user].add(r.project);
+      }
     });
 
     const activeEmployees = roster
@@ -240,16 +305,20 @@ export default function ChatBot({ dataMatrix }) {
           hoursLast30d:    h30,
           hoursLast7d:     Math.round(hrs7[e.name] || 0),
           utilizationPct:  Math.round((h30 / EXPECTED_30D) * 100),
-          currentProjects: [...(empProjects[e.name] || [])],
+          activeProjects:  [...(empProjects[e.name] || [])].slice(0, 8),
           dailyCompliant:  (compliance.dailyList  || []).find(c => c.name === e.name)?.isCompliant ?? null,
           weeklyCompliant: (compliance.weeklyList || []).find(c => c.name === e.name)?.isCompliant ?? null,
         };
       })
       .sort((a, b) => b.hoursLast30d - a.hoursLast30d);
 
+    // Active + recently-active projects only (exclude stale archived/completed)
     const projects = Object.entries(dimensionTable).map(([name, d]) => {
       const allHrs    = factTable.filter(r => r.project === name).reduce((s, r) => s + r.act, 0);
       const recent30  = factTable.filter(r => r.project === name && r.date >= now - ms30).reduce((s, r) => s + r.act, 0);
+      const recent90  = factTable.filter(r => r.project === name && r.date >= now - ms90).reduce((s, r) => s + r.act, 0);
+      const isStale   = ['Completed','Archived','Cancelled'].includes(d.status) && recent90 === 0;
+      if (isStale) return null;
       const burnPerDay = recent30 / 30;
       const remaining  = d.est - allHrs;
       return {
@@ -260,15 +329,12 @@ export default function ChatBot({ dataMatrix }) {
         actualHrs:              Math.round(allHrs),
         remainingHrs:           Math.round(remaining),
         burnPct:                d.est > 0 ? Math.round((allHrs / d.est) * 100) : 0,
-        recentHrsLast30d:       Math.round(recent30),
-        burnRateHrsPerDay:      Math.round(burnPerDay * 10) / 10,
-        forecastDaysToComplete: burnPerDay > 0 && remaining > 0 ? Math.round(remaining / burnPerDay) : null,
+        recentHrs30d:           Math.round(recent30),
+        forecastDaysLeft:       burnPerDay > 0 && remaining > 0 ? Math.round(remaining / burnPerDay) : null,
         isOverBudget:           d.est > 0 && allHrs > d.est,
         isAtRisk:               d.est > 0 && allHrs / d.est > 0.8 && allHrs <= d.est,
       };
-    })
-    .filter(p => p.actualHrs > 0 || p.estimatedHrs > 0)
-    .sort((a, b) => b.burnPct - a.burnPct);
+    }).filter(Boolean).sort((a, b) => b.burnPct - a.burnPct);
 
     const nonCompliantDaily  = (compliance.dailyList  || []).filter(c => !c.isCompliant).map(c => c.name);
     const nonCompliantWeekly = (compliance.weeklyList || []).filter(c => !c.isCompliant).map(c => c.name);
@@ -277,7 +343,6 @@ export default function ChatBot({ dataMatrix }) {
       asOf: new Date().toISOString(),
       summary: {
         totalActiveEmployees: activeEmployees.length,
-        totalProjects:        projects.length,
         activeProjects:       projects.filter(p => !['Completed','Archived','Cancelled'].includes(p.status)).length,
         overBudgetProjects:   projects.filter(p => p.isOverBudget).length,
         atRiskProjects:       projects.filter(p => p.isAtRisk).length,
@@ -323,6 +388,25 @@ export default function ChatBot({ dataMatrix }) {
       body: JSON.stringify({ rating, question: userMsg?.content || '', answer: aiMsg?.content || '' }),
     }).catch(() => {});
   }, [history]);
+
+  // ── Navigation handler ─────────────────────────────────────────────────────
+  const handleNavigate = useCallback((path) => {
+    navigate(path);
+  }, [navigate]);
+
+  // ── Autonomous action handler ──────────────────────────────────────────────
+  const handleAction = useCallback(async (type, data) => {
+    const r = await fetch('/api/v1/chat/action', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, data }),
+    });
+    const result = await r.json();
+    if (!r.ok) throw new Error(result.error || 'Action failed');
+    // Add confirmation message to chat
+    setHistory(h => [...h, { role: 'assistant', content: `✅ ${result.message}` }]);
+    return result.message;
+  }, []);
 
   // ── Send (streaming) ───────────────────────────────────────────────────────
   const send = useCallback(async (text) => {
@@ -403,7 +487,7 @@ export default function ChatBot({ dataMatrix }) {
       <button
         className={`${styles.fab} ${open ? styles.fabOpen : ''}`}
         onClick={() => setOpen(o => !o)}
-        title="Ask AI Assistant"
+        title="Ask MDS AI"
       >
         <i className={`bx ${open ? 'bx-x' : 'bx-chat'}`} />
         {!open && history.length === 0 && <span className={styles.fabPulse} />}
@@ -415,8 +499,8 @@ export default function ChatBot({ dataMatrix }) {
           <div className={styles.headerLeft}>
             <div className={styles.headerIcon}><i className="bx bx-chip" /></div>
             <div>
-              <div className={styles.headerTitle}>AI Assistant</div>
-              <div className={styles.headerSub}>Claude · Live data · Ask anything</div>
+              <div className={styles.headerTitle}>MDS AI</div>
+              <div className={styles.headerSub}>Workforce assistant · Live data · Can take actions</div>
             </div>
           </div>
           <div className={styles.headerActions}>
@@ -435,7 +519,7 @@ export default function ChatBot({ dataMatrix }) {
           {history.length === 0 && (
             <div className={styles.emptyState}>
               <div className={styles.emptyIcon}><i className="bx bx-brain" /></div>
-              <p>Ask me anything — people, projects, budgets, compliance, forecasts, recommendations. I have your live data.</p>
+              <p>Ask me anything about your workforce — or ask me to do something, like add a client.</p>
               <div className={styles.suggestions}>
                 {SUGGESTIONS.map((s, i) => (
                   <button key={i} className={styles.suggestion} onClick={() => send(s)}>{s}</button>
@@ -450,6 +534,8 @@ export default function ChatBot({ dataMatrix }) {
               isStreaming={loading && i === history.length - 1}
               feedback={feedbackMap[i]}
               onFeedback={msg.role === 'assistant' ? (rating) => sendFeedback(i, rating) : null}
+              onNavigate={handleNavigate}
+              onAction={handleAction}
             />
           ))}
           <div ref={bottomRef} />
@@ -462,7 +548,7 @@ export default function ChatBot({ dataMatrix }) {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKey}
-            placeholder="Ask anything about your workforce…"
+            placeholder="Ask anything, or say 'add a client'…"
             rows={1}
             disabled={loading}
           />
