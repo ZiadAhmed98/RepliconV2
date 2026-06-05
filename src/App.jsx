@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 
 import Sidebar            from './components/Sidebar';
 import Ribbon             from './components/Ribbon';
@@ -20,16 +20,25 @@ import ProjectEdit     from './pages/ProjectEdit';
 import ClientCreate    from './pages/ClientCreate';
 import ClientEdit      from './pages/ClientEdit';
 import AIInsights      from './pages/AIInsights';
+import Settings        from './pages/Settings';
 
 import { useRepliconData }    from './hooks/useRepliconData';
 import { repliconApi }        from './api/replicon';
 import { ThemeProvider }      from './context/ThemeContext';
 import { ToastProvider }      from './context/ToastContext';
+import { PermissionProvider, useCan } from './context/PermissionContext';
 
 const SIDEBAR_COLLAPSED_KEY = 'mds_sidebar_collapsed';
 
+function GuardedRoute({ page, children }) {
+  const can = useCan(page);
+  if (!can) return <div style={{ padding: '60px 40px', color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>You don't have permission to view this page.</div>;
+  return children;
+}
+
 function AppContent() {
-  const navigate = useNavigate();
+  const navigate   = useNavigate();
+  const location   = useLocation();
   const [sessionUser,    setSessionUser]    = useState(null);
   const [isAppReady,     setIsAppReady]     = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true');
@@ -71,6 +80,12 @@ function AppContent() {
     window.addEventListener('mds:unauthorized', handler);
     return () => window.removeEventListener('mds:unauthorized', handler);
   }, [handleLogout]);
+
+  // Audit page views
+  useEffect(() => {
+    if (!sessionUser) return;
+    fetch('/api/v1/audit/pageview', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page: location.pathname }) }).catch(() => {});
+  }, [location.pathname, sessionUser]);
 
   const { dataMatrix, loading, statusText, syncMatrixData, lastSynced } = useRepliconData(sessionUser);
 
@@ -116,51 +131,54 @@ function AppContent() {
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-main)' }}>
-      <Sidebar
-        sessionUser={sessionUser}
-        onLogout={handleLogout}
-        pendingCount={pendingCount}
-        collapsed={sidebarCollapsed}
-        onToggle={toggleSidebar}
-      />
-
-      <div style={{ flex: 1, marginLeft: `${sidebarWidth}px`, transition: 'margin-left 0.25s cubic-bezier(0.2,0.8,0.2,1)', display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-        <SessionManager onLogout={handleLogout} />
-        <LoadingScreen isVisible={loading} statusText={statusText} />
-
-        <Ribbon
+    <PermissionProvider sessionUser={sessionUser}>
+      <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-main)' }}>
+        <Sidebar
           sessionUser={sessionUser}
           onLogout={handleLogout}
-          onSync={() => syncMatrixData(true)}
-          onSearchOpen={() => setSearchOpen(true)}
-          lastSynced={lastSynced}
-          dataMatrix={dataMatrix}
+          pendingCount={pendingCount}
+          collapsed={sidebarCollapsed}
+          onToggle={toggleSidebar}
         />
 
-        <main className="dashboard-container" style={{ flex: 1 }}>
-          {dataMatrix && (
-            <Routes>
-              <Route path="/"               element={<Dashboard       dataMatrix={dataMatrix} />} />
-              <Route path="/employee"       element={<Employee         dataMatrix={dataMatrix} sessionUser={sessionUser} />} />
-              <Route path="/projects"       element={<ProjectDeepDive  dataMatrix={dataMatrix} />} />
-              <Route path="/timesheets"     element={<TimesheetOps     dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} />} />
-              <Route path="/new-project"    element={<SmartInitiator   dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} />} />
-              <Route path="/projects/edit"  element={<ProjectEdit      dataMatrix={dataMatrix} />} />
-              <Route path="/clients/create" element={<ClientCreate     dataMatrix={dataMatrix} />} />
-              <Route path="/clients/edit"   element={<ClientEdit       dataMatrix={dataMatrix} />} />
-              <Route path="/ai-insights"    element={<AIInsights       dataMatrix={dataMatrix} />} />
-            </Routes>
-          )}
-        </main>
-      </div>
+        <div style={{ flex: 1, marginLeft: `${sidebarWidth}px`, transition: 'margin-left 0.25s cubic-bezier(0.2,0.8,0.2,1)', display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+          <SessionManager onLogout={handleLogout} />
+          <LoadingScreen isVisible={loading} statusText={statusText} />
 
-      {/* Global overlays */}
-      <GlobalSearch  dataMatrix={dataMatrix} isOpen={searchOpen}    onClose={() => setSearchOpen(false)} />
-      <KeyboardShortcuts isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
-      <ToastStack />
-      <ChatBot dataMatrix={dataMatrix} />
-    </div>
+          <Ribbon
+            sessionUser={sessionUser}
+            onLogout={handleLogout}
+            onSync={() => syncMatrixData(true)}
+            onSearchOpen={() => setSearchOpen(true)}
+            lastSynced={lastSynced}
+            dataMatrix={dataMatrix}
+          />
+
+          <main className="dashboard-container" style={{ flex: 1 }}>
+            {dataMatrix && (
+              <Routes>
+                <Route path="/"               element={<GuardedRoute page="dashboard"><Dashboard       dataMatrix={dataMatrix} /></GuardedRoute>} />
+                <Route path="/employee"       element={<GuardedRoute page="employees"><Employee         dataMatrix={dataMatrix} sessionUser={sessionUser} /></GuardedRoute>} />
+                <Route path="/projects"       element={<GuardedRoute page="projects" ><ProjectDeepDive  dataMatrix={dataMatrix} /></GuardedRoute>} />
+                <Route path="/timesheets"     element={<GuardedRoute page="timesheets"><TimesheetOps    dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} /></GuardedRoute>} />
+                <Route path="/new-project"    element={<GuardedRoute page="projects" ><SmartInitiator   dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} /></GuardedRoute>} />
+                <Route path="/projects/edit"  element={<GuardedRoute page="projects" ><ProjectEdit      dataMatrix={dataMatrix} /></GuardedRoute>} />
+                <Route path="/clients/create" element={<GuardedRoute page="clients"  ><ClientCreate     dataMatrix={dataMatrix} /></GuardedRoute>} />
+                <Route path="/clients/edit"   element={<GuardedRoute page="clients"  ><ClientEdit       dataMatrix={dataMatrix} /></GuardedRoute>} />
+                <Route path="/ai-insights"    element={<GuardedRoute page="aiInsights"><AIInsights      dataMatrix={dataMatrix} /></GuardedRoute>} />
+                <Route path="/settings"       element={<GuardedRoute page="settings" ><Settings         sessionUser={sessionUser} /></GuardedRoute>} />
+              </Routes>
+            )}
+          </main>
+        </div>
+
+        {/* Global overlays */}
+        <GlobalSearch  dataMatrix={dataMatrix} isOpen={searchOpen}    onClose={() => setSearchOpen(false)} />
+        <KeyboardShortcuts isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+        <ToastStack />
+        <ChatBot dataMatrix={dataMatrix} />
+      </div>
+    </PermissionProvider>
   );
 }
 

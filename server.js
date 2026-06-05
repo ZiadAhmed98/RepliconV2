@@ -10,6 +10,7 @@ import rateLimit             from 'express-rate-limit';
 import { z }                 from 'zod';
 import crypto                from 'crypto';
 import pino                  from 'pino';
+import { promisify }         from 'util';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
@@ -81,7 +82,7 @@ app.use(cors({
     cb(new Error(`CORS: Origin ${origin} not allowed`));
   },
   credentials: true,
-  methods: ['GET', 'POST', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 }));
 
 app.use(cookieParser());
@@ -96,10 +97,99 @@ function requireAuth(req, res, next) {
   next();
 }
 
+function requireAdmin(req, res, next) {
+  const token   = req.cookies?.mds_session;
+  const session = validateSession(token);
+  if (!session) return res.status(401).json({ error: 'Unauthorized.' });
+  if (!session.user?.isAdmin) return res.status(403).json({ error: 'Admin access required.' });
+  req.user = session.user;
+  next();
+}
+
 // 4.9 Audit Logger
 function auditLog(user, action, details = {}) {
   logger.info({ audit: true, user, action, ...details }, `AUDIT: ${user} → ${action}`);
 }
+
+// ============================================================================
+// RBAC — Users store, permissions, audit log
+// ============================================================================
+const scryptAsync = promisify(crypto.scrypt);
+
+const DATA_DIR_RBAC = path.join(__dirname, 'data');
+if (!existsSync(DATA_DIR_RBAC)) mkdirSync(DATA_DIR_RBAC, { recursive: true });
+
+const USERS_FILE = path.join(DATA_DIR_RBAC, 'users.json');
+const AUDIT_FILE = path.join(DATA_DIR_RBAC, 'audit-log.json');
+
+const ALL_PAGES = ['dashboard','employees','timesheets','projects','clients','aiInsights'];
+
+function allPermissions() {
+  return Object.fromEntries(ALL_PAGES.map(p => [p, true]));
+}
+
+async function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const buf  = await scryptAsync(password, salt, 64);
+  return `${salt}:${buf.toString('hex')}`;
+}
+
+async function verifyPassword(password, stored) {
+  const [salt, hash] = stored.split(':');
+  const buf = await scryptAsync(password, salt, 64);
+  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), buf);
+}
+
+function loadUsers() {
+  try { return JSON.parse(readFileSync(USERS_FILE, 'utf8')); } catch { return {}; }
+}
+
+function saveUsers(users) {
+  writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf8');
+}
+
+async function ensureDefaultUsers() {
+  const users = loadUsers();
+  let changed = false;
+
+  const defaults = [
+    { id: 'ziad', displayName: 'Ziad Shafik',  envKey: 'AdminPWD', isAdmin: true  },
+    { id: 'mod',  displayName: 'Irfan Najmi',  envKey: 'ModPWD',   isAdmin: false },
+    { id: 'gm',   displayName: 'Habib Matta',  envKey: 'GMPWD',    isAdmin: false },
+  ];
+
+  for (const d of defaults) {
+    if (!users[d.id]) {
+      const pwd = process.env[d.envKey];
+      if (!pwd) continue;
+      users[d.id] = {
+        id:          d.id,
+        displayName: d.displayName,
+        passwordHash: await hashPassword(pwd),
+        isAdmin:     d.isAdmin,
+        permissions: d.isAdmin ? allPermissions() : Object.fromEntries(ALL_PAGES.map(p => [p, true])),
+        createdAt:   new Date().toISOString(),
+      };
+      changed = true;
+    }
+  }
+  if (changed) saveUsers(users);
+}
+
+// Page-view audit log helpers
+function loadAuditLog() {
+  try { return JSON.parse(readFileSync(AUDIT_FILE, 'utf8')); } catch { return []; }
+}
+
+function appendAudit(entry) {
+  const log = loadAuditLog();
+  log.push({ ...entry, ts: new Date().toISOString() });
+  const trimmed = log.slice(-2000);
+  writeFileSync(AUDIT_FILE, JSON.stringify(trimmed, null, 2), 'utf8');
+}
+
+// Seed on startup
+ensureDefaultUsers().catch(e => logger.error({ err: e }, 'ensureDefaultUsers failed'));
 
 // ============================================================================
 // HELPER UTILITIES (unchanged from original)
@@ -159,24 +249,36 @@ app.get('/health', (req, res) => {
 });
 
 // ============================================================================
-// AUTH: LOGIN — validated against .env only, no Replicon API call needed
+// AUTH: LOGIN — validated against users.json (seeded from .env on first boot)
 // ============================================================================
-const DISPLAY_NAMES = { ziad: 'Ziad Shafik', mod: 'Irfan Najmi', gm: 'Habib Matta' };
-
-function handleLogin(req, res) {
+async function handleLogin(req, res) {
   const { username, password } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: 'Username and password required.' });
 
-  const lowerUsername = String(username).toLowerCase().trim();
-  const pwdMap = { ziad: process.env.AdminPWD, mod: process.env.ModPWD, gm: process.env.GMPWD };
+  const id    = String(username).toLowerCase().trim();
+  const users = loadUsers();
+  const user  = users[id];
 
-  if (!pwdMap[lowerUsername] || pwdMap[lowerUsername] !== password) {
-    logger.warn({ username: lowerUsername, ip: req.ip }, 'Failed login attempt');
+  if (!user) {
+    logger.warn({ username: id, ip: req.ip }, 'Failed login attempt — unknown user');
     return res.status(401).json({ error: 'Invalid credentials.' });
   }
 
-  const displayName         = DISPLAY_NAMES[lowerUsername] || lowerUsername;
-  const { token: sessionToken } = createSession({ name: displayName, role: lowerUsername });
+  let valid = false;
+  try { valid = await verifyPassword(password, user.passwordHash); } catch { /* fall through */ }
+
+  if (!valid) {
+    logger.warn({ username: id, ip: req.ip }, 'Failed login attempt — wrong password');
+    return res.status(401).json({ error: 'Invalid credentials.' });
+  }
+
+  const sessionUser = {
+    id:          user.id,
+    name:        user.displayName,
+    isAdmin:     user.isAdmin || false,
+    permissions: user.permissions || allPermissions(),
+  };
+  const { token: sessionToken } = createSession(sessionUser);
 
   res.cookie('mds_session', sessionToken, {
     httpOnly: true,
@@ -185,13 +287,14 @@ function handleLogin(req, res) {
     maxAge:   Number(process.env.SESSION_MS) || 3600000,
   });
 
-  auditLog(displayName, 'LOGIN', { ip: req.ip });
-  logger.info({ user: displayName }, 'Login success');
-  res.json({ success: true, displayName });
+  appendAudit({ user: user.displayName, action: 'LOGIN', ip: req.ip });
+  auditLog(user.displayName, 'LOGIN', { ip: req.ip });
+  logger.info({ user: user.displayName }, 'Login success');
+  res.json({ success: true, displayName: user.displayName });
 }
 
-app.post('/api/v1/login', loginLimiter, handleLogin);
-app.post('/api/login',    loginLimiter, handleLogin);
+app.post('/api/v1/login', loginLimiter, (req, res) => handleLogin(req, res));
+app.post('/api/login',    loginLimiter, (req, res) => handleLogin(req, res));
 
 // Auth: Validate session (used by frontend on mount)
 app.get('/api/v1/me', requireAuth, (req, res) => {
@@ -204,6 +307,86 @@ app.post('/api/v1/logout', (req, res) => {
   if (token) sessions.delete(token);
   res.clearCookie('mds_session');
   res.json({ success: true });
+});
+
+// ============================================================================
+// ADMIN: User management (admin only)
+// ============================================================================
+
+// List all users (passwords stripped)
+app.get('/api/v1/admin/users', requireAdmin, (req, res) => {
+  const users = loadUsers();
+  const safe  = Object.values(users).map(({ passwordHash: _p, ...u }) => u);
+  res.json({ users: safe });
+});
+
+// Create user
+app.post('/api/v1/admin/users', requireAdmin, async (req, res) => {
+  const { id, displayName, password, isAdmin, permissions } = req.body || {};
+  if (!id || !displayName || !password) return res.status(400).json({ error: 'id, displayName, password required.' });
+
+  const cleanId = String(id).toLowerCase().trim().replace(/\s+/g, '_');
+  const users   = loadUsers();
+  if (users[cleanId]) return res.status(409).json({ error: 'User already exists.' });
+
+  users[cleanId] = {
+    id:           cleanId,
+    displayName:  String(displayName).trim(),
+    passwordHash: await hashPassword(password),
+    isAdmin:      isAdmin === true,
+    permissions:  permissions || allPermissions(),
+    createdAt:    new Date().toISOString(),
+  };
+  saveUsers(users);
+  appendAudit({ user: req.user.name, action: 'CREATE_USER', target: cleanId });
+  const { passwordHash: _p, ...safe } = users[cleanId];
+  res.json({ success: true, user: safe });
+});
+
+// Update user (permissions, displayName, password, isAdmin)
+app.put('/api/v1/admin/users/:uid', requireAdmin, async (req, res) => {
+  const { uid }  = req.params;
+  const users    = loadUsers();
+  if (!users[uid]) return res.status(404).json({ error: 'User not found.' });
+
+  const { displayName, password, isAdmin, permissions } = req.body || {};
+  if (displayName)   users[uid].displayName  = String(displayName).trim();
+  if (typeof isAdmin === 'boolean') users[uid].isAdmin = isAdmin;
+  if (permissions)   users[uid].permissions  = permissions;
+  if (password)      users[uid].passwordHash = await hashPassword(password);
+
+  saveUsers(users);
+  appendAudit({ user: req.user.name, action: 'UPDATE_USER', target: uid, changes: Object.keys(req.body || {}) });
+  const { passwordHash: _p, ...safe } = users[uid];
+  res.json({ success: true, user: safe });
+});
+
+// Delete user (cannot delete yourself)
+app.delete('/api/v1/admin/users/:uid', requireAdmin, (req, res) => {
+  const { uid } = req.params;
+  if (uid === req.user.id) return res.status(400).json({ error: 'Cannot delete your own account.' });
+  const users = loadUsers();
+  if (!users[uid]) return res.status(404).json({ error: 'User not found.' });
+  delete users[uid];
+  saveUsers(users);
+  appendAudit({ user: req.user.name, action: 'DELETE_USER', target: uid });
+  res.json({ success: true });
+});
+
+// ============================================================================
+// ADMIN: Audit log
+// ============================================================================
+app.get('/api/v1/admin/audit', requireAdmin, (req, res) => {
+  const log = loadAuditLog();
+  res.json({ log: log.slice().reverse().slice(0, 500) });
+});
+
+// Frontend calls this on page navigation to record page views
+app.post('/api/v1/audit/pageview', requireAuth, (req, res) => {
+  const { page } = req.body || {};
+  if (!page) return res.status(400).json({ error: 'page required.' });
+  appendAudit({ user: req.user.name, action: 'PAGE_VIEW', page: String(page).slice(0, 100) });
+  res.json({ ok: true });
 });
 
 // ============================================================================

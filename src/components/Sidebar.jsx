@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { usePermissions } from '../context/PermissionContext';
 
 // ── Navigation structure ───────────────────────────────────────────────────
 const NAV = [
-  { to: '/',           icon: 'bx-line-chart',   label: 'Dashboard' },
-  { to: '/employee',   icon: 'bx-user-pin',      label: 'Employees' },
-  { to: '/timesheets', icon: 'bx-time-five',     label: 'Timesheets', badge: true },
+  { to: '/',           icon: 'bx-line-chart',   label: 'Dashboard',  perm: 'dashboard'  },
+  { to: '/employee',   icon: 'bx-user-pin',      label: 'Employees',  perm: 'employees'  },
+  { to: '/timesheets', icon: 'bx-time-five',     label: 'Timesheets', perm: 'timesheets', badge: true },
   {
-    label: 'Projects', icon: 'bx-folder', group: true,
+    label: 'Projects', icon: 'bx-folder', group: true, perm: 'projects',
     children: [
       { to: '/projects',      icon: 'bx-bar-chart-alt-2', label: 'Analytics'    },
       { to: '/new-project',   icon: 'bx-plus-circle',     label: 'Add Project'  },
@@ -15,13 +16,14 @@ const NAV = [
     ],
   },
   {
-    label: 'Clients', icon: 'bx-briefcase', group: true,
+    label: 'Clients', icon: 'bx-briefcase', group: true, perm: 'clients',
     children: [
       { to: '/clients/create', icon: 'bx-plus-circle', label: 'Create Client' },
       { to: '/clients/edit',   icon: 'bx-edit',        label: 'Edit Client'   },
     ],
   },
-  { to: '/ai-insights', icon: 'bx-brain', label: 'AI Insights', glow: true },
+  { to: '/ai-insights', icon: 'bx-brain',     label: 'AI Insights', perm: 'aiInsights', glow: true },
+  { to: '/settings',    icon: 'bx-cog',       label: 'Settings',    perm: 'settings'   },
 ];
 
 // ── Inline style helpers ───────────────────────────────────────────────────
@@ -119,9 +121,18 @@ const S = {
 };
 
 export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, collapsed, onToggle }) {
-  const location = useLocation();
-  const sidebarW = collapsed ? 'var(--sidebar-wc, 72px)' : 'var(--sidebar-w, 240px)';
-  const userName = sessionUser?.name || 'User';
+  const location    = useLocation();
+  const { permissions, isAdmin } = usePermissions();
+  const sidebarW    = collapsed ? 'var(--sidebar-wc, 72px)' : 'var(--sidebar-w, 240px)';
+  const userName    = sessionUser?.name || 'User';
+
+  const canSee = (perm) => {
+    if (!perm) return true;
+    if (perm === 'settings') return isAdmin;
+    return isAdmin || permissions[perm] === true;
+  };
+
+  const visibleNav = NAV.filter(item => canSee(item.perm));
 
   // Track which groups are open — default open if current route is inside
   const groupPaths = { Projects: ['/projects', '/new-project', '/projects/edit'], Clients: ['/clients/create', '/clients/edit'] };
@@ -154,7 +165,7 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
 
       {/* Nav */}
       <nav style={S.nav}>
-        {NAV.map((item) => {
+        {visibleNav.map((item) => {
           if (item.group) {
             const anyActive = isGroupActive(item);
             const open = openGroups[item.label];
