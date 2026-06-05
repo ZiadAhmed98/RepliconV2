@@ -1030,25 +1030,20 @@ export default function Dashboard({ dataMatrix }) {
                 <PdfButton onClick={()=>exportChartToPDF('deepEffortLogChart','Deep Project Analysis',['Project','Actual','Est','Quoted'],metrics.deepEffort.labels.slice(0,deepLimit).map((l,i)=>[l,metrics.deepEffort.act[i],metrics.deepEffort.est[i],metrics.deepEffort.quoted[i]]))} />
               </div>
             </div>
-            <div id="wrap-deepEffortLogChart" style={{width:'100%'}}>
-              <Chart type="bar" width="100%"
-                height={Math.max(380, deepCount * 36 + 80)}
-                series={[
-                  {name:'Actual',   data: metrics.deepEffort.act.slice(0,deepCount).map(v=>Math.max(0.1,v))},
-                  {name:'Estimated',data: metrics.deepEffort.est.slice(0,deepCount).map(v=>Math.max(0.1,v))},
-                  {name:'Quoted',   data: metrics.deepEffort.quoted.slice(0,deepCount).map(v=>Math.max(0.1,v))},
-                ]}
-                options={getOpts('deepEffortLogChart',{
-                  chart:{ stacked:false, animations:{enabled:false} },
-                  colors:['#8b5cf6','#06b6d4','rgba(255,255,255,0.1)'],
-                  plotOptions:{ bar:{ horizontal:true, barHeight:'65%', borderRadius:4, dataLabels:{position:'top'} } },
-                  xaxis:{ logarithmic:yAxisLog, labels:{ formatter: v=>(!v||v<=0.1)?'0':fmtK(v), style:{colors:CHART_COLORS.muted,fontSize:'11px'} }, title:{text:'Hours',style:{color:CHART_COLORS.muted}} },
-                  yaxis:{ categories: metrics.deepEffort.labels.slice(0,deepCount), labels:{ style:{colors:'#d4d4d8',fontSize:'11px',fontWeight:500}, maxWidth:180 } },
-                  dataLabels:{ enabled:false },
-                  legend:{ position:'top', horizontalAlign:'left', labels:{colors:CHART_COLORS.muted} },
-                  grid:{ borderColor:'rgba(255,255,255,0.05)', xaxis:{lines:{show:true}}, yaxis:{lines:{show:false}} },
-                  tooltip:{ theme:'dark', y:{formatter:v=>fmtInt(v)+' hrs'} },
-                })} />
+            <div style={{overflowX:'auto',width:'100%'}}>
+              <div id="wrap-deepEffortLogChart" style={{minWidth:deepMinWidth,width:'100%'}}>
+                <Chart type="bar" width="100%" height={450}
+                  series={[{name:'Actual',data:metrics.deepEffort.act.slice(0,deepCount).map(v=>Math.max(0.1,v))},{name:'Estimated',data:metrics.deepEffort.est.slice(0,deepCount).map(v=>Math.max(0.1,v))},{name:'Quoted',data:metrics.deepEffort.quoted.slice(0,deepCount).map(v=>Math.max(0.1,v))}]}
+                  options={getOpts('deepEffortLogChart',{
+                    chart:{stacked:false,animations:{enabled:false}},
+                    colors:['#a855f7','#32ade6','rgba(255,255,255,0.08)'],
+                    plotOptions:{bar:{horizontal:false,columnWidth:'65%',borderRadius:4}},
+                    xaxis:{categories:metrics.deepEffort.labels.slice(0,deepCount),labels:{style:{colors:CHART_COLORS.muted},rotate:-40,trim:true,maxHeight:150}},
+                    yaxis:{logarithmic:yAxisLog,labels:{formatter:v=>(!v||v<=0.1)?'0':fmtK(v),style:{colors:CHART_COLORS.muted}}},
+                    dataLabels:{enabled:false},
+                    legend:{position:'top',horizontalAlign:'left',labels:{colors:CHART_COLORS.muted}},
+                  })} />
+              </div>
             </div>
           </div>
         </div>
