@@ -3,9 +3,16 @@ import { CHART_COLORS } from '../constants/index.js';
 export const baseChartOptions = (overrides = {}) => ({
   chart: {
     background: 'transparent',
-    toolbar: { show: true },
     fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
     animations: { enabled: true, easing: 'easeinout', speed: 600 },
+    // Disable wheel/scroll zoom so the browser page scrolls normally when the
+    // user hovers over any chart. Toolbar download menu is kept; zoom/pan
+    // buttons are removed (they do nothing without scroll-zoom anyway).
+    zoom: { enabled: false },
+    toolbar: {
+      show: true,
+      tools: { download: true, selection: false, zoom: false, zoomin: false, zoomout: false, pan: false, reset: false },
+    },
     ...(overrides.chart || {}),
   },
   theme: { mode: 'dark' },

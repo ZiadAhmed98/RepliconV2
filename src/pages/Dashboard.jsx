@@ -135,7 +135,8 @@ export default function Dashboard({ dataMatrix }) {
       }
     });
 
-    // Monthly team utilization: Y = employee, X = month, value = total hours
+    // Monthly team utilization: Y = employee, X = month, value = total hours.
+    // "Active" = logged hours in at least one of the 3 most recent months.
     const heatmapData = (() => {
       const empMonthMap = {};
       const allMonthKeys = new Set();
@@ -147,16 +148,19 @@ export default function Dashboard({ dataMatrix }) {
         if (!empMonthMap[r.user]) empMonthMap[r.user] = {};
         empMonthMap[r.user][key] = (empMonthMap[r.user][key] || 0) + r.act;
       });
-      const sortedKeys   = Array.from(allMonthKeys).sort().slice(-12);
-      const monthLabels  = sortedKeys.map(k => {
+      const sortedKeys  = Array.from(allMonthKeys).sort().slice(-12);
+      const last3Keys   = sortedKeys.slice(-3);
+      const monthLabels = sortedKeys.map(k => {
         const [y, m] = k.split('-');
         return new Date(parseInt(y), parseInt(m)-1, 1).toLocaleString('default', { month: 'short', year: '2-digit' });
       });
+      // Only include employees who logged hours in at least one of the last 3 months
       const activeEmps = Object.keys(empMonthMap)
+        .filter(emp => last3Keys.some(k => (empMonthMap[emp][k] || 0) > 0))
         .sort((a, b) => sortedKeys.reduce((s, k) => s + (empMonthMap[b][k]||0) - (empMonthMap[a][k]||0), 0))
         .slice(0, 15);
       return activeEmps.map(emp => ({
-        name: emp.length > 20 ? emp.slice(0, 18) + '…' : emp,
+        name: emp.length > 22 ? emp.slice(0, 20) + '…' : emp,
         data: sortedKeys.map((k, i) => ({ x: monthLabels[i], y: Math.round(empMonthMap[emp][k] || 0) })),
       }));
     })();
@@ -768,24 +772,30 @@ export default function Dashboard({ dataMatrix }) {
             <LazyChart>
               <div id="wrap-heatmapChart">
                 <Chart type="heatmap" width="100%"
-                  height={Math.max(200, (metrics.heatmapData.length || 5) * 28 + 60)}
+                  height={Math.max(220, (metrics.heatmapData.length || 5) * 30 + 70)}
                   series={metrics.heatmapData}
                   options={getOpts('heatmapChart',{
-                    colors:['#8b5cf6'],
-                    dataLabels:{ enabled: false },
-                    plotOptions:{ heatmap:{ shadeIntensity:0.65, radius:3, useFillColorAsStroke:false,
-                      colorScale:{ ranges:[
-                        { from:0,   to:0,    color:'rgba(255,255,255,0.04)', name:'No hours'  },
-                        { from:1,   to:40,   color:'rgba(139,92,246,0.22)',  name:'Light'     },
-                        { from:41,  to:100,  color:'rgba(139,92,246,0.5)',   name:'Moderate'  },
-                        { from:101, to:9999, color:'#8b5cf6',               name:'Heavy'     },
+                    colors: ['#6366f1'],
+                    dataLabels: { enabled: false },
+                    stroke: { show: true, width: 2, colors: ['rgba(8,8,15,0.6)'] },
+                    plotOptions: { heatmap: {
+                      shadeIntensity: 0,
+                      radius: 4,
+                      useFillColorAsStroke: false,
+                      colorScale: { ranges: [
+                        { from: 0,   to: 0,    color: 'rgba(255,255,255,0.03)', name: 'No hours'  },
+                        { from: 1,   to: 30,   color: 'rgba(99,102,241,0.25)',  name: 'Light'     },
+                        { from: 31,  to: 80,   color: 'rgba(124,58,237,0.55)',  name: 'Moderate'  },
+                        { from: 81,  to: 150,  color: '#7c3aed',               name: 'Active'    },
+                        { from: 151, to: 9999, color: '#a78bfa',               name: 'Heavy'     },
                       ]}
                     }},
-                    xaxis:{ labels:{ style:{ colors:CHART_COLORS.muted, fontSize:'10px' }, rotate:-30 } },
-                    yaxis:{ labels:{ style:{ colors:CHART_COLORS.muted, fontSize:'10px' }, maxWidth:120 } },
-                    legend:{ fontSize:'11px', labels:{ colors:CHART_COLORS.muted } },
-                    tooltip:{ theme:'dark', y:{ formatter: v => `${fmtInt(v)} hrs` } },
-                    chart:{ offsetY:-8 },
+                    xaxis: { labels: { style: { colors: CHART_COLORS.muted, fontSize: '10px' }, rotate: -35 } },
+                    yaxis: { labels: { style: { colors: '#d4d4d8', fontSize: '11px', fontWeight: 500 }, maxWidth: 130 } },
+                    legend: { show: true, fontSize: '11px', labels: { colors: CHART_COLORS.muted } },
+                    tooltip: { theme: 'dark', y: { formatter: v => v > 0 ? `${fmtInt(v)} hrs` : 'No hours' } },
+                    chart: { offsetY: -6 },
+                    grid: { padding: { right: 8 } },
                   })} />
               </div>
             </LazyChart>
@@ -799,7 +809,8 @@ export default function Dashboard({ dataMatrix }) {
             </div>
             <LazyChart>
               <div id="wrap-skillsGapChart" style={{overflow:'hidden'}}>
-                <Chart type="radar" width="100%" height={260}
+                <Chart type="radar" width="100%"
+                  height={Math.max(280, (metrics.heatmapData.length || 5) * 30 + 70 - 30)}
                   series={[{name:'Demand',data:metrics.skillsGap.demand},{name:'Capacity',data:metrics.skillsGap.capacity}]}
                   options={getOpts('skillsGapChart',{
                     colors:['#8b5cf6','#06b6d4'],
@@ -901,7 +912,7 @@ export default function Dashboard({ dataMatrix }) {
             </div>
             <LazyChart>
               <div id="wrap-clientQuadrantChart">
-                <Chart type="scatter" width="100%" height={220}
+                <Chart type="scatter" width="100%" height={240}
                   series={[{name:'Clients',data:metrics.clientQuadrant}]}
                   options={getOpts('clientQuadrantChart',{
                     colors:['#ffd60a'],
@@ -1019,20 +1030,25 @@ export default function Dashboard({ dataMatrix }) {
                 <PdfButton onClick={()=>exportChartToPDF('deepEffortLogChart','Deep Project Analysis',['Project','Actual','Est','Quoted'],metrics.deepEffort.labels.slice(0,deepLimit).map((l,i)=>[l,metrics.deepEffort.act[i],metrics.deepEffort.est[i],metrics.deepEffort.quoted[i]]))} />
               </div>
             </div>
-            <div style={{overflowX:'auto',width:'100%'}}>
-              <div id="wrap-deepEffortLogChart" style={{minWidth:deepMinWidth,width:'100%'}}>
-                <Chart type="bar" width="100%" height={450}
-                  series={[{name:'Actual',data:metrics.deepEffort.act.slice(0,deepCount).map(v=>Math.max(0.1,v))},{name:'Estimated',data:metrics.deepEffort.est.slice(0,deepCount).map(v=>Math.max(0.1,v))},{name:'Quoted',data:metrics.deepEffort.quoted.slice(0,deepCount).map(v=>Math.max(0.1,v))}]}
-                  options={getOpts('deepEffortLogChart',{
-                    chart:{stacked:false,animations:{enabled:false}},
-                    colors:['#a855f7','#32ade6','rgba(255,255,255,0.08)'],
-                    plotOptions:{bar:{horizontal:false,columnWidth:'65%',borderRadius:4}},
-                    xaxis:{categories:metrics.deepEffort.labels.slice(0,deepCount),labels:{style:{colors:CHART_COLORS.muted},rotate:-40,trim:true,maxHeight:150}},
-                    yaxis:{logarithmic:yAxisLog,labels:{formatter:v=>(!v||v<=0.1)?'0':fmtK(v),style:{colors:CHART_COLORS.muted}}},
-                    dataLabels:{enabled:false},
-                    legend:{position:'top',horizontalAlign:'left',labels:{colors:CHART_COLORS.muted}},
-                  })} />
-              </div>
+            <div id="wrap-deepEffortLogChart" style={{width:'100%'}}>
+              <Chart type="bar" width="100%"
+                height={Math.max(380, deepCount * 36 + 80)}
+                series={[
+                  {name:'Actual',   data: metrics.deepEffort.act.slice(0,deepCount).map(v=>Math.max(0.1,v))},
+                  {name:'Estimated',data: metrics.deepEffort.est.slice(0,deepCount).map(v=>Math.max(0.1,v))},
+                  {name:'Quoted',   data: metrics.deepEffort.quoted.slice(0,deepCount).map(v=>Math.max(0.1,v))},
+                ]}
+                options={getOpts('deepEffortLogChart',{
+                  chart:{ stacked:false, animations:{enabled:false} },
+                  colors:['#8b5cf6','#06b6d4','rgba(255,255,255,0.1)'],
+                  plotOptions:{ bar:{ horizontal:true, barHeight:'65%', borderRadius:4, dataLabels:{position:'top'} } },
+                  xaxis:{ logarithmic:yAxisLog, labels:{ formatter: v=>(!v||v<=0.1)?'0':fmtK(v), style:{colors:CHART_COLORS.muted,fontSize:'11px'} }, title:{text:'Hours',style:{color:CHART_COLORS.muted}} },
+                  yaxis:{ categories: metrics.deepEffort.labels.slice(0,deepCount), labels:{ style:{colors:'#d4d4d8',fontSize:'11px',fontWeight:500}, maxWidth:180 } },
+                  dataLabels:{ enabled:false },
+                  legend:{ position:'top', horizontalAlign:'left', labels:{colors:CHART_COLORS.muted} },
+                  grid:{ borderColor:'rgba(255,255,255,0.05)', xaxis:{lines:{show:true}}, yaxis:{lines:{show:false}} },
+                  tooltip:{ theme:'dark', y:{formatter:v=>fmtInt(v)+' hrs'} },
+                })} />
             </div>
           </div>
         </div>
