@@ -25,6 +25,8 @@ import MyTimesheet     from './pages/MyTimesheet';
 import Employees       from './pages/Employees';
 import Clients         from './pages/Clients';
 import Profile         from './pages/Profile';
+import ProjectsAdmin   from './pages/ProjectsAdmin';
+import ProjectDetail   from './pages/ProjectDetail';
 
 import { useRepliconData }    from './hooks/useRepliconData';
 import { repliconApi }        from './api/replicon';
@@ -176,9 +178,11 @@ function AppContent() {
                 <Route path="/clients/edit"   element={<GuardedRoute page="clients"  ><ClientEdit       dataMatrix={dataMatrix} /></GuardedRoute>} />
                 <Route path="/ai-insights"    element={<GuardedRoute page="aiInsights"><AIInsights      dataMatrix={dataMatrix} /></GuardedRoute>} />
                 <Route path="/my-timesheet"   element={<GuardedRoute page="myTimesheet"><MyTimesheet    dataMatrix={dataMatrix} /></GuardedRoute>} />
-                <Route path="/employees"      element={<GuardedRoute page="employees" ><Employees       sessionUser={sessionUser} /></GuardedRoute>} />
-                <Route path="/clients"        element={<GuardedRoute page="clients"  ><Clients         sessionUser={sessionUser} /></GuardedRoute>} />
-                <Route path="/profile"        element={<Profile />} />
+                <Route path="/employees"           element={<GuardedRoute page="employees" ><Employees       sessionUser={sessionUser} /></GuardedRoute>} />
+                <Route path="/clients"             element={<GuardedRoute page="clients"  ><Clients         sessionUser={sessionUser} /></GuardedRoute>} />
+                <Route path="/projects-admin"      element={<GuardedRoute page="settings" ><ProjectsAdmin   sessionUser={sessionUser} /></GuardedRoute>} />
+                <Route path="/projects-admin/:id"  element={<GuardedRoute page="settings" ><ProjectDetail   sessionUser={sessionUser} /></GuardedRoute>} />
+                <Route path="/profile"             element={<Profile />} />
                 <Route path="/settings"       element={<GuardedRoute page="settings" ><Settings         sessionUser={sessionUser} /></GuardedRoute>} />
               </Routes>
             )}

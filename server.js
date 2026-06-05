@@ -162,6 +162,38 @@ db.exec(`
     createdAt        TEXT NOT NULL,
     updatedAt        TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS projects (
+    id               TEXT PRIMARY KEY,
+    clientId         TEXT REFERENCES clients(id) ON DELETE SET NULL,
+    name             TEXT NOT NULL,
+    code             TEXT UNIQUE,
+    status           TEXT NOT NULL DEFAULT 'in_progress',
+    projectManagerId TEXT REFERENCES employees(id) ON DELETE SET NULL,
+    startDate        TEXT,
+    endDate          TEXT,
+    budgetHours      REAL DEFAULT 0,
+    billingType      TEXT NOT NULL DEFAULT 'time_material',
+    notes            TEXT,
+    createdAt        TEXT NOT NULL,
+    updatedAt        TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS tasks (
+    id             TEXT PRIMARY KEY,
+    projectId      TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    parentTaskId   TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+    name           TEXT NOT NULL,
+    code           TEXT,
+    description    TEXT,
+    startDate      TEXT,
+    endDate        TEXT,
+    status         TEXT NOT NULL DEFAULT 'open',
+    estimatedHours REAL DEFAULT 0,
+    sortOrder      INTEGER DEFAULT 0,
+    createdAt      TEXT NOT NULL,
+    updatedAt      TEXT NOT NULL
+  );
 `);
 
 // Safe migrations — ignored if column already exists
@@ -1606,6 +1638,31 @@ const clientSchema = z.object({
   notes:            z.string().optional(),
 });
 
+const psaProjectSchema = z.object({
+  clientId:         z.string().nullable().optional(),
+  name:             z.string().min(1),
+  code:             z.string().max(30).nullable().optional(),
+  status:           z.enum(['tentative','in_progress','completed','deferred','cancelled','archived']).default('in_progress'),
+  projectManagerId: z.string().nullable().optional(),
+  startDate:        z.string().nullable().optional(),
+  endDate:          z.string().nullable().optional(),
+  budgetHours:      z.number().min(0).default(0),
+  billingType:      z.enum(['time_material','fixed_bid','non_billable']).default('time_material'),
+  notes:            z.string().nullable().optional(),
+});
+
+const psaTaskSchema = z.object({
+  parentTaskId:   z.string().nullable().optional(),
+  name:           z.string().min(1),
+  code:           z.string().nullable().optional(),
+  description:    z.string().nullable().optional(),
+  startDate:      z.string().nullable().optional(),
+  endDate:        z.string().nullable().optional(),
+  status:         z.enum(['open','in_progress','completed','closed']).default('open'),
+  estimatedHours: z.number().min(0).default(0),
+  sortOrder:      z.number().int().default(0),
+});
+
 // GET /api/v1/clients
 app.get('/api/v1/clients', requireAuth, (req, res) => {
   const { status, search } = req.query;
@@ -1699,6 +1756,201 @@ app.delete('/api/v1/clients/:id', requireAuth, (req, res) => {
   db.prepare('UPDATE clients SET status=?, updatedAt=? WHERE id=?')
     .run('inactive', new Date().toISOString(), req.params.id);
   auditLog(req.user.id, 'CLIENT_DEACTIVATE', { id: req.params.id });
+  res.json({ ok: true });
+});
+
+// ============================================================================
+// PSA PROJECTS
+// ============================================================================
+
+// GET /api/v1/psa/projects
+app.get('/api/v1/psa/projects', requireAuth, (req, res) => {
+  const { status, clientId, pmId, search } = req.query;
+  let q = `
+    SELECT p.*,
+           c.name AS clientName,
+           e.firstName || ' ' || e.lastName AS projectManagerName
+    FROM projects p
+    LEFT JOIN clients   c ON c.id = p.clientId
+    LEFT JOIN employees e ON e.id = p.projectManagerId
+    WHERE 1=1
+  `;
+  const params = [];
+  if (status)   { q += ' AND p.status = ?';            params.push(status); }
+  if (clientId) { q += ' AND p.clientId = ?';          params.push(clientId); }
+  if (pmId)     { q += ' AND p.projectManagerId = ?';  params.push(pmId); }
+  if (search)   { q += ' AND (p.name LIKE ? OR p.code LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
+  q += ' ORDER BY p.createdAt DESC';
+  const rows = db.prepare(q).all(...params);
+  res.json({ projects: rows });
+});
+
+// GET /api/v1/psa/projects/:id
+app.get('/api/v1/psa/projects/:id', requireAuth, (req, res) => {
+  const row = db.prepare(`
+    SELECT p.*,
+           c.name AS clientName,
+           e.firstName || ' ' || e.lastName AS projectManagerName
+    FROM projects p
+    LEFT JOIN clients   c ON c.id = p.clientId
+    LEFT JOIN employees e ON e.id = p.projectManagerId
+    WHERE p.id = ?
+  `).get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Project not found' });
+  res.json({ project: row });
+});
+
+// POST /api/v1/psa/projects — admin only
+app.post('/api/v1/psa/projects', requireAuth, (req, res) => {
+  if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin only' });
+  const parsed = psaProjectSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+  const d = parsed.data;
+  const id  = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const code = d.code ? d.code.toUpperCase() : null;
+  try {
+    db.prepare(`
+      INSERT INTO projects (id,clientId,name,code,status,projectManagerId,startDate,endDate,budgetHours,billingType,notes,createdAt,updatedAt)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+    `).run(id, d.clientId||null, d.name, code, d.status, d.projectManagerId||null,
+           d.startDate||null, d.endDate||null, d.budgetHours, d.billingType, d.notes||null, now, now);
+  } catch (e) {
+    if (e.message?.includes('UNIQUE')) return res.status(409).json({ error: 'Project code already exists' });
+    throw e;
+  }
+  auditLog(req.user.id, 'PROJECT_CREATE', { id, name: d.name });
+  const row = db.prepare('SELECT * FROM projects WHERE id=?').get(id);
+  res.status(201).json({ project: row });
+});
+
+// PUT /api/v1/psa/projects/:id — admin only
+app.put('/api/v1/psa/projects/:id', requireAuth, (req, res) => {
+  if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin only' });
+  const existing = db.prepare('SELECT id FROM projects WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Project not found' });
+  const parsed = psaProjectSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+  const d = parsed.data;
+  const now  = new Date().toISOString();
+  const code = d.code ? d.code.toUpperCase() : null;
+  try {
+    db.prepare(`
+      UPDATE projects SET clientId=?,name=?,code=?,status=?,projectManagerId=?,
+        startDate=?,endDate=?,budgetHours=?,billingType=?,notes=?,updatedAt=?
+      WHERE id=?
+    `).run(d.clientId||null, d.name, code, d.status, d.projectManagerId||null,
+           d.startDate||null, d.endDate||null, d.budgetHours, d.billingType, d.notes||null, now, req.params.id);
+  } catch (e) {
+    if (e.message?.includes('UNIQUE')) return res.status(409).json({ error: 'Project code already exists' });
+    throw e;
+  }
+  auditLog(req.user.id, 'PROJECT_UPDATE', { id: req.params.id });
+  const row = db.prepare('SELECT * FROM projects WHERE id=?').get(req.params.id);
+  res.json({ project: row });
+});
+
+// DELETE /api/v1/psa/projects/:id — soft delete (archived), admin only
+app.delete('/api/v1/psa/projects/:id', requireAuth, (req, res) => {
+  if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin only' });
+  const existing = db.prepare('SELECT id FROM projects WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Project not found' });
+  db.prepare('UPDATE projects SET status=?,updatedAt=? WHERE id=?')
+    .run('archived', new Date().toISOString(), req.params.id);
+  auditLog(req.user.id, 'PROJECT_ARCHIVE', { id: req.params.id });
+  res.json({ ok: true });
+});
+
+// ============================================================================
+// PSA TASKS
+// ============================================================================
+
+// GET /api/v1/psa/projects/:projectId/tasks
+app.get('/api/v1/psa/projects/:projectId/tasks', requireAuth, (req, res) => {
+  const rows = db.prepare(`
+    SELECT t.*, p.name AS parentTaskName
+    FROM tasks t
+    LEFT JOIN tasks p ON p.id = t.parentTaskId
+    WHERE t.projectId = ?
+    ORDER BY t.sortOrder ASC, t.createdAt ASC
+  `).all(req.params.projectId);
+  res.json({ tasks: rows });
+});
+
+// POST /api/v1/psa/projects/:projectId/tasks — admin only
+app.post('/api/v1/psa/projects/:projectId/tasks', requireAuth, (req, res) => {
+  if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin only' });
+  const project = db.prepare('SELECT id FROM projects WHERE id=?').get(req.params.projectId);
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+  const parsed = psaTaskSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+  const d   = parsed.data;
+  const id  = crypto.randomUUID();
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO tasks (id,projectId,parentTaskId,name,code,description,startDate,endDate,status,estimatedHours,sortOrder,createdAt,updatedAt)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+  `).run(id, req.params.projectId, d.parentTaskId||null, d.name, d.code||null, d.description||null,
+         d.startDate||null, d.endDate||null, d.status, d.estimatedHours, d.sortOrder, now, now);
+  auditLog(req.user.id, 'TASK_CREATE', { id, name: d.name, projectId: req.params.projectId });
+  const row = db.prepare('SELECT * FROM tasks WHERE id=?').get(id);
+  res.status(201).json({ task: row });
+});
+
+// POST /api/v1/psa/projects/:projectId/tasks/bulk — XML-parsed bulk import, admin only
+app.post('/api/v1/psa/projects/:projectId/tasks/bulk', requireAuth, (req, res) => {
+  if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin only' });
+  const project = db.prepare('SELECT id FROM projects WHERE id=?').get(req.params.projectId);
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+  const { tasks: incoming } = req.body;
+  if (!Array.isArray(incoming) || incoming.length === 0) return res.status(400).json({ error: 'tasks array required' });
+  const now    = new Date().toISOString();
+  const insert = db.prepare(`
+    INSERT INTO tasks (id,projectId,parentTaskId,name,code,description,startDate,endDate,status,estimatedHours,sortOrder,createdAt,updatedAt)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+  `);
+  const idMap  = {};
+  const bulkInsert = db.transaction((rows) => {
+    rows.forEach((t, idx) => {
+      const id = crypto.randomUUID();
+      idMap[t._tempId] = id;
+      const parentId = t._parentTempId ? (idMap[t._parentTempId] || null) : null;
+      insert.run(id, req.params.projectId, parentId, t.name, t.code||null, t.description||null,
+                 t.startDate||null, t.endDate||null, t.status||'open', t.estimatedHours||0, idx, now, now);
+    });
+  });
+  bulkInsert(incoming);
+  auditLog(req.user.id, 'TASKS_BULK_IMPORT', { projectId: req.params.projectId, count: incoming.length });
+  const rows = db.prepare('SELECT * FROM tasks WHERE projectId=? ORDER BY sortOrder ASC').all(req.params.projectId);
+  res.status(201).json({ tasks: rows, imported: incoming.length });
+});
+
+// PUT /api/v1/psa/tasks/:id — admin only
+app.put('/api/v1/psa/tasks/:id', requireAuth, (req, res) => {
+  if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin only' });
+  const existing = db.prepare('SELECT id FROM tasks WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Task not found' });
+  const parsed = psaTaskSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+  const d   = parsed.data;
+  const now = new Date().toISOString();
+  db.prepare(`
+    UPDATE tasks SET parentTaskId=?,name=?,code=?,description=?,startDate=?,endDate=?,status=?,estimatedHours=?,sortOrder=?,updatedAt=?
+    WHERE id=?
+  `).run(d.parentTaskId||null, d.name, d.code||null, d.description||null,
+         d.startDate||null, d.endDate||null, d.status, d.estimatedHours, d.sortOrder, now, req.params.id);
+  auditLog(req.user.id, 'TASK_UPDATE', { id: req.params.id });
+  const row = db.prepare('SELECT * FROM tasks WHERE id=?').get(req.params.id);
+  res.json({ task: row });
+});
+
+// DELETE /api/v1/psa/tasks/:id — hard delete (tasks are leaf data), admin only
+app.delete('/api/v1/psa/tasks/:id', requireAuth, (req, res) => {
+  if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin only' });
+  const existing = db.prepare('SELECT id FROM tasks WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Task not found' });
+  db.prepare('DELETE FROM tasks WHERE id=?').run(req.params.id);
+  auditLog(req.user.id, 'TASK_DELETE', { id: req.params.id });
   res.json({ ok: true });
 });
 

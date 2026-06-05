@@ -23,8 +23,9 @@ const NAV = [
   {
     label: 'Admin', icon: 'bx-shield', group: true, perm: 'settings',
     children: [
-      { to: '/employees', icon: 'bx-group',     label: 'Employees' },
-      { to: '/clients',   icon: 'bx-briefcase', label: 'Clients'   },
+      { to: '/employees',      icon: 'bx-group',       label: 'Employees' },
+      { to: '/clients',        icon: 'bx-briefcase',   label: 'Clients'   },
+      { to: '/projects-admin', icon: 'bx-folder-open', label: 'Projects'  },
     ],
   },
   { to: '/settings',    icon: 'bx-cog',            label: 'Settings',    perm: 'settings'   },
@@ -139,7 +140,11 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
   const visibleNav = NAV.filter(item => canSee(item.perm));
 
   // Track which groups are open — default open if current route is inside
-  const groupPaths = { Projects: ['/projects', '/new-project', '/projects/edit'], Clients: ['/clients/create', '/clients/edit'] };
+  const groupPaths = {
+    Projects: ['/projects', '/new-project', '/projects/edit'],
+    Clients:  ['/clients/create', '/clients/edit'],
+    Admin:    ['/employees', '/clients', '/projects-admin'],
+  };
   const [openGroups, setOpenGroups] = useState(() => {
     const init = {};
     Object.entries(groupPaths).forEach(([g, paths]) => {
