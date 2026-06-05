@@ -1,14 +1,15 @@
 import 'dotenv/config';
-import express       from 'express';
-import axios         from 'axios';
-import path          from 'path';
-import { fileURLToPath } from 'url';
-import cors          from 'cors';
-import cookieParser  from 'cookie-parser';
-import rateLimit     from 'express-rate-limit';
-import { z }         from 'zod';
-import crypto        from 'crypto';
-import pino          from 'pino';
+import express               from 'express';
+import axios                 from 'axios';
+import path                  from 'path';
+import { fileURLToPath }     from 'url';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import cors                  from 'cors';
+import cookieParser          from 'cookie-parser';
+import rateLimit             from 'express-rate-limit';
+import { z }                 from 'zod';
+import crypto                from 'crypto';
+import pino                  from 'pino';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
@@ -738,65 +739,155 @@ app.post('/api/v1/clients/edit', requireAuth, async (req, res) => {
 // ============================================================================
 // AI INSIGHTS — generate + feedback loop
 // ============================================================================
-const insightFeedback = [];   // { type, helpful, ts } — in-memory, resets on restart
+// AI INSIGHTS — persistent feedback, open-ended Claude, auto-generation
+// ============================================================================
 
-app.post('/api/v1/insights/feedback', requireAuth, (req, res) => {
-  const { type, helpful } = req.body || {};
-  if (!type || helpful === undefined) return res.status(400).json({ error: 'type + helpful required' });
-  insightFeedback.push({ type, helpful: !!helpful, ts: Date.now(), user: req.user.name });
-  if (insightFeedback.length > 500) insightFeedback.splice(0, insightFeedback.length - 500);
-  res.json({ success: true });
-});
+// ── File storage setup ──────────────────────────────────────────────────────
+const DATA_DIR        = path.join(__dirname, 'data');
+const FEEDBACK_FILE   = path.join(DATA_DIR, 'insights-feedback.json');
+const CACHE_FILE      = path.join(DATA_DIR, 'insights-cache.json');
+const SUMMARY_FILE    = path.join(DATA_DIR, 'insights-summary.json');
 
-app.post('/api/v1/insights/generate', requireAuth, async (req, res) => {
-  const { summary } = req.body || {};
-  if (!summary) return res.status(400).json({ error: 'summary required' });
+if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
 
-  // Build feedback context for prompt
-  const fbCounts = {};
-  insightFeedback.forEach(f => {
-    fbCounts[f.type] = fbCounts[f.type] || { pos: 0, neg: 0 };
-    f.helpful ? fbCounts[f.type].pos++ : fbCounts[f.type].neg++;
+function readJSON(file, fallback) {
+  try { if (existsSync(file)) return JSON.parse(readFileSync(file, 'utf8')); } catch { }
+  return fallback;
+}
+function writeJSON(file, data) {
+  try { writeFileSync(file, JSON.stringify(data, null, 2)); } catch (e) { logger.warn({ err: e.message }, 'writeJSON failed: ' + file); }
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+function buildFbCounts(feedback) {
+  const counts = {};
+  feedback.forEach(f => {
+    counts[f.type] = counts[f.type] || { pos: 0, neg: 0 };
+    f.helpful ? counts[f.type].pos++ : counts[f.type].neg++;
   });
+  return counts;
+}
+
+async function callClaude(summary, feedback, apiKey) {
+  const fbCounts    = buildFbCounts(feedback);
   const topPositive = Object.entries(fbCounts).filter(([,v])=>v.pos>v.neg).sort((a,b)=>b[1].pos-a[1].pos).slice(0,5).map(([t])=>t);
   const topNegative = Object.entries(fbCounts).filter(([,v])=>v.neg>v.pos).map(([t])=>t);
 
-  const apiKey = (process.env.ANTHROPIC_API_KEY || '').trim();
-
-  // If no API key, return algorithmic insights
-  if (!apiKey) {
-    const insights = generateAlgorithmicInsights(summary, fbCounts);
-    return res.json({ insights, source: 'algorithmic', feedbackCount: insightFeedback.length });
-  }
-
   const feedbackNote = topPositive.length
-    ? `\nUser feedback: focus on insights about [${topPositive.join(', ')}]. Avoid: [${topNegative.join(', ')}].`
+    ? `\nUser ratings history — surface MORE insights like: [${topPositive.join(', ')}]. Surface FEWER like: [${topNegative.join(', ')}].`
     : '';
 
-  const prompt = `You are a workforce analytics AI for a professional services company using Replicon.
-Analyze the following data summary and return exactly 6 actionable insights as a JSON array.
-Each insight must have: { "type": string, "title": string, "body": string (2 sentences max), "severity": "info"|"warning"|"critical"|"positive", "metric": { "label": string, "value": string }, "chartSuggestion": string }
+  const prompt = `You are a workforce analytics AI for a professional services company using Replicon timesheet data.
+Analyze the data summary below and return between 6 and 12 actionable insights — as many as the data genuinely supports.
+Do NOT pad with trivial observations; only include insights that are specific, actionable, and non-obvious.
 ${feedbackNote}
+
+Each insight object must follow this exact shape:
+{
+  "type": "<snake_case_identifier>",
+  "title": "<short title, max 8 words>",
+  "body": "<2 sentences max: what the data shows and what action to take>",
+  "severity": "info" | "warning" | "critical" | "positive",
+  "metric": { "label": "<metric name>", "value": "<formatted value>" },
+  "chartSuggestion": "radialBar" | "donut" | "bar" | "line" | "pie" | "timeline"
+}
 
 Data Summary:
 ${JSON.stringify(summary, null, 2)}
 
-Return ONLY valid JSON array, no explanation, no markdown.`;
+Return ONLY a valid JSON array. No markdown, no explanation, no wrapping object.`;
+
+  const response = await axios.post(
+    'https://api.anthropic.com/v1/messages',
+    { model: 'claude-haiku-4-5-20251001', max_tokens: 3000, messages: [{ role: 'user', content: prompt }] },
+    { headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, timeout: 30000 }
+  );
+  const text  = response.data?.content?.[0]?.text || '[]';
+  const start = text.indexOf('[');
+  const end   = text.lastIndexOf(']');
+  return JSON.parse(start > -1 ? text.slice(start, end + 1) : '[]');
+}
+
+// ── Auto-generation loop (every hour) ────────────────────────────────────────
+async function autoGenerateInsights() {
+  const apiKey   = (process.env.ANTHROPIC_API_KEY || '').trim();
+  const summary  = readJSON(SUMMARY_FILE, null);
+  if (!summary) return; // no data summary cached yet — wait for first login
+  const feedback = readJSON(FEEDBACK_FILE, []);
+  let insights, source;
+  try {
+    if (apiKey) {
+      insights = await callClaude(summary, feedback, apiKey);
+      source   = 'claude-auto';
+    } else {
+      insights = generateAlgorithmicInsights(summary, buildFbCounts(feedback));
+      source   = 'algorithmic-auto';
+    }
+    writeJSON(CACHE_FILE, { insights, source, generatedAt: Date.now() });
+    logger.info({ count: insights.length, source }, 'Auto-generated insights cached');
+  } catch (e) {
+    logger.warn({ err: e.message }, 'Auto-generate insights failed');
+  }
+}
+
+// First run 60 s after startup (data summary may not exist yet), then every hour
+setTimeout(autoGenerateInsights, 60_000);
+setInterval(autoGenerateInsights, 60 * 60 * 1000);
+
+// ── Endpoints ────────────────────────────────────────────────────────────────
+
+// Frontend pushes data summary here whenever it loads fresh dashboard data
+app.post('/api/v1/insights/cache-summary', requireAuth, (req, res) => {
+  const { summary } = req.body || {};
+  if (!summary) return res.status(400).json({ error: 'summary required' });
+  writeJSON(SUMMARY_FILE, summary);
+  res.json({ success: true });
+});
+
+// Return the last auto-generated (or manually generated) cached insights
+app.get('/api/v1/insights/cached', requireAuth, (req, res) => {
+  const cache = readJSON(CACHE_FILE, null);
+  res.json(cache || { insights: [], source: null, generatedAt: null });
+});
+
+// Store feedback persistently
+app.post('/api/v1/insights/feedback', requireAuth, (req, res) => {
+  const { type, helpful } = req.body || {};
+  if (!type || helpful === undefined) return res.status(400).json({ error: 'type + helpful required' });
+  const feedback = readJSON(FEEDBACK_FILE, []);
+  feedback.push({ type, helpful: !!helpful, ts: Date.now(), user: req.user.name });
+  if (feedback.length > 1000) feedback.splice(0, feedback.length - 1000);
+  writeJSON(FEEDBACK_FILE, feedback);
+  res.json({ success: true });
+});
+
+// On-demand generation (manual "Generate Insights" click)
+app.post('/api/v1/insights/generate', requireAuth, async (req, res) => {
+  const { summary } = req.body || {};
+  if (!summary) return res.status(400).json({ error: 'summary required' });
+
+  // Always keep the summary cache fresh
+  writeJSON(SUMMARY_FILE, summary);
+
+  const apiKey   = (process.env.ANTHROPIC_API_KEY || '').trim();
+  const feedback = readJSON(FEEDBACK_FILE, []);
+  const fbCounts = buildFbCounts(feedback);
+
+  if (!apiKey) {
+    const insights = generateAlgorithmicInsights(summary, fbCounts);
+    writeJSON(CACHE_FILE, { insights, source: 'algorithmic', generatedAt: Date.now() });
+    return res.json({ insights, source: 'algorithmic', feedbackCount: feedback.length });
+  }
 
   try {
-    const response = await axios.post(
-      'https://api.anthropic.com/v1/messages',
-      { model: 'claude-haiku-4-5-20251001', max_tokens: 1500, messages: [{ role: 'user', content: prompt }] },
-      { headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, timeout: 20000 }
-    );
-    const text = response.data?.content?.[0]?.text || '[]';
-    const start = text.indexOf('['); const end = text.lastIndexOf(']');
-    const insights = JSON.parse(start > -1 ? text.slice(start, end + 1) : '[]');
-    res.json({ insights, source: 'claude', feedbackCount: insightFeedback.length });
+    const insights = await callClaude(summary, feedback, apiKey);
+    writeJSON(CACHE_FILE, { insights, source: 'claude', generatedAt: Date.now() });
+    res.json({ insights, source: 'claude', feedbackCount: feedback.length });
   } catch (err) {
     logger.warn({ err: err.message }, 'Claude insights failed — falling back to algorithmic');
     const insights = generateAlgorithmicInsights(summary, fbCounts);
-    res.json({ insights, source: 'algorithmic', feedbackCount: insightFeedback.length });
+    writeJSON(CACHE_FILE, { insights, source: 'algorithmic', generatedAt: Date.now() });
+    res.json({ insights, source: 'algorithmic', feedbackCount: feedback.length });
   }
 });
 
@@ -881,11 +972,10 @@ function generateAlgorithmicInsights(s, fbCounts) {
     });
   }
 
-  // Sort by feedback boost, then severity weight
+  // Sort by feedback boost, then severity weight — no hard cap
   const sevW = { critical: 3, warning: 2, info: 1, positive: 0 };
   return insights.sort((a, b) => (b._boost || 0) - (a._boost || 0) || (sevW[b.severity] || 0) - (sevW[a.severity] || 0))
-    .map(({ _boost, ...i }) => i)
-    .slice(0, 6);
+    .map(({ _boost, ...i }) => i);
 }
 
 // ============================================================================

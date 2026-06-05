@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import Chart from 'react-apexcharts';
 import styles from './AIInsights.module.css';
 import { baseChartOptions } from '../utils/chartTheme';
@@ -97,6 +97,35 @@ export default function AIInsights({ dataMatrix }) {
     };
   }, [dataMatrix]);
 
+  // On mount: load cached insights (auto-generated on server)
+  useEffect(() => {
+    fetch('/api/v1/insights/cached', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.insights?.length > 0) {
+          setInsights(data.insights);
+          setSource(data.source);
+          setLastUpdated(
+            data.generatedAt
+              ? new Date(data.generatedAt).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })
+              : 'cached'
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Whenever data matrix loads, push the summary to the server so the
+  // hourly auto-generate has fresh data to work with
+  useEffect(() => {
+    if (!summary) return;
+    fetch('/api/v1/insights/cache-summary', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ summary }),
+    }).catch(() => {});
+  }, [summary]);
+
   const generate = useCallback(async () => {
     if (!summary) return;
     setLoading(true); setError(null);
@@ -168,8 +197,9 @@ export default function AIInsights({ dataMatrix }) {
           {lastUpdated && <span className={styles.lastUpdated}><i className='bx bx-time-five' /> {lastUpdated}</span>}
           {source && (
             <span className={styles.sourceBadge}>
-              <i className={`bx ${source === 'claude' ? 'bx-chip' : 'bx-code-alt'}`} />
-              {source === 'claude' ? 'Claude AI' : 'Algorithmic'}
+              <i className={`bx ${source.startsWith('claude') ? 'bx-chip' : 'bx-code-alt'}`} />
+              {source.startsWith('claude') ? 'Claude AI' : 'Algorithmic'}
+              {source.endsWith('-auto') && <span style={{marginLeft:4,opacity:0.7,fontSize:'10px'}}>· auto</span>}
             </span>
           )}
           <button className={styles.generateBtn} onClick={generate} disabled={loading || !summary}>
