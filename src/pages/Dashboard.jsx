@@ -135,22 +135,50 @@ export default function Dashboard({ dataMatrix }) {
       }
     });
 
-    // Heatmap: hours per day of week × week of year (last 8 weeks)
+    // Monthly team utilization: Y = employee, X = month, value = total hours
     const heatmapData = (() => {
-      const days = ['Mon','Tue','Wed','Thu','Fri'];
-      const matrix = days.map(d => ({ name: d, data: [] }));
-      const now = new Date(); const wks = 12;
-      for (let w = wks-1; w >= 0; w--) {
-        const wStart = new Date(now); wStart.setDate(now.getDate() - now.getDay() + 1 - w*7); wStart.setHours(0,0,0,0);
-        const wLabel = wStart.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-        days.forEach((dayName, di) => {
-          const dayTs = new Date(wStart); dayTs.setDate(wStart.getDate() + di);
-          const ts0 = dayTs.getTime(); const ts1 = ts0 + 86399999;
-          const hours = filteredFacts.filter(r => r.date >= ts0 && r.date <= ts1).reduce((s,r)=>s+r.act,0);
-          matrix[di].data.push({ x: wLabel, y: Math.round(hours) });
-        });
-      }
-      return matrix;
+      const empMonthMap = {};
+      const allMonthKeys = new Set();
+      filteredFacts.forEach(r => {
+        if (!r.user || r.user === 'Unknown' || !r.date || r.act <= 0) return;
+        const d   = new Date(r.date);
+        const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        allMonthKeys.add(key);
+        if (!empMonthMap[r.user]) empMonthMap[r.user] = {};
+        empMonthMap[r.user][key] = (empMonthMap[r.user][key] || 0) + r.act;
+      });
+      const sortedKeys   = Array.from(allMonthKeys).sort().slice(-12);
+      const monthLabels  = sortedKeys.map(k => {
+        const [y, m] = k.split('-');
+        return new Date(parseInt(y), parseInt(m)-1, 1).toLocaleString('default', { month: 'short', year: '2-digit' });
+      });
+      const activeEmps = Object.keys(empMonthMap)
+        .sort((a, b) => sortedKeys.reduce((s, k) => s + (empMonthMap[b][k]||0) - (empMonthMap[a][k]||0), 0))
+        .slice(0, 15);
+      return activeEmps.map(emp => ({
+        name: emp.length > 20 ? emp.slice(0, 18) + '…' : emp,
+        data: sortedKeys.map((k, i) => ({ x: monthLabels[i], y: Math.round(empMonthMap[emp][k] || 0) })),
+      }));
+    })();
+
+    // Day-of-week activity pattern: average hours logged per weekday (Mon–Fri)
+    const dayOfWeekData = (() => {
+      const dayNames = ['Mon','Tue','Wed','Thu','Fri'];
+      const dowMap   = { 1:'Mon', 2:'Tue', 3:'Wed', 4:'Thu', 5:'Fri' };
+      const totals   = { Mon:0, Tue:0, Wed:0, Thu:0, Fri:0 };
+      const dates    = { Mon:new Set(), Tue:new Set(), Wed:new Set(), Thu:new Set(), Fri:new Set() };
+      factTable.forEach(r => {   // use full factTable for pattern (not filtered)
+        if (!r.date || r.act <= 0) return;
+        const name = dowMap[new Date(r.date).getDay()];
+        if (!name) return;
+        totals[name] += r.act;
+        dates[name].add(r.dateStr || r.date);
+      });
+      return {
+        labels: dayNames,
+        avg: dayNames.map(d => dates[d].size > 0 ? Math.round(totals[d] / dates[d].size) : 0),
+        total: dayNames.map(d => Math.round(totals[d])),
+      };
     })();
 
     // Gantt data (rangeBar)
@@ -356,7 +384,7 @@ export default function Dashboard({ dataMatrix }) {
       compliance, activeClientsCount: activeClientsSet.size,
       dropdowns: { clients: Array.from(allClients).sort(), projects: Array.from(allProjects).sort(), programs: Array.from(allPrograms).sort() },
       dimensionTable, kpiTrends,
-      heatmapData, ganttData, waterfallData, forecastData, complianceTrend,
+      heatmapData, dayOfWeekData, ganttData, waterfallData, forecastData, complianceTrend,
       clientQuadrant, skillsGap, riskMatrix,
     };
   }, [dataMatrix, filters]);
@@ -735,18 +763,29 @@ export default function Dashboard({ dataMatrix }) {
         {visibility.heatmap && (
           <div className="chart-card">
             <div className={styles.chartHeader}>
-              <h4><i className='bx bx-grid-alt' style={{color:'var(--accent-green)'}} /> Team Utilization Heatmap</h4>
+              <h4><i className='bx bx-grid-alt' style={{color:'var(--emerald)'}} /> Monthly Team Utilization</h4>
             </div>
             <LazyChart>
               <div id="wrap-heatmapChart">
-                <Chart type="heatmap" width="100%" height={220}
+                <Chart type="heatmap" width="100%"
+                  height={Math.max(200, (metrics.heatmapData.length || 5) * 28 + 60)}
                   series={metrics.heatmapData}
                   options={getOpts('heatmapChart',{
-                    colors:['#a855f7'], dataLabels:{enabled:false},
-                    plotOptions:{heatmap:{shadeIntensity:0.7,radius:4,colorScale:{ranges:[{from:0,to:0,color:'rgba(255,255,255,0.03)',name:'No hours'},{from:1,to:20,color:'rgba(168,85,247,0.25)',name:'Light'},{from:21,to:50,color:'rgba(168,85,247,0.5)',name:'Moderate'},{from:51,to:9999,color:'#a855f7',name:'Heavy'}]}}},
-                    xaxis:{labels:{style:{colors:CHART_COLORS.muted,fontSize:'10px'}}},
-                    yaxis:{labels:{style:{colors:CHART_COLORS.muted,fontSize:'11px'}}},
-                    tooltip:{theme:'dark',y:{formatter:v=>`${v} hrs`}},
+                    colors:['#8b5cf6'],
+                    dataLabels:{ enabled: false },
+                    plotOptions:{ heatmap:{ shadeIntensity:0.65, radius:3, useFillColorAsStroke:false,
+                      colorScale:{ ranges:[
+                        { from:0,   to:0,    color:'rgba(255,255,255,0.04)', name:'No hours'  },
+                        { from:1,   to:40,   color:'rgba(139,92,246,0.22)',  name:'Light'     },
+                        { from:41,  to:100,  color:'rgba(139,92,246,0.5)',   name:'Moderate'  },
+                        { from:101, to:9999, color:'#8b5cf6',               name:'Heavy'     },
+                      ]}
+                    }},
+                    xaxis:{ labels:{ style:{ colors:CHART_COLORS.muted, fontSize:'10px' }, rotate:-30 } },
+                    yaxis:{ labels:{ style:{ colors:CHART_COLORS.muted, fontSize:'10px' }, maxWidth:120 } },
+                    legend:{ fontSize:'11px', labels:{ colors:CHART_COLORS.muted } },
+                    tooltip:{ theme:'dark', y:{ formatter: v => `${fmtInt(v)} hrs` } },
+                    chart:{ offsetY:-8 },
                   })} />
               </div>
             </LazyChart>
@@ -803,18 +842,22 @@ export default function Dashboard({ dataMatrix }) {
         {visibility.treemap && (
           <div className="chart-card">
             <div className={styles.chartHeader}>
-              <h4><i className='bx bx-sitemap' style={{color:'var(--accent-indigo)'}} /> Client Portfolio Treemap</h4>
+              <h4><i className='bx bx-calendar-week' style={{color:'var(--indigo)'}} /> Activity by Day of Week</h4>
             </div>
             <LazyChart>
               <div id="wrap-treemapChart">
-                <Chart type="treemap" width="100%" height={240}
-                  series={[{data:metrics.topClients.map(c=>({x:c.name,y:Math.round(c.val)}))}]}
+                <Chart type="bar" width="100%" height={240}
+                  series={[{ name:'Avg hrs / day', data: metrics.dayOfWeekData?.avg || [] }]}
                   options={getOpts('treemapChart',{
-                    colors:CHART_PALETTE,
-                    plotOptions:{treemap:{distributed:true,enableShades:false}},
-                    dataLabels:{enabled:true,style:{fontSize:'12px',fontWeight:600}},
-                    tooltip:{theme:'dark',y:{formatter:v=>fmtInt(v)+' hrs'}},
-                    legend:{show:false},
+                    colors:['#6366f1'],
+                    fill:{ type:'gradient', gradient:{ shade:'dark', type:'vertical', shadeIntensity:0.4, gradientToColors:['#8b5cf6'], inverseColors:false, opacityFrom:1, opacityTo:0.8 } },
+                    plotOptions:{ bar:{ borderRadius:7, distributed:false, columnWidth:'52%' } },
+                    dataLabels:{ enabled:true, formatter: v => `${v}h`, style:{ colors:['rgba(255,255,255,0.75)'], fontSize:'11px', fontWeight:600 } },
+                    xaxis:{ categories: metrics.dayOfWeekData?.labels || [], labels:{ style:{ colors:CHART_COLORS.muted, fontSize:'12px' } } },
+                    yaxis:{ labels:{ formatter: v => `${v}h`, style:{ colors:CHART_COLORS.muted } } },
+                    grid:{ borderColor:'rgba(255,255,255,0.05)' },
+                    legend:{ show:false },
+                    tooltip:{ theme:'dark', y:{ formatter: v => `${v} hrs avg` } },
                   })} />
               </div>
             </LazyChart>
@@ -853,18 +896,20 @@ export default function Dashboard({ dataMatrix }) {
               <h4><i className='bx bx-radar' style={{color:'var(--accent-blue)'}} /> Skills Gap Analysis</h4>
             </div>
             <LazyChart>
-              <div id="wrap-skillsGapChart">
-                <Chart type="radar" width="100%" height={240}
-                  series={[{name:'Current Demand',data:metrics.skillsGap.demand},{name:'Available Capacity',data:metrics.skillsGap.capacity}]}
+              <div id="wrap-skillsGapChart" style={{overflow:'hidden'}}>
+                <Chart type="radar" width="100%" height={260}
+                  series={[{name:'Demand',data:metrics.skillsGap.demand},{name:'Capacity',data:metrics.skillsGap.capacity}]}
                   options={getOpts('skillsGapChart',{
-                    colors:['#a855f7','#32ade6'],
-                    labels:metrics.skillsGap.labels,
-                    stroke:{width:2},
-                    fill:{opacity:0.15},
-                    plotOptions:{radar:{size:90,polygons:{strokeColors:'rgba(255,255,255,0.05)',connectorColors:'rgba(255,255,255,0.05)'}}},
-                    markers:{size:4,strokeWidth:2},
-                    yaxis:{show:false},
-                    xaxis:{labels:{style:{colors:CHART_COLORS.muted,fontSize:'11px'}}},
+                    colors:['#8b5cf6','#06b6d4'],
+                    labels: metrics.skillsGap.labels.map(l => l.length > 11 ? l.slice(0,9)+'…' : l),
+                    stroke:{ width:2, curve:'smooth' },
+                    fill:{ opacity:0.12 },
+                    plotOptions:{ radar:{ size:75, polygons:{ strokeColors:'rgba(255,255,255,0.06)', connectorColors:'rgba(255,255,255,0.04)', fill:{ colors:['rgba(255,255,255,0.01)','transparent'] } } } },
+                    markers:{ size:4, strokeWidth:0, fillOpacity:1 },
+                    yaxis:{ show:false },
+                    xaxis:{ labels:{ style:{ colors:Array(12).fill(CHART_COLORS.muted), fontSize:'10px' } } },
+                    legend:{ fontSize:'11px', labels:{ colors:CHART_COLORS.muted } },
+                    chart:{ offsetX:0, offsetY:0 },
                   })} />
               </div>
             </LazyChart>
