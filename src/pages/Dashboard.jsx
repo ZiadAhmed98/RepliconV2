@@ -792,22 +792,26 @@ export default function Dashboard({ dataMatrix }) {
           </div>
         )}
 
-        {visibility.clientQuadrant && (
+        {visibility.skillsGap && (
           <div className="chart-card">
             <div className={styles.chartHeader}>
-              <h4><i className='bx bx-scatter-chart' style={{color:'var(--accent-yellow)'}} /> Client Profitability Matrix</h4>
+              <h4><i className='bx bx-radar' style={{color:'var(--accent-blue)'}} /> Skills Gap Analysis</h4>
             </div>
             <LazyChart>
-              <div id="wrap-clientQuadrantChart">
-                <Chart type="scatter" width="100%" height={220}
-                  series={[{name:'Clients',data:metrics.clientQuadrant}]}
-                  options={getOpts('clientQuadrantChart',{
-                    colors:['#ffd60a'],
-                    xaxis:{title:{text:'Total Hours',style:{color:CHART_COLORS.muted}},labels:{formatter:fmtK,style:{colors:CHART_COLORS.muted}}},
-                    yaxis:{title:{text:'Billable %',style:{color:CHART_COLORS.muted}},labels:{formatter:v=>v+'%',style:{colors:CHART_COLORS.muted}},min:0,max:100},
-                    tooltip:{theme:'dark',custom:({seriesIndex,dataPointIndex,w})=>{ const d=w.config.series[seriesIndex].data[dataPointIndex]; return `<div style="padding:10px;background:rgba(20,20,24,0.95);border:1px solid rgba(255,255,255,0.1);border-radius:10px"><b style="color:#fff">${d.name}</b><br/><span style="color:#8e8e93;font-size:0.8rem">${fmtInt(d.x)} hrs · ${d.y}% billable</span></div>`;}},
-                    annotations:{xaxis:[{x:metrics.topClients.reduce((s,c)=>s+c.val,0)/(metrics.topClients.length||1),strokeDashArray:4,borderColor:'rgba(255,255,255,0.2)'}],yaxis:[{y:70,strokeDashArray:4,borderColor:'rgba(255,255,255,0.2)'}]},
-                    markers:{size:8,strokeWidth:0},
+              <div id="wrap-skillsGapChart" style={{overflow:'hidden'}}>
+                <Chart type="radar" width="100%" height={260}
+                  series={[{name:'Demand',data:metrics.skillsGap.demand},{name:'Capacity',data:metrics.skillsGap.capacity}]}
+                  options={getOpts('skillsGapChart',{
+                    colors:['#8b5cf6','#06b6d4'],
+                    labels: metrics.skillsGap.labels.map(l => l.length > 11 ? l.slice(0,9)+'…' : l),
+                    stroke:{ width:2, curve:'smooth' },
+                    fill:{ opacity:0.12 },
+                    plotOptions:{ radar:{ size:75, polygons:{ strokeColors:'rgba(255,255,255,0.06)', connectorColors:'rgba(255,255,255,0.04)', fill:{ colors:['rgba(255,255,255,0.01)','transparent'] } } } },
+                    markers:{ size:4, strokeWidth:0, fillOpacity:1 },
+                    yaxis:{ show:false },
+                    xaxis:{ labels:{ style:{ colors:Array(12).fill(CHART_COLORS.muted), fontSize:'10px' } } },
+                    legend:{ fontSize:'11px', labels:{ colors:CHART_COLORS.muted } },
+                    chart:{ offsetX:0, offsetY:0 },
                   })} />
               </div>
             </LazyChart>
@@ -890,26 +894,22 @@ export default function Dashboard({ dataMatrix }) {
           </div>
         )}
 
-        {visibility.skillsGap && (
+        {visibility.clientQuadrant && (
           <div className="chart-card">
             <div className={styles.chartHeader}>
-              <h4><i className='bx bx-radar' style={{color:'var(--accent-blue)'}} /> Skills Gap Analysis</h4>
+              <h4><i className='bx bx-scatter-chart' style={{color:'var(--accent-yellow)'}} /> Client Profitability Matrix</h4>
             </div>
             <LazyChart>
-              <div id="wrap-skillsGapChart" style={{overflow:'hidden'}}>
-                <Chart type="radar" width="100%" height={260}
-                  series={[{name:'Demand',data:metrics.skillsGap.demand},{name:'Capacity',data:metrics.skillsGap.capacity}]}
-                  options={getOpts('skillsGapChart',{
-                    colors:['#8b5cf6','#06b6d4'],
-                    labels: metrics.skillsGap.labels.map(l => l.length > 11 ? l.slice(0,9)+'…' : l),
-                    stroke:{ width:2, curve:'smooth' },
-                    fill:{ opacity:0.12 },
-                    plotOptions:{ radar:{ size:75, polygons:{ strokeColors:'rgba(255,255,255,0.06)', connectorColors:'rgba(255,255,255,0.04)', fill:{ colors:['rgba(255,255,255,0.01)','transparent'] } } } },
-                    markers:{ size:4, strokeWidth:0, fillOpacity:1 },
-                    yaxis:{ show:false },
-                    xaxis:{ labels:{ style:{ colors:Array(12).fill(CHART_COLORS.muted), fontSize:'10px' } } },
-                    legend:{ fontSize:'11px', labels:{ colors:CHART_COLORS.muted } },
-                    chart:{ offsetX:0, offsetY:0 },
+              <div id="wrap-clientQuadrantChart">
+                <Chart type="scatter" width="100%" height={220}
+                  series={[{name:'Clients',data:metrics.clientQuadrant}]}
+                  options={getOpts('clientQuadrantChart',{
+                    colors:['#ffd60a'],
+                    xaxis:{title:{text:'Total Hours',style:{color:CHART_COLORS.muted}},labels:{formatter:fmtK,style:{colors:CHART_COLORS.muted}}},
+                    yaxis:{title:{text:'Billable %',style:{color:CHART_COLORS.muted}},labels:{formatter:v=>v+'%',style:{colors:CHART_COLORS.muted}},min:0,max:100},
+                    tooltip:{theme:'dark',custom:({seriesIndex,dataPointIndex,w})=>{ const d=w.config.series[seriesIndex].data[dataPointIndex]; return `<div style="padding:10px;background:rgba(20,20,24,0.95);border:1px solid rgba(255,255,255,0.1);border-radius:10px"><b style="color:#fff">${d.name}</b><br/><span style="color:#8e8e93;font-size:0.8rem">${fmtInt(d.x)} hrs · ${d.y}% billable</span></div>`;}},
+                    annotations:{xaxis:[{x:metrics.topClients.reduce((s,c)=>s+c.val,0)/(metrics.topClients.length||1),strokeDashArray:4,borderColor:'rgba(255,255,255,0.2)'}],yaxis:[{y:70,strokeDashArray:4,borderColor:'rgba(255,255,255,0.2)'}]},
+                    markers:{size:8,strokeWidth:0},
                   })} />
               </div>
             </LazyChart>
