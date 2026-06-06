@@ -20,7 +20,6 @@ import ProjectEdit     from './pages/ProjectEdit';
 import ClientCreate    from './pages/ClientCreate';
 import ClientEdit      from './pages/ClientEdit';
 import AIInsights      from './pages/AIInsights';
-import Settings        from './pages/Settings';
 import MyTimesheet     from './pages/MyTimesheet';
 import Employees       from './pages/Employees';
 import Clients         from './pages/Clients';
@@ -28,7 +27,7 @@ import Profile         from './pages/Profile';
 import ProjectsAdmin      from './pages/ProjectsAdmin';
 import ProjectDetail      from './pages/ProjectDetail';
 import TimesheetApproval  from './pages/TimesheetApproval';
-import Administration    from './pages/Administration'
+import Administration    from './pages/Administration';
 import AuditLog         from './pages/AuditLog';
 import Migration        from './pages/Migration';
 import Home            from './pages/Home';
@@ -197,7 +196,7 @@ function AppContent() {
                 <Route path="/projects-admin/:id"  element={<GuardedRoute page="projects"       ><ProjectDetail   sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/profile"             element={<Profile />} />
                 <Route path="/timesheets-approval" element={<GuardedRoute page="timesheetApproval"><TimesheetApproval sessionUser={sessionUser} /></GuardedRoute>} />
-                <Route path="/settings"            element={<GuardedRoute page="administration"  ><Settings         sessionUser={sessionUser} /></GuardedRoute>} />
+                <Route path="/settings"            element={<Navigate to="/employees" replace />} />
                 <Route path="/administration"      element={<GuardedRoute page="administration"  ><Administration /></GuardedRoute>} />
                 <Route path="/audit-log"          element={<GuardedRoute page="administration"  ><AuditLog /></GuardedRoute>} />
                 <Route path="/migration"          element={<GuardedRoute page="administration"  ><Migration /></GuardedRoute>} />

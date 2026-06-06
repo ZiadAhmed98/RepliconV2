@@ -3,8 +3,7 @@ import { z }      from 'zod';
 import crypto     from 'crypto';
 import { requireAuth, hashPassword } from '../lib/auth.js';
 import { logger, auditLog }          from '../lib/helpers.js';
-import { loadUsers, saveUsers, allPermissions,
-         ALL_PAGES, defaultPermissionsForRole } from '../lib/rbac.js';
+import { ALL_PAGES, defaultPermissionsForRole } from '../lib/rbac.js';
 import db                            from '../lib/db.js';
 
 const router = Router();
@@ -108,13 +107,14 @@ router.get('/api/v1/employees/:id/account', requireAuth, (req, res) => {
   if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin only' });
   const emp = db.prepare('SELECT id, userId FROM employees WHERE id=?').get(req.params.id);
   if (!emp) return res.status(404).json({ error: 'Employee not found' });
-  const users   = loadUsers();
-  const account = emp.userId ? (users[emp.userId] || null) : null;
+  const account = emp.userId
+    ? db.prepare('SELECT id, isAdmin, permissions FROM users WHERE id=?').get(emp.userId)
+    : null;
   res.json({
     userId:      emp.userId || null,
     hasAccount:  !!account,
-    isAdmin:     account?.isAdmin || false,
-    permissions: account?.permissions || {},
+    isAdmin:     account ? !!account.isAdmin : false,
+    permissions: account ? JSON.parse(account.permissions || '{}') : {},
   });
 });
 
@@ -133,43 +133,43 @@ router.put('/api/v1/employees/:id/account', requireAuth, async (req, res) => {
 
   if (!uId) return res.json({ ok: true, hasAccount: false });
 
-  const users = loadUsers();
-  if (!users[uId]) {
+  const displayName = emp.displayName || `${emp.firstName} ${emp.lastName}`;
+  const now         = new Date().toISOString();
+  const existing    = db.prepare('SELECT id, permissions FROM users WHERE id=?').get(uId);
+
+  if (!existing) {
     if (!password) return res.status(400).json({ error: 'Password required to create a new account' });
-    users[uId] = {
-      id:          uId,
-      displayName: emp.displayName || `${emp.firstName} ${emp.lastName}`,
-      passwordHash: await hashPassword(password),
-      isAdmin:     isAdmin || false,
-      permissions: permissions || defaultPermissionsForRole(emp.role),
-      createdAt:   new Date().toISOString(),
-    };
+    const perms = permissions || defaultPermissionsForRole(emp.role);
+    ALL_PAGES.forEach(p => { if (perms[p] === undefined) perms[p] = true; });
+    db.prepare(
+      'INSERT INTO users (id,displayName,passwordHash,isAdmin,permissions,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?)'
+    ).run(uId, displayName, await hashPassword(password), isAdmin ? 1 : 0, JSON.stringify(perms), now, now);
   } else {
-    users[uId].displayName = emp.displayName || `${emp.firstName} ${emp.lastName}`;
-    if (isAdmin     !== undefined) users[uId].isAdmin     = isAdmin;
-    if (permissions !== undefined) users[uId].permissions = permissions;
-    if (password)                  users[uId].passwordHash = await hashPassword(password);
+    const perms = permissions !== undefined ? permissions : JSON.parse(existing.permissions || '{}');
+    ALL_PAGES.forEach(p => { if (perms[p] === undefined) perms[p] = true; });
+    db.prepare('UPDATE users SET displayName=?,updatedAt=? WHERE id=?').run(displayName, now, uId);
+    if (isAdmin     !== undefined) db.prepare('UPDATE users SET isAdmin=?,updatedAt=? WHERE id=?').run(isAdmin ? 1 : 0, now, uId);
+    db.prepare('UPDATE users SET permissions=?,updatedAt=? WHERE id=?').run(JSON.stringify(perms), now, uId);
+    if (password) db.prepare('UPDATE users SET passwordHash=?,updatedAt=? WHERE id=?').run(await hashPassword(password), now, uId);
   }
 
-  ALL_PAGES.forEach(p => { if (users[uId].permissions[p] === undefined) users[uId].permissions[p] = true; });
-  saveUsers(users);
   auditLog(req.user.id, 'EMPLOYEE_ACCOUNT_UPDATE', { employeeId: req.params.id, userId: uId });
-  res.json({ ok: true, hasAccount: true, isAdmin: users[uId].isAdmin });
+  const saved = db.prepare('SELECT isAdmin FROM users WHERE id=?').get(uId);
+  res.json({ ok: true, hasAccount: true, isAdmin: !!saved?.isAdmin });
 });
 
 // ── Profile ───────────────────────────────────────────────────────────────────
 
 router.get('/api/v1/profile', requireAuth, (req, res) => {
-  const emp   = db.prepare(`
+  const emp  = db.prepare(`
     SELECT e.*, sup.firstName || ' ' || sup.lastName AS supervisorName
     FROM employees e LEFT JOIN employees sup ON e.supervisorId = sup.id
     WHERE e.userId = ?
   `).get(req.user.id);
-  const users = loadUsers();
-  const user  = users[req.user.id] || {};
+  const user = db.prepare('SELECT id, displayName, isAdmin FROM users WHERE id=?').get(req.user.id) || {};
   res.json({
     employee: emp ? { ...emp, skills: JSON.parse(emp.skills || '[]') } : null,
-    user: { id: req.user.id, name: user.name, isAdmin: user.isAdmin || false },
+    user: { id: req.user.id, name: user.displayName, isAdmin: !!user.isAdmin },
   });
 });
 

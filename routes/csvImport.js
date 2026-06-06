@@ -2,7 +2,7 @@ import { Router }  from 'express';
 import crypto      from 'crypto';
 import { requireAdmin, hashPassword } from '../lib/auth.js';
 import { parseCSVLine, auditLog, logger } from '../lib/helpers.js';
-import { loadUsers, saveUsers, defaultPermissionsForRole } from '../lib/rbac.js';
+import { defaultPermissionsForRole } from '../lib/rbac.js';
 import db from '../lib/db.js';
 
 const router = Router();
@@ -99,8 +99,9 @@ router.post('/api/v1/admin/import-csv', requireAdmin, async (req, res) => {
       if (createAccounts) {
         defaultPwdHash = await hashPassword('Welcome1!');
       }
-      const users = createAccounts ? loadUsers() : null;
-      let usersChanged = false;
+      const insertUser = createAccounts
+        ? db.prepare('INSERT OR IGNORE INTO users (id,displayName,passwordHash,isAdmin,permissions,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?)')
+        : null;
 
       for (const row of uniqueRows) {
         const name = (row['User Name'] || '').trim();
@@ -128,7 +129,6 @@ router.post('/api/v1/admin/import-csv', requireAdmin, async (req, res) => {
           : db.prepare('SELECT id, userId FROM employees WHERE LOWER(displayName)=LOWER(?)').get(name);
 
         if (existing) {
-          // Update fields that came from Replicon roster
           db.prepare(`
             UPDATE employees SET
               firstName    = CASE WHEN ? != '' THEN ? ELSE firstName END,
@@ -145,48 +145,28 @@ router.post('/api/v1/admin/import-csv', requireAdmin, async (req, res) => {
               updatedAt    = ?
             WHERE id = ?
           `).run(
-            firstName, firstName,
-            lastName,  lastName,
-            email, email, email,
-            status, role,
+            firstName, firstName, lastName, lastName,
+            email, email, email, status, role,
             jobTitle, jobTitle, jobTitle,
             department, department, department,
             location, location, location,
             hourlyRate, hourlyRate,
-            startDate, startDate,
-            endDate,   endDate,
+            startDate, startDate, endDate, endDate,
             now, existing.id
           );
 
-          // Create user account if we can and don't have one yet
-          if (createAccounts && users && loginName && !existing.userId && !users[loginName]) {
-            users[loginName] = {
-              id: loginName, displayName: name,
-              passwordHash: defaultPwdHash,
-              isAdmin: false,
-              permissions: defaultPermissionsForRole(role),
-              createdAt: now,
-            };
-            db.prepare('UPDATE employees SET userId=? WHERE id=?').run(loginName, existing.id);
-            usersChanged = true;
+          if (insertUser && loginName && !existing.userId) {
+            const r = insertUser.run(loginName, name, defaultPwdHash, 0, JSON.stringify(defaultPermissionsForRole(role)), now, now);
+            if (r.changes > 0) db.prepare('UPDATE employees SET userId=? WHERE id=?').run(loginName, existing.id);
           }
-
           result.employees.updated++;
         } else {
-          // Create new employee
-          const id = crypto.randomUUID();
-          let userId = null;
+          const id     = crypto.randomUUID();
+          let   userId = null;
 
-          if (createAccounts && users && loginName && !users[loginName]) {
-            users[loginName] = {
-              id: loginName, displayName: name,
-              passwordHash: defaultPwdHash,
-              isAdmin: false,
-              permissions: defaultPermissionsForRole(role),
-              createdAt: now,
-            };
-            usersChanged = true;
-            userId = loginName;
+          if (insertUser && loginName) {
+            const r = insertUser.run(loginName, name, defaultPwdHash, 0, JSON.stringify(defaultPermissionsForRole(role)), now, now);
+            if (r.changes > 0) userId = loginName;
           }
 
           db.prepare(`
@@ -196,12 +176,9 @@ router.post('/api/v1/admin/import-csv', requireAdmin, async (req, res) => {
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
           `).run(id, userId, firstName, lastName, name, email, role, status,
                  jobTitle, department, location, hourlyRate, startDate, endDate, now, now);
-
           result.employees.imported++;
         }
       }
-
-      if (usersChanged && users) saveUsers(users);
 
       // Second pass: link supervisors (both supervisor + employee must exist now)
       for (const row of uniqueRows) {

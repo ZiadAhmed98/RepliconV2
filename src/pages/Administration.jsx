@@ -72,8 +72,7 @@ const SECTIONS = [
     icon: 'bx-shield',
     accent: '#a78bfa',
     items: [
-      { label: 'Employees',           icon: 'bx-group',           desc: 'Employee records, roles and system accounts', live: true, to: '/employees'          },
-      { label: 'Users',               icon: 'bx-user-pin',        desc: 'Login accounts and page-level permissions',   live: true, to: '/settings'   },
+      { label: 'Employees & Access',   icon: 'bx-group',           desc: 'Employee records, roles, login accounts and permissions', live: true, to: '/employees' },
       { label: 'Audit Log',           icon: 'bx-history',         desc: 'Full trail of every system action',           live: true, to: '/audit-log'  },
       { label: 'Roles & Permissions', icon: 'bx-lock-alt',        desc: 'Define role presets and access policies',     live: false },
       { label: 'Team Hierarchy',      icon: 'bx-sitemap',         desc: 'Org chart, supervisors and reporting lines',  live: false },
