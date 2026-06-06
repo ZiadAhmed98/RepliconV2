@@ -248,7 +248,7 @@ select:focus {
 [data-theme="light"] select option { background: #ffffff !important; color: #09090b !important; }
 
 /* ── 5. LAYOUT ─────────────────────────────────────────────────────────── */
-.dashboard-container { padding: var(--pad); width: 100%; max-width: none !important; position: relative; z-index: 1; }
+.dashboard-container { padding: var(--pad); width: 100%; max-width: none !important; position: relative; }
 
 /* ── 6. KPI CARDS ──────────────────────────────────────────────────────── */
 .kpi-card {
