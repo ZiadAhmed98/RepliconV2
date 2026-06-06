@@ -25,6 +25,7 @@ import csvImportRouter      from './routes/csvImport.js';
 import accountManagersRouter from './routes/accountManagers.js';
 import templatesRouter   from './routes/templates.js';
 import homeRouter        from './routes/home.js';
+import programsRouter    from './routes/programs.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
@@ -80,6 +81,7 @@ app.use(csvImportRouter);
 app.use(accountManagersRouter);
 app.use(templatesRouter);
 app.use(homeRouter);
+app.use(programsRouter);
 
 // Static files + SPA fallback
 app.use(express.static(path.join(__dirname, 'dist'), {
