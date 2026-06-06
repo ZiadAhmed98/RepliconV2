@@ -10,8 +10,9 @@ const NAV = [
   { to: '/my-timesheet',        icon: 'bx-calendar-check', label: 'My Time',  perm: 'myTimesheet'       },
   { to: '/timesheets-approval', icon: 'bx-check-double',   label: 'Approvals',perm: 'timesheetApproval' },
   { to: '/projects-admin',      icon: 'bx-folder-open',    label: 'Projects', perm: 'projects'           },
-  { to: '/clients',             icon: 'bx-briefcase',      label: 'Clients',  perm: 'clients'            },
-  { to: '/templates',           icon: 'bx-file-blank',     label: 'Templates' },
+  { to: '/clients',             icon: 'bx-briefcase',      label: 'Clients',       perm: 'clients' },
+  { to: '/account-managers',   icon: 'bx-user-badge',     label: 'Acc. Managers'                  },
+  { to: '/templates',          icon: 'bx-file-blank',     label: 'Templates'                      },
   {
     label: 'Analytics', icon: 'bx-line-chart', group: true,
     children: [

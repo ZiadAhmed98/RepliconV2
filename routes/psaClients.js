@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { z }      from 'zod';
 import crypto     from 'crypto';
-import { requireAuth }      from '../lib/auth.js';
-import { auditLog }         from '../lib/helpers.js';
-import db                   from '../lib/db.js';
+import { requireAuth, requireAdmin } from '../lib/auth.js';
+import { auditLog }                  from '../lib/helpers.js';
+import db                            from '../lib/db.js';
 
 const router = Router();
 
@@ -15,18 +15,26 @@ const clientSchema = z.object({
   contactEmail:     z.string().email().optional().or(z.literal('')),
   contactPhone:     z.string().optional(),
   website:          z.string().optional(),
-  accountManagerId: z.string().nullable().optional(),
+  managerId:        z.string().nullable().optional(),   // account_managers.id
+  accountManagerId: z.string().nullable().optional(),   // legacy — accepted but not used
   status:           z.enum(['active', 'inactive']).default('active'),
   notes:            z.string().optional(),
 });
 
+// ── Shared AM join fragment ───────────────────────────────────────────────────
+const CLIENT_SELECT = `
+  SELECT c.*,
+         am.displayName AS accountManagerName,
+         am.email       AS amEmail,
+         am.phone       AS amPhone,
+         am.title       AS amTitle
+  FROM clients c
+  LEFT JOIN account_managers am ON am.id = c.managerId
+`;
+
 router.get('/api/v1/clients', requireAuth, (req, res) => {
   const { status, search } = req.query;
-  let query = `
-    SELECT c.*, e.firstName || ' ' || e.lastName AS accountManagerName
-    FROM clients c LEFT JOIN employees e ON c.accountManagerId = e.id
-    WHERE 1=1
-  `;
+  let query = CLIENT_SELECT + ' WHERE 1=1';
   const params = [];
   if (status) { query += ' AND c.status = ?'; params.push(status); }
   if (search) {
@@ -39,11 +47,7 @@ router.get('/api/v1/clients', requireAuth, (req, res) => {
 });
 
 router.get('/api/v1/clients/:id', requireAuth, (req, res) => {
-  const row = db.prepare(`
-    SELECT c.*, e.firstName || ' ' || e.lastName AS accountManagerName
-    FROM clients c LEFT JOIN employees e ON c.accountManagerId = e.id
-    WHERE c.id = ?
-  `).get(req.params.id);
+  const row = db.prepare(CLIENT_SELECT + ' WHERE c.id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Client not found' });
   res.json({ client: row });
 });
@@ -55,15 +59,16 @@ router.post('/api/v1/clients', requireAuth, (req, res) => {
   const d   = parsed.data;
   const now = new Date().toISOString();
   const id  = crypto.randomUUID();
+  const managerId = d.managerId || null;
   try {
     db.prepare(`
-      INSERT INTO clients (id, name, code, industry, contactName, contactEmail, contactPhone, website, accountManagerId, status, notes, createdAt, updatedAt)
+      INSERT INTO clients (id, name, code, industry, contactName, contactEmail, contactPhone, website, managerId, status, notes, createdAt, updatedAt)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(id, d.name, d.code || null, d.industry || null, d.contactName || null,
            d.contactEmail || null, d.contactPhone || null, d.website || null,
-           d.accountManagerId || null, d.status, d.notes || null, now, now);
+           managerId, d.status, d.notes || null, now, now);
     auditLog(req.user.id, 'CLIENT_CREATE', { id, name: d.name });
-    const row = db.prepare('SELECT * FROM clients WHERE id = ?').get(id);
+    const row = db.prepare(CLIENT_SELECT + ' WHERE c.id = ?').get(id);
     res.status(201).json({ client: row });
   } catch (err) {
     if (err.message.includes('UNIQUE')) return res.status(409).json({ error: 'Client code already exists' });
@@ -79,19 +84,17 @@ router.put('/api/v1/clients/:id', requireAuth, (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
   const d   = parsed.data;
   const now = new Date().toISOString();
+  const managerId = d.managerId !== undefined ? d.managerId : null;
   try {
     db.prepare(`
       UPDATE clients SET name=?, code=?, industry=?, contactName=?, contactEmail=?,
-        contactPhone=?, website=?, accountManagerId=?, status=?, notes=?, updatedAt=?
+        contactPhone=?, website=?, managerId=?, status=?, notes=?, updatedAt=?
       WHERE id=?
     `).run(d.name, d.code || null, d.industry || null, d.contactName || null,
            d.contactEmail || null, d.contactPhone || null, d.website || null,
-           d.accountManagerId || null, d.status, d.notes || null, now, req.params.id);
+           managerId, d.status, d.notes || null, now, req.params.id);
     auditLog(req.user.id, 'CLIENT_UPDATE', { id: req.params.id });
-    const row = db.prepare(`
-      SELECT c.*, e.firstName || ' ' || e.lastName AS accountManagerName
-      FROM clients c LEFT JOIN employees e ON c.accountManagerId = e.id WHERE c.id = ?
-    `).get(req.params.id);
+    const row = db.prepare(CLIENT_SELECT + ' WHERE c.id = ?').get(req.params.id);
     res.json({ client: row });
   } catch (err) {
     if (err.message.includes('UNIQUE')) return res.status(409).json({ error: 'Client code already exists' });

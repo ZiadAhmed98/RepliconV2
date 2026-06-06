@@ -228,19 +228,19 @@ router.post('/api/v1/admin/import-csv', requireAdmin, async (req, res) => {
         const client = db.prepare('SELECT id FROM clients WHERE LOWER(name)=LOWER(?)').get(clientName);
         if (!client) continue;
 
-        // Find AM employee — create a stub if they're not in the system
-        let amEmp = db.prepare('SELECT id FROM employees WHERE LOWER(displayName)=LOWER(?)').get(amName);
-        if (!amEmp) {
+        // Find or create account_manager (not employee — AMs are separate)
+        let am = db.prepare('SELECT id FROM account_managers WHERE LOWER(displayName)=LOWER(?)').get(amName);
+        if (!am) {
           const parts = amName.split(' ');
           const id = crypto.randomUUID();
-          db.prepare(`INSERT INTO employees (id,firstName,lastName,displayName,role,status,createdAt,updatedAt)
-            VALUES (?,?,?,?,?,?,?,?)`)
-            .run(id, parts[0], parts.slice(1).join(' '), amName, 'resource', 'active', now, now);
-          amEmp = { id };
+          db.prepare(`INSERT INTO account_managers (id,firstName,lastName,displayName,status,createdAt,updatedAt)
+            VALUES (?,?,?,?,?,?,?)`)
+            .run(id, parts[0], parts.slice(1).join(' '), amName, 'active', now, now);
+          am = { id };
         }
 
-        db.prepare('UPDATE clients SET accountManagerId=?, updatedAt=? WHERE id=?')
-          .run(amEmp.id, now, client.id);
+        db.prepare('UPDATE clients SET managerId=?, updatedAt=? WHERE id=?')
+          .run(am.id, now, client.id);
         result.clients.updated++;
       }
     }

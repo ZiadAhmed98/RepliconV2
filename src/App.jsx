@@ -33,6 +33,7 @@ import AuditLog         from './pages/AuditLog';
 import Migration        from './pages/Migration';
 import Home            from './pages/Home';
 import Templates       from './pages/Templates';
+import AccountManagers from './pages/AccountManagers';
 
 import { useRepliconData }    from './hooks/useRepliconData';
 import { repliconApi }        from './api/replicon';
@@ -191,6 +192,7 @@ function AppContent() {
                 <Route path="/my-timesheet"   element={<GuardedRoute page="myTimesheet"><MyTimesheet    dataMatrix={dataMatrix} sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/employees"           element={<GuardedRoute page="employees" ><Employees       sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/clients"             element={<GuardedRoute page="clients"  ><Clients         sessionUser={sessionUser} /></GuardedRoute>} />
+                <Route path="/account-managers"   element={<AccountManagers sessionUser={sessionUser} />} />
                 <Route path="/projects-admin"      element={<GuardedRoute page="projects"       ><ProjectsAdmin   sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/projects-admin/:id"  element={<GuardedRoute page="projects"       ><ProjectDetail   sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/profile"             element={<Profile />} />
