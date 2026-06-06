@@ -11,7 +11,7 @@ const NAV = [
   { to: '/timesheets-approval', icon: 'bx-check-double',   label: 'Approvals',perm: 'timesheetApproval' },
   { to: '/projects-admin',      icon: 'bx-folder-open',    label: 'Projects', perm: 'projects'           },
   { to: '/clients',             icon: 'bx-briefcase',      label: 'Clients',       perm: 'clients' },
-  { to: '/account-managers',   icon: 'bx-user-tie',       label: 'Acc Mgrs'                       },
+  { to: '/account-managers',   icon: 'bx-id-card',        label: 'Acc Mgrs'                       },
   { to: '/templates',          icon: 'bx-file-blank',     label: 'Templates'                      },
   {
     label: 'Analytics', icon: 'bx-line-chart', group: true,

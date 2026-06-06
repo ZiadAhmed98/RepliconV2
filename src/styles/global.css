@@ -159,7 +159,11 @@ body::after {
 select, input[type="date"], input[type="time"] { color-scheme: dark; }
 [data-theme="light"] select, [data-theme="light"] input[type="date"] { color-scheme: light; }
 
-select option { background: #0d0d18 !important; color: #fafafa !important; }
+select option {
+  background: #0d0d18 !important;
+  color: #fafafa !important;
+  padding: 8px 12px;
+}
 
 input[type="text"], input[type="password"], input[type="email"],
 input[type="number"], input[type="search"], input[type="date"],
@@ -168,7 +172,7 @@ select, textarea {
   background: var(--bg-input) !important;
   color: var(--text-1) !important;
   border: 1px solid var(--border) !important;
-  border-radius: var(--r-sm) !important;
+  border-radius: var(--r-md) !important;
   padding: 10px 13px !important;
   font-family: inherit;
   font-size: var(--t-sm);
@@ -187,6 +191,37 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(0.6); cursor: pointer; transition: filter 0.15s;
 }
 input[type="date"]::-webkit-calendar-picker-indicator:hover { filter: invert(0.9); }
+
+/* ── Select — custom arrow, dark panel, themed look ───────────────────── */
+select {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  background-color: rgba(13,13,24,0.85) !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='rgba(139%2C92%2C246%2C0.7)' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 11px center !important;
+  background-size: 14px !important;
+  padding-right: 34px !important;
+  cursor: pointer;
+  border-radius: var(--r-md) !important;
+  border: 1px solid rgba(139,92,246,0.2) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04) !important;
+}
+select:hover {
+  border-color: rgba(139,92,246,0.4) !important;
+  background-color: rgba(13,13,24,0.95) !important;
+}
+select:focus {
+  background-color: rgba(109,40,217,0.08) !important;
+  border-color: var(--border-focus) !important;
+  box-shadow: 0 0 0 3px rgba(139,92,246,0.15), 0 0 0 1px rgba(139,92,246,0.4) !important;
+}
+[data-theme="light"] select {
+  background-color: rgba(255,255,255,0.9) !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='rgba(109%2C40%2C217%2C0.7)' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+  border: 1px solid rgba(109,40,217,0.2) !important;
+}
+[data-theme="light"] select option { background: #ffffff !important; color: #09090b !important; }
 
 /* ── 5. LAYOUT ─────────────────────────────────────────────────────────── */
 .dashboard-container { padding: var(--pad); width: 100%; max-width: none !important; position: relative; z-index: 1; }
