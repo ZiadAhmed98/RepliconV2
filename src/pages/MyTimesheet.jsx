@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+﻿import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useToast } from '../context/ToastContext';
 
@@ -1118,6 +1118,18 @@ export default function MyTimesheet({ sessionUser }) {
     } finally { setSubmitting(false); }
   };
 
+  const handleCopyLastWeek = async () => {
+    if (!timesheet) return;
+    try {
+      const r = await fetch(`/api/v1/psa/timesheets/${timesheet.id}/copy-last-week`, { method: 'POST', credentials: 'include' });
+      const d = await r.json();
+      if (!r.ok) { toast.error(d.error || 'Nothing to copy'); return; }
+      if (d.copied === 0) { toast.info('All last week\'s projects are already in this week'); return; }
+      setTimesheet(ts => ({ ...ts, rows: [...(ts.rows || []), ...d.rows] }));
+      toast.success(`Copied ${d.copied} row${d.copied !== 1 ? 's' : ''} from last week`);
+    } catch { toast.error('Failed to copy last week'); }
+  };
+
   const colTotals = useMemo(() => {
     const t = {};
     dayKeys.forEach(dk => { t[dk] = (timesheet?.rows || []).reduce((s, row) => s + (parseFloat(row.hours?.[dk]) || 0), 0); });
@@ -1126,6 +1138,7 @@ export default function MyTimesheet({ sessionUser }) {
   }, [timesheet?.rows, dayKeys]);
 
   const statusStyle = STATUS_STYLE[timesheet?.status] || STATUS_STYLE.not_submitted;
+  const isRejected  = timesheet?.status === 'rejected';
   const isSubmitted = timesheet?.status === 'submitted' || timesheet?.status === 'approved';
 
   const th = {
@@ -1153,15 +1166,28 @@ export default function MyTimesheet({ sessionUser }) {
             This Week
           </button>
         </div>
-        {!isSubmitted ? (
-          <button onClick={handleSubmit} disabled={submitting || loading}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg,#7c3aed,#a855f7)', border: 'none', borderRadius: '10px', padding: '10px 20px', cursor: 'pointer', color: '#fff', fontSize: '0.88rem', fontFamily: 'inherit', fontWeight: 600, opacity: (submitting || loading) ? 0.6 : 1, boxShadow: '0 4px 14px rgba(124,58,237,0.3)' }}>
-            <i className='bx bx-send' style={{ fontSize: '1rem' }} />{submitting ? 'Submitting…' : 'Submit for Approval'}
-          </button>
-        ) : (
+        {isSubmitted ? (
           <span style={{ fontSize: '0.85rem', color: statusStyle.color }}><i className='bx bx-check-circle' style={{ marginRight: '6px' }} />Submitted</span>
+        ) : (
+          <button onClick={handleSubmit} disabled={submitting || loading}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: isRejected ? 'linear-gradient(135deg,#dc2626,#ef4444)' : 'linear-gradient(135deg,#7c3aed,#a855f7)', border: 'none', borderRadius: '10px', padding: '10px 20px', cursor: 'pointer', color: '#fff', fontSize: '0.88rem', fontFamily: 'inherit', fontWeight: 600, opacity: (submitting || loading) ? 0.6 : 1, boxShadow: isRejected ? '0 4px 14px rgba(220,38,38,0.3)' : '0 4px 14px rgba(124,58,237,0.3)' }}>
+            <i className={`bx ${isRejected ? 'bx-revision' : 'bx-send'}`} style={{ fontSize: '1rem' }} />
+            {submitting ? 'Submitting…' : isRejected ? 'Resubmit for Approval' : 'Submit for Approval'}
+          </button>
         )}
       </div>
+
+      {/* Rejection banner */}
+      {isRejected && timesheet?.rejectedReason && (
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '12px', padding: '14px 18px', marginBottom: '16px' }}>
+          <i className='bx bx-x-circle' style={{ color: '#f87171', fontSize: '18px', marginTop: '1px', flexShrink: 0 }} />
+          <div>
+            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#f87171', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Timesheet Rejected</div>
+            <div style={{ fontSize: '0.88rem', color: 'rgba(255,255,255,0.8)', lineHeight: 1.5 }}>{timesheet.rejectedReason}</div>
+            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)', marginTop: '6px' }}>Correct your hours above and click "Resubmit for Approval"</div>
+          </div>
+        </div>
+      )}
 
       {/* Status bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '20px', flexWrap: 'wrap' }}>
@@ -1212,12 +1238,20 @@ export default function MyTimesheet({ sessionUser }) {
                 ))}
                 {!isSubmitted && (
                   <tr><td colSpan={dayKeys.length + 3} style={{ padding: 0 }}>
-                    <button onClick={handleAddRow} disabled={addingRow}
-                      style={{ width: '100%', background: 'none', border: 'none', padding: '11px 12px', cursor: 'pointer', color: 'rgba(99,102,241,0.65)', fontSize: '0.83rem', fontFamily: 'inherit', fontWeight: 600, textAlign: 'left', display: 'flex', alignItems: 'center', gap: '5px' }}
-                      onMouseEnter={e => { e.currentTarget.style.background='rgba(99,102,241,0.04)'; e.currentTarget.style.color='#818cf8'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background='none'; e.currentTarget.style.color='rgba(99,102,241,0.65)'; }}>
-                      <i className='bx bx-plus' style={{ fontSize: '0.95rem' }} />{addingRow ? 'Adding…' : '+ Add Row'}
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <button onClick={handleAddRow} disabled={addingRow}
+                        style={{ flex: 1, background: 'none', border: 'none', padding: '11px 12px', cursor: 'pointer', color: 'rgba(99,102,241,0.65)', fontSize: '0.83rem', fontFamily: 'inherit', fontWeight: 600, textAlign: 'left', display: 'flex', alignItems: 'center', gap: '5px' }}
+                        onMouseEnter={e => { e.currentTarget.style.background='rgba(99,102,241,0.04)'; e.currentTarget.style.color='#818cf8'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background='none'; e.currentTarget.style.color='rgba(99,102,241,0.65)'; }}>
+                        <i className='bx bx-plus' style={{ fontSize: '0.95rem' }} />{addingRow ? 'Adding…' : '+ Add Row'}
+                      </button>
+                      <button onClick={handleCopyLastWeek}
+                        style={{ background: 'none', border: 'none', padding: '11px 14px', cursor: 'pointer', color: 'rgba(99,102,241,0.5)', fontSize: '0.8rem', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px', borderLeft: '1px solid rgba(255,255,255,0.05)' }}
+                        onMouseEnter={e => { e.currentTarget.style.background='rgba(99,102,241,0.04)'; e.currentTarget.style.color='#818cf8'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background='none'; e.currentTarget.style.color='rgba(99,102,241,0.5)'; }}>
+                        <i className='bx bx-copy' style={{ fontSize: '0.95rem' }} /> Copy Last Week
+                      </button>
+                    </div>
                   </td></tr>
                 )}
               </tbody>

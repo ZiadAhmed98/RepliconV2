@@ -64,6 +64,17 @@ router.get('/api/v1/psa/projects/:id', requireAuth, (req, res) => {
     WHERE p.id = ?
   `).get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Project not found' });
+
+  // Actual hours: sum all approved + submitted timesheet hours for this project
+  const actualRow = db.prepare(`
+    SELECT COALESCE(SUM(h.hours), 0) AS actualHours
+    FROM psa_timesheet_hours h
+    JOIN psa_timesheet_rows r  ON r.id  = h.rowId
+    JOIN psa_timesheets     ts ON ts.id = r.timesheetId
+    WHERE r.projectId = ? AND ts.status IN ('submitted', 'approved')
+  `).get(req.params.id);
+  row.actualHours = Math.round((actualRow?.actualHours || 0) * 100) / 100;
+
   res.json({ project: row });
 });
 

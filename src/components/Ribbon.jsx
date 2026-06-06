@@ -19,7 +19,7 @@ export default function Ribbon({ sessionUser, onLogout, onSync, onSearchOpen, la
   const [notifOpen, setNotifOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const canGoBack = location.key !== 'default';
+  const canGoBack = !!location.state?.from;
   const backLabel = location.state?.fromLabel || 'Back';
   const notifRef = useRef(null);
 

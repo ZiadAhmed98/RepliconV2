@@ -583,8 +583,20 @@ export default function ProjectDetail({ sessionUser }) {
               <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#4ade80' }}>{totalEstimated}</div>
               <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>Est. Task Hrs</div>
             </div>
-            <div style={{ background: 'rgba(251,191,36,0.07)', border: '1px solid rgba(251,191,36,0.15)', borderRadius: '10px', padding: '12px 18px', textAlign: 'center', minWidth: '80px' }}>
-              <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#fbbf24' }}>{tasks.length}</div>
+            <div style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: '10px', padding: '12px 18px', textAlign: 'center', minWidth: '80px' }}>
+              <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#f87171' }}>{project.actualHours || 0}</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>Actual Hrs</div>
+            </div>
+            {project.budgetHours > 0 && (
+              <div style={{ background: 'rgba(251,191,36,0.07)', border: `1px solid ${(project.actualHours || 0) > project.budgetHours ? 'rgba(239,68,68,0.4)' : 'rgba(251,191,36,0.15)'}`, borderRadius: '10px', padding: '12px 18px', textAlign: 'center', minWidth: '80px' }}>
+                <div style={{ fontSize: '1.3rem', fontWeight: 800, color: (project.actualHours || 0) > project.budgetHours ? '#f87171' : '#fbbf24' }}>
+                  {Math.round((project.actualHours || 0) / project.budgetHours * 100)}%
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>Burn Rate</div>
+              </div>
+            )}
+            <div style={{ background: 'rgba(107,114,128,0.07)', border: '1px solid rgba(107,114,128,0.15)', borderRadius: '10px', padding: '12px 18px', textAlign: 'center', minWidth: '80px' }}>
+              <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#9ca3af' }}>{tasks.length}</div>
               <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>Tasks</div>
             </div>
           </div>

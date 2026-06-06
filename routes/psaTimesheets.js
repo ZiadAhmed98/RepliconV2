@@ -169,4 +169,44 @@ router.post('/api/v1/psa/timesheets/:id/submit', requireAuth, (req, res) => {
   res.json({ ok: true, status: 'submitted' });
 });
 
+// Copy rows from previous week into current timesheet (no hours copied, just project/task structure)
+router.post('/api/v1/psa/timesheets/:id/copy-last-week', requireAuth, (req, res) => {
+  const current = db.prepare('SELECT * FROM psa_timesheets WHERE id=? AND userId=?').get(req.params.id, req.user.id);
+  if (!current) return res.status(404).json({ error: 'Timesheet not found' });
+  if (current.status === 'submitted' || current.status === 'approved') {
+    return res.status(409).json({ error: 'Cannot modify a submitted or approved timesheet' });
+  }
+
+  const d = new Date(current.weekStart + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() - 7);
+  const prevWeekStart = d.toISOString().slice(0, 10);
+
+  const prev = db.prepare('SELECT * FROM psa_timesheets WHERE userId=? AND weekStart=?').get(req.user.id, prevWeekStart);
+  if (!prev) return res.status(404).json({ error: 'No timesheet found for the previous week' });
+
+  const prevRows = db.prepare('SELECT * FROM psa_timesheet_rows WHERE timesheetId=? ORDER BY sortOrder ASC').all(prev.id);
+  if (!prevRows.length) return res.status(404).json({ error: 'Previous week has no rows to copy' });
+
+  // Only copy rows whose projects aren't already in the current timesheet
+  const existingProjectIds = new Set(
+    db.prepare('SELECT projectId FROM psa_timesheet_rows WHERE timesheetId=?').all(current.id).map(r => r.projectId)
+  );
+
+  const now = new Date().toISOString();
+  const newRows = [];
+  db.transaction(() => {
+    for (const row of prevRows) {
+      if (row.projectId && existingProjectIds.has(row.projectId)) continue;
+      const newId = crypto.randomUUID();
+      db.prepare(`INSERT INTO psa_timesheet_rows (id,timesheetId,projectId,taskId,note,sortOrder,createdAt,updatedAt)
+                  VALUES (?,?,?,?,?,?,?,?)`)
+        .run(newId, current.id, row.projectId, row.taskId, row.note, row.sortOrder, now, now);
+      const built = buildSingleRow(newId);
+      if (built) newRows.push({ ...built, hours: {}, dayNotes: {} });
+    }
+  })();
+
+  res.json({ ok: true, rows: newRows, copied: newRows.length });
+});
+
 export default router;
