@@ -359,8 +359,9 @@ export default function ProjectDetail({ sessionUser }) {
   const [activeTab, setActiveTab] = useState('tasks');
   const [taskModal, setTaskModal] = useState(null);
   const [xmlModal,  setXmlModal]  = useState(false);
-  const [addingMember, setAddingMember] = useState(false);
+  const [addingMember, setAddingMember] = useState(null); // empId being added, or null
   const [memberSearch, setMemberSearch] = useState('');
+  const [resourceTooltip, setResourceTooltip] = useState(null); // { resources, x, y }
 
   const isAdmin = sessionUser?.isAdmin;
   const canManageTeam = isAdmin || sessionUser?.role === 'pm';
@@ -397,7 +398,7 @@ export default function ProjectDetail({ sessionUser }) {
   };
 
   const addMember = async (empId) => {
-    setAddingMember(true);
+    setAddingMember(empId);
     const r = await fetch(`/api/v1/psa/projects/${id}/resources`, {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -405,8 +406,14 @@ export default function ProjectDetail({ sessionUser }) {
     });
     const d = await r.json();
     if (!r.ok) { toast.error(d.error || 'Failed to add'); }
-    else { await load(); setMemberSearch(''); }
-    setAddingMember(false);
+    else {
+      const msg = d.tasksAutoAssigned > 0
+        ? `Added to team & auto-assigned to ${d.tasksAutoAssigned} task${d.tasksAutoAssigned !== 1 ? 's' : ''}`
+        : 'Added to team';
+      toast.success(msg);
+      await load();
+    }
+    setAddingMember(null);
   };
 
   const removeMember = async (empId) => {
@@ -468,6 +475,30 @@ export default function ProjectDetail({ sessionUser }) {
           </td>
           <td style={{ ...td, color: 'var(--text-muted)', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
             {task.startDate || '—'}{task.endDate ? ` → ${task.endDate}` : ''}
+          </td>
+          <td style={td}
+            onMouseEnter={e => {
+              if (task.resources?.length) {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setResourceTooltip({ resources: task.resources, x: rect.left, y: rect.bottom });
+              }
+            }}
+            onMouseLeave={() => setResourceTooltip(null)}>
+            {!task.resources?.length ? (
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'default' }}>
+                {task.resources.slice(0, 3).map(r => (
+                  <div key={r.id}
+                    style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'rgba(99,102,241,0.18)', border: '1px solid rgba(99,102,241,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.62rem', fontWeight: 700, color: '#818cf8', flexShrink: 0 }}>
+                    {(r.firstName?.[0] || '')}{(r.lastName?.[0] || '')}
+                  </div>
+                ))}
+                {task.resources.length > 3 && (
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '2px' }}>+{task.resources.length - 3}</span>
+                )}
+              </div>
+            )}
           </td>
           {isAdmin && (
             <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -604,6 +635,7 @@ export default function ProjectDetail({ sessionUser }) {
                       <th style={th}>Status</th>
                       <th style={{ ...th, textAlign: 'right' }}>Est. Hours</th>
                       <th style={th}>Dates</th>
+                      <th style={th}>Resources</th>
                       {isAdmin && <th style={{ ...th, textAlign: 'right' }}>Actions</th>}
                     </tr>
                   </thead>
@@ -625,7 +657,7 @@ export default function ProjectDetail({ sessionUser }) {
           !assignedIds.has(e.id) &&
           (`${e.firstName} ${e.lastName} ${e.email || ''} ${e.employeeId || ''}`).toLowerCase().includes(searchLc)
         );
-        const ROLE_C = { admin: '#a855f7', pm: '#6366f1', resource: '#64748b' };
+        const ROLE_C = { admin: '#a855f7', pm: '#6366f1', supervisor: '#0891b2', resource: '#64748b' };
 
         return (
           <div style={{ maxWidth: '700px' }}>
@@ -678,41 +710,45 @@ export default function ProjectDetail({ sessionUser }) {
             {canManageTeam && (
               <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '16px' }}>
                 <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '12px' }}>Add Team Member</div>
-                <div style={{ position: 'relative', marginBottom: '12px' }}>
+                <div style={{ position: 'relative', marginBottom: '10px' }}>
                   <i className='bx bx-search' style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '15px' }} />
                   <input
                     value={memberSearch}
                     onChange={e => setMemberSearch(e.target.value)}
-                    placeholder="Search employees by name or email…"
+                    placeholder="Filter by name or email…"
                     style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '8px 12px 8px 36px', color: 'var(--text-main)', fontSize: '0.85rem', fontFamily: 'inherit', boxSizing: 'border-box' }}
                   />
                 </div>
-                {memberSearch.length > 0 && (
-                  <div style={{ maxHeight: '220px', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px' }}>
-                    {available.length === 0 ? (
-                      <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.83rem' }}>
-                        {allEmps.filter(e => !assignedIds.has(e.id)).length === 0 ? 'All active employees are already assigned' : 'No employees match'}
+                <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px' }}>
+                  {available.length === 0 ? (
+                    <div style={{ padding: '28px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.83rem' }}>
+                      <i className='bx bx-user-check' style={{ fontSize: '28px', display: 'block', marginBottom: '8px', opacity: 0.3 }} />
+                      {allEmps.filter(e => !assignedIds.has(e.id)).length === 0 ? 'All active employees are already on this team' : 'No employees match the filter'}
+                    </div>
+                  ) : available.map((e, i) => (
+                    <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderBottom: i < available.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}
+                      onMouseEnter={ev => ev.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                      onMouseLeave={ev => ev.currentTarget.style.background = 'transparent'}>
+                      <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: `${ROLE_C[e.role] || '#64748b'}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '12px', color: ROLE_C[e.role] || '#64748b', flexShrink: 0 }}>
+                        {e.firstName?.[0]}{e.lastName?.[0]}
                       </div>
-                    ) : available.slice(0, 10).map(e => (
-                      <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)', transition: 'background 0.1s' }}
-                        onMouseEnter={ev => ev.currentTarget.style.background = 'rgba(139,92,246,0.08)'}
-                        onMouseLeave={ev => ev.currentTarget.style.background = 'transparent'}
-                        onClick={() => !addingMember && addMember(e.id)}>
-                        <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: `${ROLE_C[e.role] || '#64748b'}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '12px', color: ROLE_C[e.role] || '#64748b', flexShrink: 0 }}>
-                          {e.firstName?.[0]}{e.lastName?.[0]}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>{e.displayName || `${e.firstName} ${e.lastName}`}</div>
-                          {e.email && <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{e.email}</div>}
-                        </div>
-                        <span style={{ fontSize: '0.7rem', background: `${ROLE_C[e.role] || '#64748b'}20`, color: ROLE_C[e.role] || '#64748b', borderRadius: '4px', padding: '1px 6px', fontWeight: 600 }}>
-                          {e.role === 'pm' ? 'PM' : e.role}
-                        </span>
-                        <i className='bx bx-plus' style={{ color: '#a78bfa', fontSize: '18px' }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>{e.displayName || `${e.firstName} ${e.lastName}`}</div>
+                        {e.email && <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.email}</div>}
                       </div>
-                    ))}
-                  </div>
-                )}
+                      <span style={{ fontSize: '0.7rem', background: `${ROLE_C[e.role] || '#64748b'}20`, color: ROLE_C[e.role] || '#64748b', borderRadius: '4px', padding: '1px 6px', fontWeight: 600, flexShrink: 0 }}>
+                        {e.role === 'pm' ? 'PM' : e.role}
+                      </span>
+                      <button onClick={() => addMember(e.id)} disabled={!!addingMember}
+                        style={{ background: addingMember === e.id ? 'rgba(99,102,241,0.05)' : 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '7px', padding: '5px 12px', cursor: addingMember ? 'not-allowed' : 'pointer', color: '#818cf8', fontSize: '0.78rem', fontFamily: 'inherit', fontWeight: 600, flexShrink: 0, display: 'flex', alignItems: 'center', gap: '5px', opacity: addingMember && addingMember !== e.id ? 0.5 : 1 }}>
+                        {addingMember === e.id
+                          ? <><i className='bx bx-loader-alt bx-spin' style={{ fontSize: '13px' }} /> Adding…</>
+                          : <><i className='bx bx-plus' style={{ fontSize: '13px' }} /> Add</>
+                        }
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -755,6 +791,22 @@ export default function ProjectDetail({ sessionUser }) {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Resource hover tooltip */}
+      {resourceTooltip && (
+        <div style={{ position: 'fixed', left: resourceTooltip.x, top: resourceTooltip.y + 4, background: '#1c1c2e', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', padding: '10px 14px', zIndex: 9999, minWidth: '180px', boxShadow: '0 8px 32px rgba(0,0,0,0.6)', pointerEvents: 'none' }}>
+          <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '8px' }}>Assigned Resources</div>
+          {resourceTooltip.resources.map(r => (
+            <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '3px 0' }}>
+              <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: '#818cf8', flexShrink: 0 }}>
+                {(r.firstName?.[0] || '')}{(r.lastName?.[0] || '')}
+              </div>
+              <span style={{ fontSize: '0.83rem', color: 'var(--text-main)' }}>{r.displayName || `${r.firstName} ${r.lastName}`}</span>
+              <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginLeft: 'auto', paddingLeft: '8px' }}>{r.role}</span>
+            </div>
+          ))}
         </div>
       )}
 

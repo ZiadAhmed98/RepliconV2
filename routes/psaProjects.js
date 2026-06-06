@@ -138,15 +138,22 @@ router.post('/api/v1/psa/projects/:id/resources', requireAuth, (req, res) => {
   if (!proj) return res.status(404).json({ error: 'Project not found' });
   const emp = db.prepare('SELECT id FROM employees WHERE id=?').get(employeeId);
   if (!emp) return res.status(404).json({ error: 'Employee not found' });
+  const now = new Date().toISOString();
   try {
     db.prepare('INSERT INTO project_resources (projectId, employeeId, assignedAt) VALUES (?,?,?)')
-      .run(req.params.id, employeeId, new Date().toISOString());
+      .run(req.params.id, employeeId, now);
   } catch (e) {
     if (e.message?.includes('UNIQUE')) return res.status(409).json({ error: 'Already assigned' });
     throw e;
   }
-  auditLog(req.user.id, 'PROJECT_RESOURCE_ADD', { projectId: req.params.id, employeeId });
-  res.status(201).json({ ok: true });
+  // Auto-assign to all existing tasks in this project
+  const projectTasks = db.prepare('SELECT id FROM tasks WHERE projectId=?').all(req.params.id);
+  if (projectTasks.length > 0) {
+    const taskInsert = db.prepare('INSERT OR IGNORE INTO task_resources (taskId, employeeId, assignedAt) VALUES (?,?,?)');
+    db.transaction(() => { projectTasks.forEach(t => taskInsert.run(t.id, employeeId, now)); })();
+  }
+  auditLog(req.user.id, 'PROJECT_RESOURCE_ADD', { projectId: req.params.id, employeeId, tasksAutoAssigned: projectTasks.length });
+  res.status(201).json({ ok: true, tasksAutoAssigned: projectTasks.length });
 });
 
 router.delete('/api/v1/psa/projects/:id/resources/:employeeId', requireAuth, (req, res) => {

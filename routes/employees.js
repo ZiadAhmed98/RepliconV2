@@ -3,8 +3,8 @@ import { z }      from 'zod';
 import crypto     from 'crypto';
 import { requireAuth, hashPassword } from '../lib/auth.js';
 import { logger, auditLog }          from '../lib/helpers.js';
-import { loadUsers, saveUsers,
-         allPermissions, ALL_PAGES }  from '../lib/rbac.js';
+import { loadUsers, saveUsers, allPermissions,
+         ALL_PAGES, defaultPermissionsForRole } from '../lib/rbac.js';
 import db                            from '../lib/db.js';
 
 const router = Router();
@@ -15,7 +15,7 @@ const employeeSchema = z.object({
   displayName:  z.string().optional(),
   email:        z.string().email().optional().or(z.literal('')),
   employeeId:   z.string().optional(),
-  role:         z.enum(['admin', 'pm', 'resource']).default('resource'),
+  role:         z.enum(['admin', 'pm', 'supervisor', 'resource']).default('resource'),
   skills:       z.array(z.string()).default([]),
   supervisorId: z.string().nullable().optional(),
   startDate:    z.string().optional(),
@@ -141,7 +141,7 @@ router.put('/api/v1/employees/:id/account', requireAuth, async (req, res) => {
       displayName: emp.displayName || `${emp.firstName} ${emp.lastName}`,
       passwordHash: await hashPassword(password),
       isAdmin:     isAdmin || false,
-      permissions: permissions || allPermissions(),
+      permissions: permissions || defaultPermissionsForRole(emp.role),
       createdAt:   new Date().toISOString(),
     };
   } else {

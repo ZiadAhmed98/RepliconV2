@@ -2,9 +2,10 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '../context/ToastContext';
 
 const ROLES = [
-  { value: 'resource', label: 'Resource' },
-  { value: 'pm',       label: 'Project Manager' },
-  { value: 'admin',    label: 'Admin' },
+  { value: 'resource',   label: 'Resource' },
+  { value: 'pm',         label: 'Project Manager' },
+  { value: 'supervisor', label: 'Supervisor' },
+  { value: 'admin',      label: 'Admin' },
 ];
 
 const SKILL_SUGGESTIONS = [
@@ -13,8 +14,8 @@ const SKILL_SUGGESTIONS = [
   'Cybersecurity', 'ERP Consulting', 'Network Engineering', 'Technical Writing',
 ];
 
-const ROLE_COLOR = { admin: '#a855f7', pm: '#6366f1', resource: '#64748b' };
-const ROLE_LABEL = { admin: 'Admin', pm: 'Project Manager', resource: 'Resource' };
+const ROLE_COLOR = { admin: '#a855f7', pm: '#6366f1', supervisor: '#0891b2', resource: '#64748b' };
+const ROLE_LABEL = { admin: 'Admin', pm: 'Project Manager', supervisor: 'Supervisor', resource: 'Resource' };
 
 function SkillTag({ label, onRemove }) {
   return (

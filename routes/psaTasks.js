@@ -52,7 +52,23 @@ router.get('/api/v1/psa/projects/:projectId/tasks', requireAuth, (req, res) => {
     WHERE t.projectId = ?
     ORDER BY t.sortOrder ASC, t.createdAt ASC
   `).all(req.params.projectId);
-  res.json({ tasks: rows });
+
+  // Fetch all task resources for this project in one query
+  const resources = db.prepare(`
+    SELECT tr.taskId, e.id, e.firstName, e.lastName, e.displayName, e.role
+    FROM task_resources tr
+    JOIN employees e ON e.id = tr.employeeId
+    WHERE tr.taskId IN (SELECT id FROM tasks WHERE projectId = ?)
+    ORDER BY e.lastName, e.firstName
+  `).all(req.params.projectId);
+
+  const resourcesByTask = {};
+  resources.forEach(r => {
+    if (!resourcesByTask[r.taskId]) resourcesByTask[r.taskId] = [];
+    resourcesByTask[r.taskId].push({ id: r.id, firstName: r.firstName, lastName: r.lastName, displayName: r.displayName, role: r.role });
+  });
+
+  res.json({ tasks: rows.map(t => ({ ...t, resources: resourcesByTask[t.id] || [] })) });
 });
 
 router.post('/api/v1/psa/projects/:projectId/tasks', requireAuth, (req, res) => {
@@ -124,6 +140,31 @@ router.delete('/api/v1/psa/tasks/:id', requireAuth, (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Task not found' });
   db.prepare('DELETE FROM tasks WHERE id=?').run(req.params.id);
   auditLog(req.user.id, 'TASK_DELETE', { id: req.params.id });
+  res.json({ ok: true });
+});
+
+// ── Task resource assignment ───────────────────────────────────────────────────
+
+router.post('/api/v1/psa/tasks/:id/resources', requireAuth, (req, res) => {
+  if (!req.user.isAdmin && req.user.role !== 'pm') return res.status(403).json({ error: 'Admin or PM only' });
+  const { employeeId } = req.body || {};
+  if (!employeeId) return res.status(400).json({ error: 'employeeId required' });
+  const task = db.prepare('SELECT id FROM tasks WHERE id=?').get(req.params.id);
+  if (!task) return res.status(404).json({ error: 'Task not found' });
+  try {
+    db.prepare('INSERT INTO task_resources (taskId, employeeId, assignedAt) VALUES (?,?,?)')
+      .run(req.params.id, employeeId, new Date().toISOString());
+  } catch (e) {
+    if (e.message?.includes('UNIQUE')) return res.status(409).json({ error: 'Already assigned' });
+    throw e;
+  }
+  res.status(201).json({ ok: true });
+});
+
+router.delete('/api/v1/psa/tasks/:id/resources/:employeeId', requireAuth, (req, res) => {
+  if (!req.user.isAdmin && req.user.role !== 'pm') return res.status(403).json({ error: 'Admin or PM only' });
+  db.prepare('DELETE FROM task_resources WHERE taskId=? AND employeeId=?')
+    .run(req.params.id, req.params.employeeId);
   res.json({ ok: true });
 });
 
