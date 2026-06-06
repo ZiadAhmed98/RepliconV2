@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import styles from './SmartInitiator.module.css';
 import ProjectLoader from '../components/ProjectLoader'; // ADDED: The new Apple Loader
 
@@ -35,6 +35,19 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
   // 2. COMPONENT STATE
   // =========================================================================
   const fileInputRef = useRef(null);
+  const [psaClients,  setPsaClients]  = useState([]);
+  const [psaPrograms, setPsaPrograms] = useState([]);
+
+  useEffect(() => {
+    fetch('/api/v1/clients?status=active', { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => setPsaClients([...(d.clients || [])].sort((a,b) => a.name.localeCompare(b.name))))
+      .catch(() => {});
+    fetch('/api/v1/programs', { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => setPsaPrograms([...(d.programs || [])].sort((a,b) => a.name.localeCompare(b.name))))
+      .catch(() => {});
+  }, []);
   
   // NEW: Granular Deployment States
   const [isDeploying, setIsDeploying] = useState(false);
@@ -343,7 +356,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
             <label>Client Name *</label>
             <select className={styles.formControl} value={formData.clientName} onChange={e => setFormData({...formData, clientName: e.target.value})}>
               <option value="">Select Client</option>
-              {dictionaries.clients.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+              {(psaClients.length > 0 ? psaClients : dictionaries.clients).map(c => <option key={c.id || c.name} value={c.name}>{c.name}</option>)}
             </select>
           </div>
         ) : (
@@ -366,7 +379,7 @@ export default function SmartInitiator({ dataMatrix, syncMatrixData }) {
           <label>Program Name</label>
           <select className={styles.formControl} value={formData.programName} onChange={e => setFormData({...formData, programName: e.target.value})}>
             <option value="">Select Program</option>
-            {dictionaries.programs.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
+            {(psaPrograms.length > 0 ? psaPrograms : dictionaries.programs).map(p => <option key={p.id || p.name} value={p.name}>{p.name}</option>)}
           </select>
         </div>
 

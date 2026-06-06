@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme }         from '../context/ThemeContext';
 import NotificationsCenter  from './NotificationsCenter';
 
@@ -16,6 +17,10 @@ export default function Ribbon({ sessionUser, onLogout, onSync, onSearchOpen, la
   const [syncLabel, setSyncLabel] = useState(null);
   const [syncing,   setSyncing]   = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const canGoBack = location.key !== 'default';
+  const backLabel = location.state?.fromLabel || 'Back';
   const notifRef = useRef(null);
 
   useEffect(() => {
@@ -72,31 +77,53 @@ export default function Ribbon({ sessionUser, onLogout, onSync, onSearchOpen, la
       flexShrink: 0,
     }}>
 
-      {/* Left: search */}
-      <button onClick={onSearchOpen} style={{
-        display: 'flex', alignItems: 'center', gap: '10px',
-        background: 'rgba(255,255,255,0.04)',
-        border: '1px solid rgba(255,255,255,0.07)',
-        borderRadius: '10px', padding: '7px 14px',
-        color: 'rgba(255,255,255,0.35)', cursor: 'pointer',
-        fontFamily: 'inherit', fontSize: '13px', transition: 'all 0.18s',
-        width: '260px',
-      }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(139,92,246,0.08)'; e.currentTarget.style.borderColor = 'rgba(139,92,246,0.25)'; e.currentTarget.style.color = 'rgba(255,255,255,0.55)'; }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'; e.currentTarget.style.color = 'rgba(255,255,255,0.35)'; }}
-      >
-        <i className='bx bx-search' style={{ fontSize: '14px' }} />
-        <span style={{ fontWeight: 400 }}>Search anything…</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: '2px' }}>
-          {['⌃', 'K'].map((k, i) => (
-            <kbd key={i} style={{
-              padding: '1px 5px', borderRadius: '4px', fontSize: '10px',
-              background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)',
-              color: 'rgba(255,255,255,0.35)', fontFamily: 'monospace',
-            }}>{k}</kbd>
-          ))}
-        </div>
-      </button>
+      {/* Left: back + search */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {canGoBack && (
+          <button
+            onClick={() => navigate(-1)}
+            title={`Back to ${backLabel}`}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '7px',
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.07)',
+              borderRadius: '9px', padding: '6px 12px',
+              color: 'rgba(255,255,255,0.55)', cursor: 'pointer',
+              fontFamily: 'inherit', fontSize: '13px', fontWeight: 500,
+              transition: 'all 0.18s', whiteSpace: 'nowrap',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(139,92,246,0.12)'; e.currentTarget.style.borderColor = 'rgba(139,92,246,0.3)'; e.currentTarget.style.color = '#a78bfa'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'; e.currentTarget.style.color = 'rgba(255,255,255,0.55)'; }}
+          >
+            <i className='bx bx-arrow-back' style={{ fontSize: '15px' }} />
+            {backLabel}
+          </button>
+        )}
+        <button onClick={onSearchOpen} style={{
+          display: 'flex', alignItems: 'center', gap: '10px',
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.07)',
+          borderRadius: '10px', padding: '7px 14px',
+          color: 'rgba(255,255,255,0.35)', cursor: 'pointer',
+          fontFamily: 'inherit', fontSize: '13px', transition: 'all 0.18s',
+          width: '220px',
+        }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(139,92,246,0.08)'; e.currentTarget.style.borderColor = 'rgba(139,92,246,0.25)'; e.currentTarget.style.color = 'rgba(255,255,255,0.55)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'; e.currentTarget.style.color = 'rgba(255,255,255,0.35)'; }}
+        >
+          <i className='bx bx-search' style={{ fontSize: '14px' }} />
+          <span style={{ fontWeight: 400 }}>Search anything…</span>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: '2px' }}>
+            {['⌃', 'K'].map((k, i) => (
+              <kbd key={i} style={{
+                padding: '1px 5px', borderRadius: '4px', fontSize: '10px',
+                background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)',
+                color: 'rgba(255,255,255,0.35)', fontFamily: 'monospace',
+              }}>{k}</kbd>
+            ))}
+          </div>
+        </button>
+      </div>
 
       {/* Right: controls */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { usePermissions } from '../context/PermissionContext';
 
 const PROGRAM_ICONS = {
@@ -30,8 +31,8 @@ function fmtDate(d) {
   return new Date(d).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
 }
 
-function ProgramCard({ program, isAdmin, onEdit, onDelete }) {
-  const [expanded, setExpanded] = useState(false);
+function ProgramCard({ program, isAdmin, onEdit, onDelete, isExpanded, onToggle }) {
+  const navigate = useNavigate();
   const icon = PROGRAM_ICONS[program.name] || 'bx-collection';
 
   return (
@@ -46,7 +47,7 @@ function ProgramCard({ program, isAdmin, onEdit, onDelete }) {
       {/* Header */}
       <div
         style={{ padding: '18px 20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '14px' }}
-        onClick={() => setExpanded(p => !p)}
+        onClick={onToggle}
       >
         <div style={{
           width: '40px', height: '40px', borderRadius: '12px', flexShrink: 0,
@@ -84,13 +85,13 @@ function ProgramCard({ program, isAdmin, onEdit, onDelete }) {
             </div>
           )}
 
-          <i className={`bx bx-chevron-${expanded ? 'up' : 'down'}`}
+          <i className={`bx bx-chevron-${isExpanded ? 'up' : 'down'}`}
             style={{ fontSize: '1.1rem', color: 'var(--text-secondary)', transition: 'transform 0.2s' }} />
         </div>
       </div>
 
       {/* Projects list */}
-      {expanded && (
+      {isExpanded && (
         <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', padding: '0 20px 16px', maxHeight: '300px', overflowY: 'auto' }}>
           {program.projects.length === 0 ? (
             <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px' }}>
@@ -101,12 +102,18 @@ function ProgramCard({ program, isAdmin, onEdit, onDelete }) {
               {program.projects.map(proj => {
                 const st = STATUS_COLORS[proj.status] || STATUS_COLORS.in_progress;
                 return (
-                  <div key={proj.id} style={{
-                    display: 'flex', alignItems: 'center', gap: '12px',
-                    padding: '8px 12px', borderRadius: '10px',
-                    background: 'rgba(255,255,255,0.025)',
-                    border: '1px solid rgba(255,255,255,0.05)',
-                  }}>
+                  <div key={proj.id}
+                    onClick={() => navigate(`/projects-admin/${proj.id}`, { state: { from: '/programs', fromLabel: 'Programs' } })}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '12px',
+                      padding: '8px 12px', borderRadius: '10px',
+                      background: 'rgba(255,255,255,0.025)',
+                      border: '1px solid rgba(255,255,255,0.05)',
+                      cursor: 'pointer', transition: 'background 0.15s, border-color 0.15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(139,92,246,0.08)'; e.currentTarget.style.borderColor = 'rgba(139,92,246,0.2)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.025)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)'; }}
+                  >
                     <i className="bx bx-folder" style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.25)', flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -200,6 +207,21 @@ export default function Programs() {
   const [importing,setImporting]  = useState(false);
   const [importMsg,setImportMsg]  = useState('');
   const fileRef = useRef(null);
+
+  // Expanded state lifted here so sessionStorage can persist it across navigations
+  const [expandedIds, setExpandedIds] = useState(() => {
+    try { return new Set(JSON.parse(sessionStorage.getItem('programs_expanded') || '[]')); }
+    catch { return new Set(); }
+  });
+
+  const toggleExpanded = (id) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      try { sessionStorage.setItem('programs_expanded', JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
 
   const load = async () => {
     setLoading(true);
@@ -337,6 +359,8 @@ export default function Programs() {
               isAdmin={isAdmin}
               onEdit={p => setModal({ program: p })}
               onDelete={handleDelete}
+              isExpanded={expandedIds.has(prog.id)}
+              onToggle={() => toggleExpanded(prog.id)}
             />
           ))}
         </div>

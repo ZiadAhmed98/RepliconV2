@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import styles from './EditPages.module.css';
 
 const STATUS_OPTS = ['Planning', 'In Progress', 'Completed', 'Archived'];
@@ -42,6 +42,20 @@ export default function ProjectEdit({ dataMatrix }) {
       pms:      [...get('projectManagers')].sort((a,b)=>a.name.localeCompare(b.name)),
     };
   }, [dataMatrix]);
+
+  const [psaClients,  setPsaClients]  = useState([]);
+  const [psaPrograms, setPsaPrograms] = useState([]);
+
+  useEffect(() => {
+    fetch('/api/v1/clients?status=active', { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => setPsaClients([...(d.clients || [])].sort((a,b) => a.name.localeCompare(b.name))))
+      .catch(() => {});
+    fetch('/api/v1/programs', { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => setPsaPrograms([...(d.programs || [])].sort((a,b) => a.name.localeCompare(b.name))))
+      .catch(() => {});
+  }, []);
 
   const loadProjects = useCallback(async () => {
     if (projectsLoaded) return;
@@ -220,14 +234,20 @@ export default function ProjectEdit({ dataMatrix }) {
                   <label>Client</label>
                   <select value={clientUri} onChange={e=>setClientUri(e.target.value)}>
                     <option value="">— None —</option>
-                    {dicts.clients.map(c => <option key={c.uri} value={c.uri}>{c.name}</option>)}
+                    {(psaClients.length > 0 ? psaClients : dicts.clients).map(c => {
+                      const uri = c.uri || dicts.clients.find(r => r.name.toLowerCase() === c.name.toLowerCase())?.uri || '';
+                      return <option key={c.id || c.uri || c.name} value={uri}>{c.name}</option>;
+                    })}
                   </select>
                 </div>
                 <div className={styles.formGroup}>
                   <label>Program</label>
                   <select value={programUri} onChange={e=>setProgramUri(e.target.value)}>
                     <option value="">— None —</option>
-                    {dicts.programs.map(p => <option key={p.uri} value={p.uri}>{p.name}</option>)}
+                    {(psaPrograms.length > 0 ? psaPrograms : dicts.programs).map(p => {
+                      const uri = p.uri || dicts.programs.find(r => r.name.toLowerCase() === p.name.toLowerCase())?.uri || '';
+                      return <option key={p.id || p.uri || p.name} value={uri}>{p.name}</option>;
+                    })}
                   </select>
                 </div>
                 <div className={styles.formGroup}>
