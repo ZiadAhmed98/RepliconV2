@@ -1,14 +1,12 @@
-import { Router } from 'express';
-import crypto      from 'crypto';
-import multer      from 'multer';
-import { parse }   from 'csv-parse/sync';
-import db          from '../lib/db.js';
+import { Router }                    from 'express';
+import crypto                        from 'crypto';
+import multer                        from 'multer';
+import { parse }                     from 'csv-parse/sync';
+import db                            from '../lib/db.js';
+import { requireAuth, requireAdmin } from '../lib/auth.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
-
-const requireAuth  = (req, res, next) => { if (!req.user) return res.status(401).json({ error: 'Unauthorized' }); next(); };
-const requireAdmin = (req, res, next) => { if (!req.user?.isAdmin) return res.status(403).json({ error: 'Forbidden' }); next(); };
 
 // GET /api/v1/programs
 router.get('/api/v1/programs', requireAuth, (req, res) => {
