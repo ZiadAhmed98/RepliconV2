@@ -69,8 +69,8 @@ function ClientModal({ client, accountManagers, onSave, onClose }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-panel" style={{ padding: '32px', width: '640px', maxWidth: '100%' }} onClick={e => e.stopPropagation()}>
-
+      <div className="modal-panel" style={{ width: '640px', maxWidth: '100%' }} onClick={e => e.stopPropagation()}>
+      <div className="modal-body">
         <h3 style={{ margin: '0 0 24px', fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>
           <i className={`bx ${isEdit ? 'bx-edit' : 'bx-briefcase'}`} style={{ color: '#6366f1', marginRight: '10px' }} />
           {isEdit ? 'Edit Client' : 'Add Client'}
@@ -135,7 +135,8 @@ function ClientModal({ client, accountManagers, onSave, onClose }) {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: '10px', marginTop: '24px', justifyContent: 'flex-end' }}>
+      </div>{/* /modal-body */}
+      <div className="modal-footer">
           <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '9px', padding: '9px 20px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.88rem', fontFamily: 'inherit' }}>Cancel</button>
           <button onClick={handleSave} disabled={saving} style={{ background: 'linear-gradient(135deg,#4f46e5,#6366f1)', border: 'none', borderRadius: '9px', padding: '9px 24px', cursor: 'pointer', color: '#fff', fontSize: '0.88rem', fontFamily: 'inherit', fontWeight: 600, opacity: saving ? 0.6 : 1 }}>
             {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Client'}

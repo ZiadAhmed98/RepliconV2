@@ -68,8 +68,8 @@ function AMModal({ am, onSave, onClose }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-panel" style={{ padding: '32px', width: '560px', maxWidth: '100%' }} onClick={e => e.stopPropagation()}>
-
+      <div className="modal-panel" style={{ width: '560px', maxWidth: '100%' }} onClick={e => e.stopPropagation()}>
+      <div className="modal-body">
         <h3 style={{ margin: '0 0 24px', fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>
           <i className={`bx ${isEdit ? 'bx-edit' : 'bx-user-badge'}`} style={{ color: '#34d399', marginRight: '10px' }} />
           {isEdit ? 'Edit Account Manager' : 'Add Account Manager'}
@@ -120,7 +120,8 @@ function AMModal({ am, onSave, onClose }) {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: '10px', marginTop: '24px', justifyContent: 'flex-end' }}>
+      </div>{/* /modal-body */}
+      <div className="modal-footer">
           <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '9px', padding: '9px 20px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.88rem', fontFamily: 'inherit' }}>Cancel</button>
           <button onClick={handleSave} disabled={saving}
             style={{ background: 'linear-gradient(135deg,#059669,#34d399)', border: 'none', borderRadius: '9px', padding: '9px 24px', cursor: 'pointer', color: '#fff', fontSize: '0.88rem', fontFamily: 'inherit', fontWeight: 600, opacity: saving ? 0.6 : 1 }}>

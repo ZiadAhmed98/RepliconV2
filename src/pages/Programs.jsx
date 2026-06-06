@@ -171,7 +171,8 @@ function ProgramModal({ program, onClose, onSave }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-panel" style={{ padding: '32px', width: '480px', maxWidth: '100%' }} onClick={e => e.stopPropagation()}>
+      <div className="modal-panel" style={{ width: '480px', maxWidth: '100%' }} onClick={e => e.stopPropagation()}>
+      <div className="modal-body">
         <h2 style={{ margin: '0 0 24px', fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>
           {program ? 'Edit Program' : 'Add Program'}
         </h2>
@@ -183,8 +184,9 @@ function ProgramModal({ program, onClose, onSave }) {
           <label style={labelStyle}>Description</label>
           <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={3} placeholder="Optional description…" style={{ ...inputStyle, resize: 'vertical' }} />
         </div>
-        {err && <p style={{ color: '#f87171', fontSize: '13px', marginBottom: '16px' }}>{err}</p>}
-        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+        {err && <p style={{ color: '#f87171', fontSize: '13px', marginBottom: '8px' }}>{err}</p>}
+      </div>{/* /modal-body */}
+      <div className="modal-footer">
           <button onClick={onClose} style={cancelBtn}>Cancel</button>
           <button onClick={save} disabled={busy} style={saveBtn}>{busy ? 'Saving…' : (program ? 'Save Changes' : 'Add Program')}</button>
         </div>
