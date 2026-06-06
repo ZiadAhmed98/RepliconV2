@@ -6,7 +6,7 @@ import { wcfRequest }                 from '../lib/replicon.js';
 import {
   logger, parseCSVLine, parseNumber, parseDateToTimestamp,
 } from '../lib/helpers.js';
-import { loadUsers, saveUsers, defaultPermissionsForRole } from '../lib/rbac.js';
+import { defaultPermissionsForRole } from '../lib/rbac.js';
 import db from '../lib/db.js';
 
 const router = Router();
@@ -39,13 +39,13 @@ function mondayOf(ts) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function makeSlug(name, existing) {
+function makeSlug(name) {
   let base = name.toLowerCase()
     .replace(/\s+/g, '.')
     .replace(/[^a-z0-9.]/g, '');
   let candidate = base;
   let i = 1;
-  while (existing[candidate]) { candidate = `${base}${i++}`; }
+  while (db.prepare('SELECT id FROM users WHERE id=?').get(candidate)) { candidate = `${base}${i++}`; }
   return candidate;
 }
 
@@ -204,8 +204,9 @@ router.post('/api/v1/admin/migrate-from-replicon', requireAdmin, async (req, res
 
     // Pre-hash the default password once
     const defaultPwdHash = createAccounts ? await hashPassword('Welcome1!') : null;
-    const users = createAccounts ? loadUsers() : null;
-    let usersChanged = false;
+    const insertUser = createAccounts
+      ? db.prepare('INSERT OR IGNORE INTO users (id,displayName,passwordHash,isAdmin,permissions,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?)')
+      : null;
 
     for (const name of allEmpNames) {
       const existing = db.prepare('SELECT id, userId FROM employees WHERE LOWER(displayName)=LOWER(?)').get(name);
@@ -220,7 +221,6 @@ router.post('/api/v1/admin/migrate-from-replicon', requireAdmin, async (req, res
       const id  = crypto.randomUUID();
       const now = new Date().toISOString();
 
-      // Match to roster for dates/status
       const rosterEntry = roster.find(r => r.name.toLowerCase() === name.toLowerCase());
       const startDate   = rosterEntry?.start ? tsToDate(rosterEntry.start) : null;
       const endDate     = rosterEntry?.end   ? tsToDate(rosterEntry.end)   : null;
@@ -228,19 +228,14 @@ router.post('/api/v1/admin/migrate-from-replicon', requireAdmin, async (req, res
         ? 'active' : 'inactive';
 
       let userId = null;
-      if (createAccounts && users) {
-        const slug = makeSlug(name, users);
-        users[slug] = {
-          id:           slug,
-          displayName:  name,
-          passwordHash: defaultPwdHash,
-          isAdmin:      false,
-          permissions:  defaultPermissionsForRole('resource'),
-          createdAt:    now,
-        };
-        usersChanged = true;
-        userId = slug;
-        empNameToUserId[name] = slug;
+      if (insertUser) {
+        const slug = makeSlug(name);
+        const r = insertUser.run(slug, name, defaultPwdHash, 0,
+          JSON.stringify(defaultPermissionsForRole('resource')), now, now);
+        if (r.changes > 0) {
+          userId = slug;
+          empNameToUserId[name] = slug;
+        }
       }
 
       db.prepare(`
@@ -252,8 +247,6 @@ router.post('/api/v1/admin/migrate-from-replicon', requireAdmin, async (req, res
       empNameToId[name] = id;
       result.employees.imported++;
     }
-
-    if (usersChanged && users) saveUsers(users);
 
     // ── 4. Projects ─────────────────────────────────────────────────────────
 

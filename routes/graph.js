@@ -5,7 +5,7 @@ import { requireAuth }                      from '../lib/auth.js';
 import { logger, auditLog, readJSON,
          writeJSON, getMondayOf, calcHours,
          TIMESHEETS_FILE }                  from '../lib/helpers.js';
-import { loadUsers }                        from '../lib/rbac.js';
+import db                                   from '../lib/db.js';
 
 const router = Router();
 
@@ -43,15 +43,15 @@ async function graphGet(urlPath) {
 
 router.get('/api/v1/graph/config', requireAuth, (req, res) => {
   const configured = !!(process.env.AZURE_TENANT_ID && process.env.AZURE_CLIENT_ID && process.env.AZURE_CLIENT_SECRET);
-  const users  = loadUsers();
-  const msEmail = users[req.user.id]?.msEmail || null;
+  const row     = db.prepare('SELECT msEmail FROM users WHERE id=?').get(req.user.id);
+  const msEmail = row?.msEmail || null;
   res.json({ configured, msEmail, ready: configured && !!msEmail });
 });
 
 router.get('/api/v1/graph/calendar', requireAuth, async (req, res) => {
   try {
-    const users   = loadUsers();
-    const msEmail = users[req.user.id]?.msEmail;
+    const row     = db.prepare('SELECT msEmail FROM users WHERE id=?').get(req.user.id);
+    const msEmail = row?.msEmail;
     if (!msEmail) return res.status(400).json({ error: 'No Microsoft email linked to your account. Ask your admin to add msEmail in Settings.' });
 
     const monday = getMondayOf(req.query.weekStart ? new Date(req.query.weekStart) : new Date());
