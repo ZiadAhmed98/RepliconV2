@@ -21,6 +21,7 @@ import psaTasksRouter    from './routes/psaTasks.js';
 import psaTimesheetsRouter from './routes/psaTimesheets.js';
 import graphRouter       from './routes/graph.js';
 import migrationRouter   from './routes/migration.js';
+import csvImportRouter   from './routes/csvImport.js';
 import templatesRouter   from './routes/templates.js';
 import homeRouter        from './routes/home.js';
 
@@ -74,6 +75,7 @@ app.use(psaTasksRouter);
 app.use(psaTimesheetsRouter);
 app.use(graphRouter);
 app.use(migrationRouter);
+app.use(csvImportRouter);
 app.use(templatesRouter);
 app.use(homeRouter);
 
