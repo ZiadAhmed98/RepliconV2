@@ -11,13 +11,13 @@ const NAV = [
   { to: '/timesheets-approval', icon: 'bx-check-double',   label: 'Approvals',perm: 'timesheetApproval' },
   { to: '/projects-admin',      icon: 'bx-folder-open',    label: 'Projects', perm: 'projects'           },
   { to: '/clients',             icon: 'bx-briefcase',      label: 'Clients',       perm: 'clients' },
-  { to: '/account-managers',   icon: 'bx-user-badge',     label: 'Acc. Managers'                  },
+  { to: '/account-managers',   icon: 'bx-user-tie',       label: 'Acc Mgrs'                       },
   { to: '/templates',          icon: 'bx-file-blank',     label: 'Templates'                      },
   {
     label: 'Analytics', icon: 'bx-line-chart', group: true,
     children: [
       { to: '/dashboard',  icon: 'bx-grid-alt',       label: 'Dashboard', perm: 'dashboard' },
-      { to: '/employee',   icon: 'bx-users',           label: 'Employees', perm: 'employees' },
+      { to: '/employee',   icon: 'bx-group',           label: 'Employees', perm: 'employees' },
       { to: '/projects',   icon: 'bx-bar-chart-alt-2', label: 'Projects',  perm: 'projects'  },
     ],
   },
