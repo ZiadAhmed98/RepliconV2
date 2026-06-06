@@ -23,7 +23,10 @@ const STATUS_COLORS = {
 
 const BILLING_LABELS = {
   time_material: 'T&M',
-  fixed_bid:     'Fixed',
+  adoption_tm:   'Adoption',
+  fixed_bid:     'Fixed Bid',
+  sla_retainer:  'SLA/Retainer',
+  staff_aug:     'Staff Aug',
   non_billable:  'Non-Bill',
 };
 
@@ -41,16 +44,19 @@ function StatusBadge({ status }) {
 function ProjectModal({ project, clients, employees, onSave, onClose }) {
   const isEdit = !!project;
   const [form, setForm] = useState({
-    clientId:         project?.clientId         || '',
-    name:             project?.name             || '',
-    code:             project?.code             || '',
-    status:           project?.status           || 'in_progress',
-    projectManagerId: project?.projectManagerId || '',
-    startDate:        project?.startDate        || '',
-    endDate:          project?.endDate          || '',
-    budgetHours:      project?.budgetHours      ?? 0,
-    billingType:      project?.billingType      || 'time_material',
-    notes:            project?.notes            || '',
+    clientId:          project?.clientId          || '',
+    name:              project?.name              || '',
+    code:              project?.code              || '',
+    status:            project?.status            || 'in_progress',
+    projectManagerId:  project?.projectManagerId  || '',
+    startDate:         project?.startDate         || '',
+    endDate:           project?.endDate           || '',
+    budgetHours:       project?.budgetHours       ?? 0,
+    billingType:       project?.billingType       || 'time_material',
+    quotedHours:       project?.quotedHours       ?? 0,
+    ticketAllocation:  project?.ticketAllocation  ?? 0,
+    monthlyAllocation: project?.monthlyAllocation ?? 0,
+    notes:             project?.notes             || '',
   });
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState('');
@@ -62,13 +68,16 @@ function ProjectModal({ project, clients, employees, onSave, onClose }) {
     setSaving(true); setError('');
     const payload = {
       ...form,
-      clientId:         form.clientId         || null,
-      projectManagerId: form.projectManagerId || null,
-      startDate:        form.startDate        || null,
-      endDate:          form.endDate          || null,
-      code:             form.code.trim().toUpperCase() || null,
-      budgetHours:      Number(form.budgetHours) || 0,
-      notes:            form.notes            || null,
+      clientId:          form.clientId          || null,
+      projectManagerId:  form.projectManagerId  || null,
+      startDate:         form.startDate         || null,
+      endDate:           form.endDate           || null,
+      code:              form.code.trim().toUpperCase() || null,
+      budgetHours:       Number(form.budgetHours)       || 0,
+      quotedHours:       Number(form.quotedHours)       || 0,
+      ticketAllocation:  Number(form.ticketAllocation)  || 0,
+      monthlyAllocation: Number(form.monthlyAllocation) || 0,
+      notes:             form.notes             || null,
     };
     const url    = isEdit ? `/api/v1/psa/projects/${project.id}` : '/api/v1/psa/projects';
     const method = isEdit ? 'PUT' : 'POST';
@@ -142,18 +151,41 @@ function ProjectModal({ project, clients, employees, onSave, onClose }) {
             <label style={labelStyle}>End Date</label>
             <input type="date" value={form.endDate} onChange={e => set('endDate', e.target.value)} style={inputStyle} />
           </div>
-          <div>
-            <label style={labelStyle}>Budget Hours</label>
-            <input type="number" min="0" step="0.5" value={form.budgetHours} onChange={e => set('budgetHours', e.target.value)} style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>Billing Type</label>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={labelStyle}>Billing Model</label>
             <select value={form.billingType} onChange={e => set('billingType', e.target.value)} style={inputStyle}>
-              <option value="time_material">Time &amp; Material</option>
-              <option value="fixed_bid">Fixed Bid</option>
+              <option value="time_material">T&amp;M — Time &amp; Materials</option>
+              <option value="adoption_tm">Adoption / PS — T&amp;M with streams</option>
+              <option value="fixed_bid">Fixed Bid — Actual vs quoted hours</option>
+              <option value="sla_retainer">SLA / Retainer — Ticket-based</option>
+              <option value="staff_aug">Staff Augmentation — Monthly allocation</option>
               <option value="non_billable">Non-Billable</option>
             </select>
           </div>
+          {(form.billingType === 'time_material' || form.billingType === 'adoption_tm') && (
+            <div>
+              <label style={labelStyle}>Budget Hours (cap)</label>
+              <input type="number" min="0" step="0.5" value={form.budgetHours} onChange={e => set('budgetHours', e.target.value)} style={inputStyle} />
+            </div>
+          )}
+          {form.billingType === 'fixed_bid' && (
+            <div>
+              <label style={labelStyle}>Quoted Hours</label>
+              <input type="number" min="0" step="0.5" value={form.quotedHours} onChange={e => set('quotedHours', e.target.value)} style={inputStyle} />
+            </div>
+          )}
+          {form.billingType === 'sla_retainer' && (
+            <div>
+              <label style={labelStyle}>Ticket Allocation / Period</label>
+              <input type="number" min="0" step="1" value={form.ticketAllocation} onChange={e => set('ticketAllocation', e.target.value)} style={inputStyle} />
+            </div>
+          )}
+          {form.billingType === 'staff_aug' && (
+            <div>
+              <label style={labelStyle}>Monthly Hour Allocation</label>
+              <input type="number" min="0" step="0.5" value={form.monthlyAllocation} onChange={e => set('monthlyAllocation', e.target.value)} style={inputStyle} />
+            </div>
+          )}
           <div style={{ gridColumn: '1 / -1' }}>
             <label style={labelStyle}>Notes</label>
             <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3} placeholder="Project description or notes…" style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }} />

@@ -28,7 +28,8 @@ import Profile         from './pages/Profile';
 import ProjectsAdmin      from './pages/ProjectsAdmin';
 import ProjectDetail      from './pages/ProjectDetail';
 import TimesheetApproval  from './pages/TimesheetApproval';
-import Administration    from './pages/Administration';
+import Administration    from './pages/Administration'
+import AuditLog         from './pages/AuditLog';
 
 import { useRepliconData }    from './hooks/useRepliconData';
 import { repliconApi }        from './api/replicon';
@@ -180,7 +181,7 @@ function AppContent() {
                 <Route path="/clients/create" element={<GuardedRoute page="clients"  ><ClientCreate     dataMatrix={dataMatrix} /></GuardedRoute>} />
                 <Route path="/clients/edit"   element={<GuardedRoute page="clients"  ><ClientEdit       dataMatrix={dataMatrix} /></GuardedRoute>} />
                 <Route path="/ai-insights"    element={<GuardedRoute page="aiInsights"><AIInsights      dataMatrix={dataMatrix} /></GuardedRoute>} />
-                <Route path="/my-timesheet"   element={<GuardedRoute page="myTimesheet"><MyTimesheet    dataMatrix={dataMatrix} /></GuardedRoute>} />
+                <Route path="/my-timesheet"   element={<GuardedRoute page="myTimesheet"><MyTimesheet    dataMatrix={dataMatrix} sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/employees"           element={<GuardedRoute page="employees" ><Employees       sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/clients"             element={<GuardedRoute page="clients"  ><Clients         sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/projects-admin"      element={<GuardedRoute page="projects"       ><ProjectsAdmin   sessionUser={sessionUser} /></GuardedRoute>} />
@@ -189,6 +190,7 @@ function AppContent() {
                 <Route path="/timesheets-approval" element={<GuardedRoute page="timesheetApproval"><TimesheetApproval sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/settings"            element={<GuardedRoute page="administration"  ><Settings         sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/administration"      element={<GuardedRoute page="administration"  ><Administration /></GuardedRoute>} />
+                <Route path="/audit-log"          element={<GuardedRoute page="administration"  ><AuditLog /></GuardedRoute>} />
               </Routes>
             )}
           </main>

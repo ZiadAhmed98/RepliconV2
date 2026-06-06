@@ -18,7 +18,7 @@ const TASK_STATUS_COLORS = {
   closed:      { bg: 'rgba(107,114,128,0.1)', color: '#9ca3af', label: 'Closed'      },
 };
 
-const BILLING_LABELS = { time_material: 'Time & Material', fixed_bid: 'Fixed Bid', non_billable: 'Non-Billable' };
+const BILLING_LABELS = { time_material: 'T&M', adoption_tm: 'Adoption/PS', fixed_bid: 'Fixed Bid', sla_retainer: 'SLA/Retainer', staff_aug: 'Staff Aug', non_billable: 'Non-Billable' };
 
 function StatusBadge({ status, map }) {
   const s = (map || STATUS_COLORS)[status] || { bg: 'rgba(107,114,128,0.1)', color: '#9ca3af', label: status };
@@ -351,38 +351,43 @@ export default function ProjectDetail({ sessionUser }) {
   const navigate  = useNavigate();
   const { toast } = useToast();
 
-  const [project,   setProject]  = useState(null);
-  const [tasks,     setTasks]    = useState([]);
-  const [members,   setMembers]  = useState([]);
-  const [allEmps,   setAllEmps]  = useState([]);
-  const [loading,   setLoading]  = useState(true);
-  const [activeTab, setActiveTab] = useState('tasks');
-  const [taskModal, setTaskModal] = useState(null);
-  const [xmlModal,  setXmlModal]  = useState(false);
-  const [addingMember, setAddingMember] = useState(null); // empId being added, or null
-  const [memberSearch, setMemberSearch] = useState('');
-  const [resourceTooltip, setResourceTooltip] = useState(null); // { resources, x, y }
+  const [project,        setProject]       = useState(null);
+  const [tasks,          setTasks]         = useState([]);
+  const [members,        setMembers]       = useState([]);
+  const [allEmps,        setAllEmps]       = useState([]);
+  const [accessRequests, setAccessRequests] = useState([]);
+  const [loading,        setLoading]       = useState(true);
+  const [activeTab,      setActiveTab]     = useState('tasks');
+  const [taskModal,      setTaskModal]     = useState(null);
+  const [xmlModal,       setXmlModal]      = useState(false);
+  const [addingMember,   setAddingMember]  = useState(null);
+  const [memberSearch,   setMemberSearch]  = useState('');
+  const [resourceTooltip, setResourceTooltip] = useState(null);
+  const [reviewingReq,   setReviewingReq]  = useState(null); // reqId being approved/rejected
 
   const isAdmin = sessionUser?.isAdmin;
-  const canManageTeam = isAdmin || sessionUser?.role === 'pm';
+  const canManageTeam = isAdmin || sessionUser?.role === 'pm' || sessionUser?.role === 'supervisor';
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [pRes, tRes, mRes, eRes] = await Promise.all([
+      const fetches = [
         fetch(`/api/v1/psa/projects/${id}`,           { credentials: 'include' }),
         fetch(`/api/v1/psa/projects/${id}/tasks`,     { credentials: 'include' }),
         fetch(`/api/v1/psa/projects/${id}/resources`, { credentials: 'include' }),
         fetch('/api/v1/employees?status=active',       { credentials: 'include' }),
-      ]);
-      const [pd, td, md, ed] = await Promise.all([pRes.json(), tRes.json(), mRes.json(), eRes.json()]);
-      if (!pRes.ok) { toast.error('Project not found'); navigate('/projects-admin'); return; }
+      ];
+      if (canManageTeam) fetches.push(fetch(`/api/v1/psa/projects/${id}/access-requests`, { credentials: 'include' }));
+      const results = await Promise.all(fetches);
+      const [pd, td, md, ed, rd] = await Promise.all(results.map(r => r.json()));
+      if (!results[0].ok) { toast.error('Project not found'); navigate('/projects-admin'); return; }
       setProject(pd.project);
       setTasks(td.tasks || []);
       setMembers(md.members || []);
       setAllEmps((ed.employees || []).map(e => ({ ...e, skills: e.skills || [] })));
+      if (rd) setAccessRequests(rd.requests || []);
     } finally { setLoading(false); }
-  }, [id]);
+  }, [id, canManageTeam]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -420,6 +425,23 @@ export default function ProjectDetail({ sessionUser }) {
     const r = await fetch(`/api/v1/psa/projects/${id}/resources/${empId}`, { method: 'DELETE', credentials: 'include' });
     if (r.ok) { setMembers(prev => prev.filter(m => m.id !== empId)); toast.success('Removed from team'); }
     else { const d = await r.json(); toast.error(d.error || 'Failed'); }
+  };
+
+  const reviewRequest = async (reqId, action) => {
+    setReviewingReq(reqId);
+    try {
+      const r = await fetch(`/api/v1/psa/project-access-requests/${reqId}`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        toast.success(action === 'approve' ? 'Access approved — employee added to team' : 'Request rejected');
+        setAccessRequests(prev => prev.filter(req => req.id !== reqId));
+        if (action === 'approve') load();
+      } else { toast.error(d.error || 'Failed'); }
+    } finally { setReviewingReq(null); }
   };
 
   const handleDeleteTask = async (t) => {
@@ -585,7 +607,7 @@ export default function ProjectDetail({ sessionUser }) {
       <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', padding: '4px', width: 'fit-content' }}>
         {[
           { key: 'tasks', label: 'Tasks', icon: 'bx-task', badge: tasks.length },
-          { key: 'team',  label: 'Team',  icon: 'bx-group', badge: members.length },
+          { key: 'team',  label: 'Team',  icon: 'bx-group', badge: members.length, alert: canManageTeam ? accessRequests.length : 0 },
           { key: 'info',  label: 'Info',  icon: 'bx-info-circle' },
         ].map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)}
@@ -593,6 +615,9 @@ export default function ProjectDetail({ sessionUser }) {
             <i className={`bx ${tab.icon}`} style={{ fontSize: '0.95rem' }} />{tab.label}
             {tab.badge > 0 && (
               <span style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8', borderRadius: '9px', padding: '0 6px', fontSize: '0.7rem', fontWeight: 700 }}>{tab.badge}</span>
+            )}
+            {tab.alert > 0 && (
+              <span style={{ background: 'rgba(251,191,36,0.2)', color: '#fbbf24', borderRadius: '9px', padding: '0 6px', fontSize: '0.7rem', fontWeight: 700 }}>{tab.alert} pending</span>
             )}
           </button>
         ))}
@@ -669,6 +694,39 @@ export default function ProjectDetail({ sessionUser }) {
                   Project Manager: <strong style={{ color: '#c4b5fd' }}>{project.projectManagerName}</strong>
                   <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.25)', marginLeft: '8px' }}>(set on project, not in team list)</span>
                 </span>
+              </div>
+            )}
+
+            {/* Pending access requests */}
+            {canManageTeam && accessRequests.length > 0 && (
+              <div style={{ background: 'rgba(251,191,36,0.05)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: '12px', overflow: 'hidden', marginBottom: '20px' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(251,191,36,0.15)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className='bx bx-lock-open-alt' style={{ color: '#fbbf24', fontSize: '15px' }} />
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                    Pending Access Requests ({accessRequests.length})
+                  </span>
+                </div>
+                {accessRequests.map((req, i) => (
+                  <div key={req.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderBottom: i < accessRequests.length - 1 ? '1px solid rgba(251,191,36,0.1)' : 'none' }}>
+                    <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: `${ROLE_C[req.role] || '#64748b'}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '13px', color: ROLE_C[req.role] || '#64748b', flexShrink: 0 }}>
+                      {req.firstName?.[0]}{req.lastName?.[0]}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)' }}>{req.displayName || `${req.firstName} ${req.lastName}`}</div>
+                      <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', marginTop: '1px' }}>{req.email || ''} · Requested {new Date(req.createdAt).toLocaleDateString()}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '7px', flexShrink: 0 }}>
+                      <button onClick={() => reviewRequest(req.id, 'approve')} disabled={!!reviewingReq}
+                        style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '7px', padding: '5px 12px', cursor: reviewingReq ? 'not-allowed' : 'pointer', color: '#4ade80', fontSize: '0.78rem', fontFamily: 'inherit', fontWeight: 600, opacity: reviewingReq === req.id ? 0.6 : 1 }}>
+                        {reviewingReq === req.id ? '…' : 'Approve'}
+                      </button>
+                      <button onClick={() => reviewRequest(req.id, 'reject')} disabled={!!reviewingReq}
+                        style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '7px', padding: '5px 12px', cursor: reviewingReq ? 'not-allowed' : 'pointer', color: '#f87171', fontSize: '0.78rem', fontFamily: 'inherit', opacity: reviewingReq ? 0.5 : 1 }}>
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 

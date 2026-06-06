@@ -8,16 +8,19 @@ import db               from '../lib/db.js';
 const router = Router();
 
 const psaProjectSchema = z.object({
-  clientId:         z.string().nullable().optional(),
-  name:             z.string().min(1),
-  code:             z.string().max(30).nullable().optional(),
-  status:           z.enum(['tentative','in_progress','completed','deferred','cancelled','archived']).default('in_progress'),
-  projectManagerId: z.string().nullable().optional(),
-  startDate:        z.string().nullable().optional(),
-  endDate:          z.string().nullable().optional(),
-  budgetHours:      z.number().min(0).default(0),
-  billingType:      z.enum(['time_material','fixed_bid','non_billable']).default('time_material'),
-  notes:            z.string().nullable().optional(),
+  clientId:          z.string().nullable().optional(),
+  name:              z.string().min(1),
+  code:              z.string().max(30).nullable().optional(),
+  status:            z.enum(['tentative','in_progress','completed','deferred','cancelled','archived']).default('in_progress'),
+  projectManagerId:  z.string().nullable().optional(),
+  startDate:         z.string().nullable().optional(),
+  endDate:           z.string().nullable().optional(),
+  budgetHours:       z.number().min(0).default(0),
+  billingType:       z.enum(['time_material','fixed_bid','non_billable','adoption_tm','sla_retainer','staff_aug']).default('time_material'),
+  quotedHours:       z.number().min(0).default(0),
+  ticketAllocation:  z.number().min(0).default(0),
+  monthlyAllocation: z.number().min(0).default(0),
+  notes:             z.string().nullable().optional(),
 });
 
 router.get('/api/v1/psa/projects', requireAuth, (req, res) => {
@@ -69,10 +72,12 @@ router.post('/api/v1/psa/projects', requireAuth, (req, res) => {
   const code = d.code ? d.code.toUpperCase() : null;
   try {
     db.prepare(`
-      INSERT INTO projects (id,clientId,name,code,status,projectManagerId,startDate,endDate,budgetHours,billingType,notes,createdAt,updatedAt)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+      INSERT INTO projects (id,clientId,name,code,status,projectManagerId,startDate,endDate,budgetHours,billingType,quotedHours,ticketAllocation,monthlyAllocation,notes,createdAt,updatedAt)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     `).run(id, d.clientId||null, d.name, code, d.status, d.projectManagerId||null,
-           d.startDate||null, d.endDate||null, d.budgetHours, d.billingType, d.notes||null, now, now);
+           d.startDate||null, d.endDate||null, d.budgetHours, d.billingType,
+           d.quotedHours||0, d.ticketAllocation||0, d.monthlyAllocation||0,
+           d.notes||null, now, now);
   } catch (e) {
     if (e.message?.includes('UNIQUE')) return res.status(409).json({ error: 'Project code already exists' });
     throw e;
@@ -94,10 +99,12 @@ router.put('/api/v1/psa/projects/:id', requireAuth, (req, res) => {
   try {
     db.prepare(`
       UPDATE projects SET clientId=?,name=?,code=?,status=?,projectManagerId=?,
-        startDate=?,endDate=?,budgetHours=?,billingType=?,notes=?,updatedAt=?
+        startDate=?,endDate=?,budgetHours=?,billingType=?,quotedHours=?,ticketAllocation=?,monthlyAllocation=?,notes=?,updatedAt=?
       WHERE id=?
     `).run(d.clientId||null, d.name, code, d.status, d.projectManagerId||null,
-           d.startDate||null, d.endDate||null, d.budgetHours, d.billingType, d.notes||null, now, req.params.id);
+           d.startDate||null, d.endDate||null, d.budgetHours, d.billingType,
+           d.quotedHours||0, d.ticketAllocation||0, d.monthlyAllocation||0,
+           d.notes||null, now, req.params.id);
   } catch (e) {
     if (e.message?.includes('UNIQUE')) return res.status(409).json({ error: 'Project code already exists' });
     throw e;
@@ -162,6 +169,82 @@ router.delete('/api/v1/psa/projects/:id/resources/:employeeId', requireAuth, (re
     .run(req.params.id, req.params.employeeId);
   auditLog(req.user.id, 'PROJECT_RESOURCE_REMOVE', { projectId: req.params.id, employeeId: req.params.employeeId });
   res.json({ ok: true });
+});
+
+// ── Project access requests ───────────────────────────────────────────────────
+
+router.post('/api/v1/psa/projects/:id/request-access', requireAuth, (req, res) => {
+  const proj = db.prepare('SELECT id FROM projects WHERE id=?').get(req.params.id);
+  if (!proj) return res.status(404).json({ error: 'Project not found' });
+  const emp = db.prepare('SELECT id FROM employees WHERE userId=?').get(req.user.id);
+  if (!emp) return res.status(400).json({ error: 'No employee record linked to your account' });
+  // Check if already assigned
+  const assigned = db.prepare('SELECT 1 FROM project_resources WHERE projectId=? AND employeeId=?').get(req.params.id, emp.id);
+  if (assigned) return res.status(409).json({ error: 'Already assigned to this project' });
+  const id = crypto.randomUUID();
+  try {
+    db.prepare(`INSERT INTO project_access_requests (id,projectId,employeeId,requestedBy,status,createdAt) VALUES (?,?,?,?,'pending',?)`)
+      .run(id, req.params.id, emp.id, req.user.id, new Date().toISOString());
+  } catch (e) {
+    if (e.message?.includes('UNIQUE')) return res.status(409).json({ error: 'Request already submitted' });
+    throw e;
+  }
+  auditLog(req.user.id, 'ACCESS_REQUEST', { projectId: req.params.id });
+  res.status(201).json({ ok: true, requestId: id });
+});
+
+router.get('/api/v1/psa/projects/:id/access-requests', requireAuth, (req, res) => {
+  if (!req.user.isAdmin && req.user.role !== 'pm' && req.user.role !== 'supervisor') return res.status(403).json({ error: 'Admin or PM only' });
+  const rows = db.prepare(`
+    SELECT r.id, r.status, r.createdAt, r.note,
+           e.id AS employeeId, e.firstName, e.lastName, e.displayName, e.email, e.role
+    FROM project_access_requests r
+    JOIN employees e ON e.id = r.employeeId
+    WHERE r.projectId = ? AND r.status = 'pending'
+    ORDER BY r.createdAt DESC
+  `).all(req.params.id);
+  res.json({ requests: rows });
+});
+
+router.patch('/api/v1/psa/project-access-requests/:reqId', requireAuth, (req, res) => {
+  if (!req.user.isAdmin && req.user.role !== 'pm' && req.user.role !== 'supervisor') return res.status(403).json({ error: 'Admin or PM only' });
+  const { action } = req.body || {};
+  if (!['approve','reject'].includes(action)) return res.status(400).json({ error: 'action must be approve or reject' });
+  const row = db.prepare('SELECT * FROM project_access_requests WHERE id=?').get(req.params.reqId);
+  if (!row) return res.status(404).json({ error: 'Request not found' });
+  const now = new Date().toISOString();
+  db.prepare('UPDATE project_access_requests SET status=?,reviewedBy=?,reviewedAt=? WHERE id=?')
+    .run(action === 'approve' ? 'approved' : 'rejected', req.user.id, now, req.params.reqId);
+  if (action === 'approve') {
+    try {
+      db.prepare('INSERT INTO project_resources (projectId,employeeId,assignedAt) VALUES (?,?,?)')
+        .run(row.projectId, row.employeeId, now);
+      // Auto-assign to all existing tasks
+      const projectTasks = db.prepare('SELECT id FROM tasks WHERE projectId=?').all(row.projectId);
+      if (projectTasks.length > 0) {
+        const taskInsert = db.prepare('INSERT OR IGNORE INTO task_resources (taskId,employeeId,assignedAt) VALUES (?,?,?)');
+        db.transaction(() => { projectTasks.forEach(t => taskInsert.run(t.id, row.employeeId, now)); })();
+      }
+    } catch { /* already assigned, ignore */ }
+    auditLog(req.user.id, 'ACCESS_REQUEST_APPROVED', { requestId: req.params.reqId, projectId: row.projectId, employeeId: row.employeeId });
+  } else {
+    auditLog(req.user.id, 'ACCESS_REQUEST_REJECTED', { requestId: req.params.reqId, projectId: row.projectId });
+  }
+  res.json({ ok: true });
+});
+
+router.get('/api/v1/psa/my-access-requests', requireAuth, (req, res) => {
+  const emp = db.prepare('SELECT id FROM employees WHERE userId=?').get(req.user.id);
+  if (!emp) return res.json({ requests: [] });
+  const rows = db.prepare(`
+    SELECT r.id, r.status, r.createdAt, r.projectId,
+           p.name AS projectName, p.code AS projectCode
+    FROM project_access_requests r
+    JOIN projects p ON p.id = r.projectId
+    WHERE r.employeeId = ?
+    ORDER BY r.createdAt DESC
+  `).all(emp.id);
+  res.json({ requests: rows });
 });
 
 export default router;

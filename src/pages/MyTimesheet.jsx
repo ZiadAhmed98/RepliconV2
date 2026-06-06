@@ -892,7 +892,129 @@ if (!document.head.querySelector('[data-mds-nospin]')) {
   document.head.appendChild(_noSpinStyle);
 }
 
-export default function MyTimesheet() {
+// ── RequestAccessPanel ────────────────────────────────────────────────────────
+
+function RequestAccessPanel() {
+  const { toast }                       = useToast();
+  const [open,       setOpen]           = useState(false);
+  const [allProjects, setAllProjects]   = useState([]);
+  const [myRequests,  setMyRequests]    = useState([]);
+  const [myProjects,  setMyProjects]    = useState(new Set());
+  const [loading,     setLoading]       = useState(false);
+  const [submitting,  setSubmitting]    = useState(null); // projectId being submitted
+  const [search,      setSearch]        = useState('');
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [pR, rR, mR] = await Promise.all([
+        fetch('/api/v1/psa/projects',               { credentials: 'include' }),
+        fetch('/api/v1/psa/my-access-requests',     { credentials: 'include' }),
+        fetch('/api/v1/psa/projects?mine=true',     { credentials: 'include' }),
+      ]);
+      const [pd, rd, md] = await Promise.all([pR.json(), rR.json(), mR.json()]);
+      setAllProjects((pd.projects || []).filter(p => p.status !== 'archived'));
+      setMyRequests(rd.requests || []);
+      setMyProjects(new Set((md.projects || []).map(p => p.id)));
+    } finally { setLoading(false); }
+  };
+
+  const handleOpen = () => { setOpen(true); if (allProjects.length === 0) load(); };
+
+  const requestAccess = async (projectId) => {
+    setSubmitting(projectId);
+    try {
+      const r = await fetch(`/api/v1/psa/projects/${projectId}/request-access`, {
+        method: 'POST', credentials: 'include',
+      });
+      const d = await r.json();
+      if (r.ok) {
+        toast.success('Access request submitted — a manager will review it.');
+        setMyRequests(prev => [...prev, { projectId, status: 'pending' }]);
+      } else {
+        toast.error(d.error || 'Request failed');
+      }
+    } finally { setSubmitting(null); }
+  };
+
+  const requestMap = Object.fromEntries(myRequests.map(r => [r.projectId, r.status]));
+  const filteredProjects = allProjects.filter(p => {
+    if (myProjects.has(p.id)) return false;
+    if (search) return p.name.toLowerCase().includes(search.toLowerCase()) || (p.code || '').toLowerCase().includes(search.toLowerCase());
+    return true;
+  });
+
+  return (
+    <div style={{ marginTop: '20px' }}>
+      <button onClick={open ? () => setOpen(false) : handleOpen}
+        style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '10px 16px', cursor: 'pointer', color: 'rgba(255,255,255,0.5)', fontSize: '0.82rem', fontFamily: 'inherit', width: '100%', justifyContent: 'space-between' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+          <i className='bx bx-lock-open-alt' style={{ fontSize: '1rem', color: '#818cf8' }} />
+          Don't see your project? Request access
+        </span>
+        <i className={`bx bx-chevron-${open ? 'up' : 'down'}`} style={{ fontSize: '1rem' }} />
+      </button>
+
+      {open && (
+        <div style={{ marginTop: '8px', background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '12px', overflow: 'hidden' }}>
+          <div style={{ padding: '12px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search projects…"
+              style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '7px 12px', color: 'var(--text-main)', fontSize: '0.83rem', fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none' }}
+            />
+          </div>
+          {loading ? (
+            <div style={{ padding: '28px', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <i className='bx bx-loader-alt bx-spin' style={{ fontSize: '20px' }} />
+            </div>
+          ) : filteredProjects.length === 0 ? (
+            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+              {search ? 'No projects match your search.' : 'All available projects are already assigned to you.'}
+            </div>
+          ) : (
+            <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
+              {filteredProjects.map((p, i) => {
+                const reqStatus = requestMap[p.id];
+                return (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '11px 14px', borderBottom: i < filteredProjects.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.87rem', fontWeight: 600, color: 'var(--text-main)' }}>{p.name}</div>
+                      <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', marginTop: '1px' }}>
+                        {p.clientName ? `${p.clientName} · ` : ''}{p.code || ''}{p.projectManagerName ? ` · PM: ${p.projectManagerName}` : ''}
+                      </div>
+                    </div>
+                    {reqStatus === 'pending' ? (
+                      <span style={{ fontSize: '0.75rem', background: 'rgba(251,191,36,0.1)', color: '#fbbf24', borderRadius: '6px', padding: '3px 10px', fontWeight: 600, flexShrink: 0 }}>
+                        <i className='bx bx-time' style={{ marginRight: '4px', verticalAlign: 'middle' }} />Pending
+                      </span>
+                    ) : reqStatus === 'approved' ? (
+                      <span style={{ fontSize: '0.75rem', background: 'rgba(34,197,94,0.1)', color: '#4ade80', borderRadius: '6px', padding: '3px 10px', fontWeight: 600, flexShrink: 0 }}>
+                        <i className='bx bx-check' style={{ marginRight: '4px', verticalAlign: 'middle' }} />Approved
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => requestAccess(p.id)}
+                        disabled={!!submitting}
+                        style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '7px', padding: '5px 12px', cursor: submitting ? 'not-allowed' : 'pointer', color: '#818cf8', fontSize: '0.78rem', fontFamily: 'inherit', fontWeight: 600, flexShrink: 0, opacity: submitting === p.id ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        {submitting === p.id
+                          ? <><i className='bx bx-loader-alt bx-spin' style={{ fontSize: '12px' }} /> Requesting…</>
+                          : <><i className='bx bx-lock-open-alt' style={{ fontSize: '12px' }} /> Request Access</>}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function MyTimesheet({ sessionUser }) {
   const { toast } = useToast();
 
   const [weekStart,   setWeekStart]   = useState(() => toLocalDate(getMondayOf(new Date())));
@@ -936,7 +1058,7 @@ export default function MyTimesheet() {
       const [tsR, cR, pR, tR] = await Promise.all([
         fetch(`/api/v1/psa/timesheets?weekStart=${weekStart}`, { credentials: 'include' }),
         fetch('/api/v1/clients',                               { credentials: 'include' }),
-        fetch('/api/v1/psa/projects',                          { credentials: 'include' }),
+        fetch('/api/v1/psa/projects?mine=true',                { credentials: 'include' }),
         fetch('/api/v1/psa/tasks',                             { credentials: 'include' }),
       ]);
       const [tsd, cd, pd, tkd] = await Promise.all([tsR.json(), cR.json(), pR.json(), tR.json()]);
@@ -1129,6 +1251,9 @@ export default function MyTimesheet() {
           onAddRow={handleCalendarRow}
         />
       )}
+
+      {/* Request project access */}
+      {!loading && <RequestAccessPanel />}
     </div>
   );
 }
