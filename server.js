@@ -50,7 +50,7 @@ app.use((req, res, next) => {
   next();
 });
 
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost,http://129.151.146.210').split(',').map(o => o.trim());
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost,https://localhost,http://129.151.146.210,https://129.151.146.210').split(',').map(o => o.trim());
 app.use(cors({
   origin: (origin, cb) => {
     if (!origin || allowedOrigins.some(o => origin.startsWith(o))) return cb(null, true);
