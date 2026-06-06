@@ -6,14 +6,18 @@ import { usePermissions } from '../context/PermissionContext';
 // Groups: each child has its own perm — group is visible when ≥1 child passes.
 // Standalone items: use top-level perm directly.
 const NAV = [
-  { to: '/home',      icon: 'bx-home-smile',  label: 'Home'      },
-  { to: '/templates', icon: 'bx-file-blank',  label: 'Templates' },
+  { to: '/home',                icon: 'bx-home-smile',     label: 'Home'      },
+  { to: '/my-timesheet',        icon: 'bx-calendar-check', label: 'My Time',  perm: 'myTimesheet'       },
+  { to: '/timesheets-approval', icon: 'bx-check-double',   label: 'Approvals',perm: 'timesheetApproval' },
+  { to: '/projects-admin',      icon: 'bx-folder-open',    label: 'Projects', perm: 'projects'           },
+  { to: '/clients',             icon: 'bx-briefcase',      label: 'Clients',  perm: 'clients'            },
+  { to: '/templates',           icon: 'bx-file-blank',     label: 'Templates' },
   {
     label: 'Analytics', icon: 'bx-line-chart', group: true,
     children: [
-      { to: '/dashboard',  icon: 'bx-grid-alt',        label: 'Dashboard', perm: 'dashboard' },
-      { to: '/employee',   icon: 'bx-users',            label: 'Employees', perm: 'employees' },
-      { to: '/projects',   icon: 'bx-bar-chart-alt-2',  label: 'Projects',  perm: 'projects'  },
+      { to: '/dashboard',  icon: 'bx-grid-alt',       label: 'Dashboard', perm: 'dashboard' },
+      { to: '/employee',   icon: 'bx-users',           label: 'Employees', perm: 'employees' },
+      { to: '/projects',   icon: 'bx-bar-chart-alt-2', label: 'Projects',  perm: 'projects'  },
     ],
   },
   {
@@ -22,15 +26,6 @@ const NAV = [
       { to: '/new-project',   icon: 'bx-plus-circle', label: 'Add Project',   perm: 'projects'   },
       { to: '/projects/edit', icon: 'bx-edit',         label: 'Edit Projects', perm: 'projects'   },
       { to: '/timesheets',    icon: 'bx-time-five',    label: 'Timesheets',    perm: 'timesheets', badge: true },
-    ],
-  },
-  {
-    label: 'Test', icon: 'bx-test-tube', group: true,
-    children: [
-      { to: '/my-timesheet',        icon: 'bx-calendar-check', label: 'My Time',   perm: 'myTimesheet'       },
-      { to: '/timesheets-approval', icon: 'bx-check-double',   label: 'Approvals', perm: 'timesheetApproval' },
-      { to: '/clients',             icon: 'bx-briefcase',      label: 'Clients',   perm: 'clients'           },
-      { to: '/projects-admin',      icon: 'bx-folder-open',    label: 'Projects',  perm: 'projects'          },
     ],
   },
   { to: '/ai-insights', icon: 'bx-brain', label: 'AI Insights', perm: 'aiInsights', glow: true },
@@ -283,8 +278,8 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
       {/* ── Bottom section ────────────────────────────────────────────── */}
       <div style={S.bottom}>
 
-        {/* Administration link — admin / supervisor only */}
-        {canSee('administration') && (
+        {/* Administration link — isAdmin flag only, no permission override */}
+        {isAdmin && (
           <NavLink
             to="/administration"
             title={collapsed ? 'Administration' : undefined}

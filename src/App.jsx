@@ -44,7 +44,7 @@ const SIDEBAR_COLLAPSED_KEY = 'mds_sidebar_collapsed';
 
 function GuardedRoute({ page, children }) {
   const can = useCan(page);
-  if (!can) return <div style={{ padding: '60px 40px', color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>You don't have permission to view this page.</div>;
+  if (!can) return <Navigate to="/home" replace />;
   return children;
 }
 
@@ -142,6 +142,7 @@ function AppContent() {
         try {
           const { user } = await repliconApi.me();
           setSessionUser(user);
+          navigate('/home');   // always land on home after login — clears any prior admin URL
         } catch { /* ignore */ }
       }} />
     );
@@ -171,7 +172,8 @@ function AppContent() {
             dataMatrix={dataMatrix}
           />
 
-          <main className="dashboard-container" style={{ flex: 1 }}>
+          {/* key=sessionUser.id forces full remount of all page components on user switch */}
+          <main key={sessionUser?.id || 'anon'} className="dashboard-container" style={{ flex: 1 }}>
             {dataMatrix && (
               <Routes>
                 <Route path="/"               element={<Navigate to="/home" replace />} />

@@ -20,10 +20,10 @@ export function usePermissions() {
 
 export function useCan(page) {
   const { permissions, isAdmin } = useContext(PermissionContext);
-  if (page === 'settings') return isAdmin;
-  // myTimesheet is always visible to all authenticated users
-  if (page === 'myTimesheet') return true;
-  // If permissions object is empty (old session format), allow everything
-  if (Object.keys(permissions).length === 0) return true;
+  // Pages that require the hard isAdmin flag — no permission override
+  if (['settings', 'administration'].includes(page)) return isAdmin;
+  // Always accessible to any authenticated user
+  if (!page || page === 'myTimesheet') return true;
+  // Strict check: admin OR explicit permission grant
   return isAdmin || permissions[page] === true;
 }
