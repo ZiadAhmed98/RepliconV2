@@ -67,8 +67,8 @@ function AMModal({ am, onSave, onClose }) {
   const lbl = { fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '5px' };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={onClose}>
-      <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '20px', padding: '32px', width: '560px', maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-panel" style={{ padding: '32px', width: '560px', maxWidth: '100%' }} onClick={e => e.stopPropagation()}>
 
         <h3 style={{ margin: '0 0 24px', fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>
           <i className={`bx ${isEdit ? 'bx-edit' : 'bx-user-badge'}`} style={{ color: '#34d399', marginRight: '10px' }} />
