@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { repliconApi } from '../api/replicon';
 
 const ALL_PAGES = [
@@ -194,7 +195,8 @@ const ACTION_COLORS = {
 };
 
 export default function Settings({ sessionUser }) {
-  const [tab, setTab]     = useState('users');
+  const [searchParams]    = useSearchParams();
+  const [tab, setTab]     = useState(searchParams.get('tab') === 'audit' ? 'audit' : 'users');
   const [users, setUsers] = useState([]);
   const [audit, setAudit] = useState([]);
   const [loading, setLoading] = useState(true);

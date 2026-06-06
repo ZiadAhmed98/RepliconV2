@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 
 import Sidebar            from './components/Sidebar';
 import Ribbon             from './components/Ribbon';
@@ -115,7 +115,7 @@ function AppContent() {
       if (e.key === 'Escape') { setSearchOpen(false); setShortcutsOpen(false); }
       if ((e.ctrlKey || e.metaKey) && e.key === 'r' && !isInput) { e.preventDefault(); syncMatrixData(true); }
       if (!isInput && !e.ctrlKey && !e.metaKey) {
-        if (e.key === '1') navigate('/');
+        if (e.key === '1') navigate('/dashboard');
         if (e.key === '2') navigate('/employee');
         if (e.key === '3') navigate('/projects');
         if (e.key === '4') navigate('/timesheets');
@@ -170,7 +170,8 @@ function AppContent() {
           <main className="dashboard-container" style={{ flex: 1 }}>
             {dataMatrix && (
               <Routes>
-                <Route path="/"               element={<GuardedRoute page="dashboard"><Dashboard       dataMatrix={dataMatrix} /></GuardedRoute>} />
+                <Route path="/"               element={<Navigate to="/dashboard" replace />} />
+                <Route path="/dashboard"      element={<GuardedRoute page="dashboard"><Dashboard       dataMatrix={dataMatrix} /></GuardedRoute>} />
                 <Route path="/employee"       element={<GuardedRoute page="employees"><Employee         dataMatrix={dataMatrix} sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/projects"       element={<GuardedRoute page="projects" ><ProjectDeepDive  dataMatrix={dataMatrix} /></GuardedRoute>} />
                 <Route path="/timesheets"     element={<GuardedRoute page="timesheets"><TimesheetOps    dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} /></GuardedRoute>} />
