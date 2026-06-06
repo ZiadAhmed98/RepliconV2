@@ -54,7 +54,6 @@ function EmployeeModal({ employee, allEmployees, onSave, onClose }) {
   const [accForm, setAccForm]   = useState({ userId: '', isAdmin: false, permissions: {}, password: '', confirmPwd: '' });
   const [accTab,  setAccTab]    = useState(false); // show system access section
   const { toast } = useToast();
-  const isEdit = !!employee;
 
   const set    = (k, v) => setForm(f  => ({ ...f,  [k]: v }));
   const setAcc = (k, v) => setAccForm(f => ({ ...f, [k]: v }));
