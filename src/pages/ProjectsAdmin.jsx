@@ -41,10 +41,11 @@ function StatusBadge({ status }) {
   );
 }
 
-function ProjectModal({ project, clients, employees, onSave, onClose }) {
+function ProjectModal({ project, clients, employees, programs, onSave, onClose }) {
   const isEdit = !!project;
   const [form, setForm] = useState({
     clientId:          project?.clientId          || '',
+    programId:         project?.programId         || '',
     name:              project?.name              || '',
     code:              project?.code              || '',
     status:            project?.status            || 'in_progress',
@@ -69,6 +70,7 @@ function ProjectModal({ project, clients, employees, onSave, onClose }) {
     const payload = {
       ...form,
       clientId:          form.clientId          || null,
+      programId:         form.programId         || null,
       projectManagerId:  form.projectManagerId  || null,
       startDate:         form.startDate         || null,
       endDate:           form.endDate           || null,
@@ -95,104 +97,119 @@ function ProjectModal({ project, clients, employees, onSave, onClose }) {
   const labelStyle = { fontSize: '0.76rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ background: 'var(--bg-card, #12121f)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+      <div className="modal-panel" style={{ width: '100%', maxWidth: '640px' }}>
+
+        {/* Header — always visible */}
+        <div style={{ padding: '22px 28px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>{isEdit ? 'Edit Project' : 'Add New Project'}</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem', padding: '4px' }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem', padding: '4px', lineHeight: 1 }}>×</button>
         </div>
 
-        {error && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', color: '#f87171', fontSize: '0.85rem' }}>{error}</div>}
+        {/* Scrollable body */}
+        <div className="modal-body">
+          {error && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', color: '#f87171', fontSize: '0.85rem' }}>{error}</div>}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-          <div style={{ gridColumn: '1 / -1' }}>
-            <label style={labelStyle}>Project Name *</label>
-            <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Azure Migration" style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>Project Code</label>
-            <input value={form.code} onChange={e => set('code', e.target.value.toUpperCase())} placeholder="e.g. DP-ADNEC-AI" style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>Status</label>
-            <select value={form.status} onChange={e => set('status', e.target.value)} style={inputStyle}>
-              <option value="tentative">Tentative</option>
-              <option value="in_progress">In Progress</option>
-              <option value="completed">Completed</option>
-              <option value="deferred">Deferred</option>
-              <option value="cancelled">Cancelled</option>
-              <option value="archived">Archived</option>
-            </select>
-          </div>
-          <div style={{ gridColumn: '1 / -1' }}>
-            <label style={labelStyle}>Client</label>
-            <select value={form.clientId} onChange={e => set('clientId', e.target.value)} style={inputStyle}>
-              <option value="">— None —</option>
-              {clients.filter(c => c.status === 'active').map(c => (
-                <option key={c.id} value={c.id}>{c.name}{c.code ? ` (${c.code})` : ''}</option>
-              ))}
-            </select>
-          </div>
-          <div style={{ gridColumn: '1 / -1' }}>
-            <label style={labelStyle}>Project Manager</label>
-            <select value={form.projectManagerId} onChange={e => set('projectManagerId', e.target.value)} style={inputStyle}>
-              <option value="">— Unassigned —</option>
-              {pms.map(e => (
-                <option key={e.id} value={e.id}>{e.displayName || `${e.firstName} ${e.lastName}`}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label style={labelStyle}>Start Date</label>
-            <input type="date" value={form.startDate} onChange={e => set('startDate', e.target.value)} style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>End Date</label>
-            <input type="date" value={form.endDate} onChange={e => set('endDate', e.target.value)} style={inputStyle} />
-          </div>
-          <div style={{ gridColumn: '1 / -1' }}>
-            <label style={labelStyle}>Billing Model</label>
-            <select value={form.billingType} onChange={e => set('billingType', e.target.value)} style={inputStyle}>
-              <option value="time_material">T&amp;M — Time &amp; Materials</option>
-              <option value="adoption_tm">Adoption / PS — T&amp;M with streams</option>
-              <option value="fixed_bid">Fixed Bid — Actual vs quoted hours</option>
-              <option value="sla_retainer">SLA / Retainer — Ticket-based</option>
-              <option value="staff_aug">Staff Augmentation — Monthly allocation</option>
-              <option value="non_billable">Non-Billable</option>
-            </select>
-          </div>
-          {(form.billingType === 'time_material' || form.billingType === 'adoption_tm') && (
-            <div>
-              <label style={labelStyle}>Budget Hours (cap)</label>
-              <input type="number" min="0" step="0.5" value={form.budgetHours} onChange={e => set('budgetHours', e.target.value)} style={inputStyle} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={labelStyle}>Project Name *</label>
+              <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Azure Migration" style={inputStyle} />
             </div>
-          )}
-          {form.billingType === 'fixed_bid' && (
             <div>
-              <label style={labelStyle}>Quoted Hours</label>
-              <input type="number" min="0" step="0.5" value={form.quotedHours} onChange={e => set('quotedHours', e.target.value)} style={inputStyle} />
+              <label style={labelStyle}>Project Code</label>
+              <input value={form.code} onChange={e => set('code', e.target.value.toUpperCase())} placeholder="e.g. DP-ADNEC-AI" style={inputStyle} />
             </div>
-          )}
-          {form.billingType === 'sla_retainer' && (
             <div>
-              <label style={labelStyle}>Ticket Allocation / Period</label>
-              <input type="number" min="0" step="1" value={form.ticketAllocation} onChange={e => set('ticketAllocation', e.target.value)} style={inputStyle} />
+              <label style={labelStyle}>Status</label>
+              <select value={form.status} onChange={e => set('status', e.target.value)} style={inputStyle}>
+                <option value="tentative">Tentative</option>
+                <option value="in_progress">In Progress</option>
+                <option value="completed">Completed</option>
+                <option value="deferred">Deferred</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="archived">Archived</option>
+              </select>
             </div>
-          )}
-          {form.billingType === 'staff_aug' && (
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={labelStyle}>Client</label>
+              <select value={form.clientId} onChange={e => set('clientId', e.target.value)} style={inputStyle}>
+                <option value="">— None —</option>
+                {clients.filter(c => c.status === 'active').map(c => (
+                  <option key={c.id} value={c.id}>{c.name}{c.code ? ` (${c.code})` : ''}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={labelStyle}>Program</label>
+              <select value={form.programId} onChange={e => set('programId', e.target.value)} style={inputStyle}>
+                <option value="">— None —</option>
+                {programs.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={labelStyle}>Project Manager</label>
+              <select value={form.projectManagerId} onChange={e => set('projectManagerId', e.target.value)} style={inputStyle}>
+                <option value="">— Unassigned —</option>
+                {pms.map(e => (
+                  <option key={e.id} value={e.id}>{e.displayName || `${e.firstName} ${e.lastName}`}</option>
+                ))}
+              </select>
+            </div>
             <div>
-              <label style={labelStyle}>Monthly Hour Allocation</label>
-              <input type="number" min="0" step="0.5" value={form.monthlyAllocation} onChange={e => set('monthlyAllocation', e.target.value)} style={inputStyle} />
+              <label style={labelStyle}>Start Date</label>
+              <input type="date" value={form.startDate} onChange={e => set('startDate', e.target.value)} style={inputStyle} />
             </div>
-          )}
-          <div style={{ gridColumn: '1 / -1' }}>
-            <label style={labelStyle}>Notes</label>
-            <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3} placeholder="Project description or notes…" style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }} />
+            <div>
+              <label style={labelStyle}>End Date</label>
+              <input type="date" value={form.endDate} onChange={e => set('endDate', e.target.value)} style={inputStyle} />
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={labelStyle}>Billing Model</label>
+              <select value={form.billingType} onChange={e => set('billingType', e.target.value)} style={inputStyle}>
+                <option value="time_material">T&amp;M — Time &amp; Materials</option>
+                <option value="adoption_tm">Adoption / PS — T&amp;M with streams</option>
+                <option value="fixed_bid">Fixed Bid — Actual vs quoted hours</option>
+                <option value="sla_retainer">SLA / Retainer — Ticket-based</option>
+                <option value="staff_aug">Staff Augmentation — Monthly allocation</option>
+                <option value="non_billable">Non-Billable</option>
+              </select>
+            </div>
+            {(form.billingType === 'time_material' || form.billingType === 'adoption_tm') && (
+              <div>
+                <label style={labelStyle}>Budget Hours (cap)</label>
+                <input type="number" min="0" step="0.5" value={form.budgetHours} onChange={e => set('budgetHours', e.target.value)} style={inputStyle} />
+              </div>
+            )}
+            {form.billingType === 'fixed_bid' && (
+              <div>
+                <label style={labelStyle}>Quoted Hours</label>
+                <input type="number" min="0" step="0.5" value={form.quotedHours} onChange={e => set('quotedHours', e.target.value)} style={inputStyle} />
+              </div>
+            )}
+            {form.billingType === 'sla_retainer' && (
+              <div>
+                <label style={labelStyle}>Ticket Allocation / Period</label>
+                <input type="number" min="0" step="1" value={form.ticketAllocation} onChange={e => set('ticketAllocation', e.target.value)} style={inputStyle} />
+              </div>
+            )}
+            {form.billingType === 'staff_aug' && (
+              <div>
+                <label style={labelStyle}>Monthly Hour Allocation</label>
+                <input type="number" min="0" step="0.5" value={form.monthlyAllocation} onChange={e => set('monthlyAllocation', e.target.value)} style={inputStyle} />
+              </div>
+            )}
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={labelStyle}>Notes</label>
+              <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3} placeholder="Project description or notes…" style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }} />
+            </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '24px' }}>
+        {/* Sticky footer */}
+        <div className="modal-footer">
           <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '9px', padding: '9px 20px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.88rem', fontFamily: 'inherit' }}>Cancel</button>
           <button onClick={handleSave} disabled={saving}
             style={{ background: 'linear-gradient(135deg,#7c3aed,#a855f7)', border: 'none', borderRadius: '9px', padding: '9px 24px', cursor: 'pointer', color: '#fff', fontSize: '0.88rem', fontFamily: 'inherit', fontWeight: 600, opacity: saving ? 0.6 : 1 }}>
@@ -211,6 +228,7 @@ export default function ProjectsAdmin({ sessionUser }) {
   const [projects,   setProjects]   = useState([]);
   const [clients,    setClients]    = useState([]);
   const [employees,  setEmployees]  = useState([]);
+  const [programs,   setPrograms]   = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [activeTab,  setActiveTab]  = useState('');
   const [search,     setSearch]     = useState('');
@@ -226,15 +244,17 @@ export default function ProjectsAdmin({ sessionUser }) {
       if (filterClient)  params.set('clientId', filterClient);
       if (filterPm)      params.set('pmId',     filterPm);
       if (search)        params.set('search',   search);
-      const [pRes, cRes, eRes] = await Promise.all([
+      const [pRes, cRes, eRes, prRes] = await Promise.all([
         fetch(`/api/v1/psa/projects?${params}`, { credentials: 'include' }),
-        fetch('/api/v1/clients',               { credentials: 'include' }),
-        fetch('/api/v1/employees?status=active',{ credentials: 'include' }),
+        fetch('/api/v1/clients',                { credentials: 'include' }),
+        fetch('/api/v1/employees?status=active', { credentials: 'include' }),
+        fetch('/api/v1/programs',               { credentials: 'include' }),
       ]);
-      const [pd, cd, ed] = await Promise.all([pRes.json(), cRes.json(), eRes.json()]);
-      setProjects(pd.projects || []);
-      setClients(cd.clients   || []);
+      const [pd, cd, ed, prd] = await Promise.all([pRes.json(), cRes.json(), eRes.json(), prRes.json()]);
+      setProjects(pd.projects   || []);
+      setClients(cd.clients     || []);
       setEmployees(ed.employees || []);
+      setPrograms((prd.programs || []).sort((a, b) => a.name.localeCompare(b.name)));
     } finally { setLoading(false); }
   }, [activeTab, filterClient, filterPm, search]);
 
@@ -396,6 +416,7 @@ export default function ProjectsAdmin({ sessionUser }) {
           project={modal.mode === 'edit' ? modal.project : null}
           clients={clients}
           employees={employees}
+          programs={programs}
           onSave={handleSave}
           onClose={() => setModal(null)}
         />

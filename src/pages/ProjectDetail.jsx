@@ -823,6 +823,7 @@ export default function ProjectDetail({ sessionUser }) {
               { label: 'Status',          value: STATUS_COLORS[project.status]?.label || project.status },
               { label: 'Billing',         value: BILLING_LABELS[project.billingType] || '—' },
               { label: 'Client',          value: project.clientName || '—' },
+              { label: 'Program',         value: project.programName || '—' },
               { label: 'Project Manager', value: project.projectManagerName || '—' },
               { label: 'Start Date',      value: project.startDate || '—' },
               { label: 'End Date',        value: project.endDate   || 'Ongoing' },

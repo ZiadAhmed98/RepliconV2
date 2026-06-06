@@ -9,6 +9,7 @@ const router = Router();
 
 const psaProjectSchema = z.object({
   clientId:          z.string().nullable().optional(),
+  programId:         z.string().nullable().optional(),
   name:              z.string().min(1),
   code:              z.string().max(30).nullable().optional(),
   status:            z.enum(['tentative','in_progress','completed','deferred','cancelled','archived']).default('in_progress'),
@@ -26,10 +27,12 @@ const psaProjectSchema = z.object({
 router.get('/api/v1/psa/projects', requireAuth, (req, res) => {
   const { status, clientId, pmId, search, mine } = req.query;
   let q = `
-    SELECT p.*, c.name AS clientName, e.firstName || ' ' || e.lastName AS projectManagerName
+    SELECT p.*, c.name AS clientName, e.firstName || ' ' || e.lastName AS projectManagerName,
+           pr.name AS programName
     FROM projects p
-    LEFT JOIN clients   c ON c.id = p.clientId
-    LEFT JOIN employees e ON e.id = p.projectManagerId
+    LEFT JOIN clients   c  ON c.id  = p.clientId
+    LEFT JOIN employees e  ON e.id  = p.projectManagerId
+    LEFT JOIN programs  pr ON pr.id = p.programId
     WHERE 1=1
   `;
   const params = [];
@@ -52,10 +55,12 @@ router.get('/api/v1/psa/projects', requireAuth, (req, res) => {
 
 router.get('/api/v1/psa/projects/:id', requireAuth, (req, res) => {
   const row = db.prepare(`
-    SELECT p.*, c.name AS clientName, e.firstName || ' ' || e.lastName AS projectManagerName
+    SELECT p.*, c.name AS clientName, e.firstName || ' ' || e.lastName AS projectManagerName,
+           pr.name AS programName
     FROM projects p
-    LEFT JOIN clients   c ON c.id = p.clientId
-    LEFT JOIN employees e ON e.id = p.projectManagerId
+    LEFT JOIN clients   c  ON c.id  = p.clientId
+    LEFT JOIN employees e  ON e.id  = p.projectManagerId
+    LEFT JOIN programs  pr ON pr.id = p.programId
     WHERE p.id = ?
   `).get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Project not found' });
@@ -72,9 +77,9 @@ router.post('/api/v1/psa/projects', requireAuth, (req, res) => {
   const code = d.code ? d.code.toUpperCase() : null;
   try {
     db.prepare(`
-      INSERT INTO projects (id,clientId,name,code,status,projectManagerId,startDate,endDate,budgetHours,billingType,quotedHours,ticketAllocation,monthlyAllocation,notes,createdAt,updatedAt)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    `).run(id, d.clientId||null, d.name, code, d.status, d.projectManagerId||null,
+      INSERT INTO projects (id,clientId,programId,name,code,status,projectManagerId,startDate,endDate,budgetHours,billingType,quotedHours,ticketAllocation,monthlyAllocation,notes,createdAt,updatedAt)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    `).run(id, d.clientId||null, d.programId||null, d.name, code, d.status, d.projectManagerId||null,
            d.startDate||null, d.endDate||null, d.budgetHours, d.billingType,
            d.quotedHours||0, d.ticketAllocation||0, d.monthlyAllocation||0,
            d.notes||null, now, now);
@@ -98,10 +103,10 @@ router.put('/api/v1/psa/projects/:id', requireAuth, (req, res) => {
   const code = d.code ? d.code.toUpperCase() : null;
   try {
     db.prepare(`
-      UPDATE projects SET clientId=?,name=?,code=?,status=?,projectManagerId=?,
+      UPDATE projects SET clientId=?,programId=?,name=?,code=?,status=?,projectManagerId=?,
         startDate=?,endDate=?,budgetHours=?,billingType=?,quotedHours=?,ticketAllocation=?,monthlyAllocation=?,notes=?,updatedAt=?
       WHERE id=?
-    `).run(d.clientId||null, d.name, code, d.status, d.projectManagerId||null,
+    `).run(d.clientId||null, d.programId||null, d.name, code, d.status, d.projectManagerId||null,
            d.startDate||null, d.endDate||null, d.budgetHours, d.billingType,
            d.quotedHours||0, d.ticketAllocation||0, d.monthlyAllocation||0,
            d.notes||null, now, req.params.id);
