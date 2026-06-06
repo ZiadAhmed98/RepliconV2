@@ -21,6 +21,8 @@ import psaTasksRouter    from './routes/psaTasks.js';
 import psaTimesheetsRouter from './routes/psaTimesheets.js';
 import graphRouter       from './routes/graph.js';
 import migrationRouter   from './routes/migration.js';
+import templatesRouter   from './routes/templates.js';
+import homeRouter        from './routes/home.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
@@ -72,6 +74,8 @@ app.use(psaTasksRouter);
 app.use(psaTimesheetsRouter);
 app.use(graphRouter);
 app.use(migrationRouter);
+app.use(templatesRouter);
+app.use(homeRouter);
 
 // Static files + SPA fallback
 app.use(express.static(path.join(__dirname, 'dist'), {

@@ -31,6 +31,8 @@ import TimesheetApproval  from './pages/TimesheetApproval';
 import Administration    from './pages/Administration'
 import AuditLog         from './pages/AuditLog';
 import Migration        from './pages/Migration';
+import Home            from './pages/Home';
+import Templates       from './pages/Templates';
 
 import { useRepliconData }    from './hooks/useRepliconData';
 import { repliconApi }        from './api/replicon';
@@ -172,7 +174,9 @@ function AppContent() {
           <main className="dashboard-container" style={{ flex: 1 }}>
             {dataMatrix && (
               <Routes>
-                <Route path="/"               element={<Navigate to="/dashboard" replace />} />
+                <Route path="/"               element={<Navigate to="/home" replace />} />
+                <Route path="/home"           element={<Home sessionUser={sessionUser} />} />
+                <Route path="/templates"      element={<Templates sessionUser={sessionUser} />} />
                 <Route path="/dashboard"      element={<GuardedRoute page="dashboard"><Dashboard       dataMatrix={dataMatrix} /></GuardedRoute>} />
                 <Route path="/employee"       element={<GuardedRoute page="employees"><Employee         dataMatrix={dataMatrix} sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/projects"       element={<GuardedRoute page="projects" ><ProjectDeepDive  dataMatrix={dataMatrix} /></GuardedRoute>} />

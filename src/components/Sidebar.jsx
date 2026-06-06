@@ -6,6 +6,8 @@ import { usePermissions } from '../context/PermissionContext';
 // Groups: each child has its own perm — group is visible when ≥1 child passes.
 // Standalone items: use top-level perm directly.
 const NAV = [
+  { to: '/home',      icon: 'bx-home-smile',  label: 'Home'      },
+  { to: '/templates', icon: 'bx-file-blank',  label: 'Templates' },
   {
     label: 'Analytics', icon: 'bx-line-chart', group: true,
     children: [
