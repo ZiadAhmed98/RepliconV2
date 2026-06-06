@@ -96,7 +96,7 @@ const SECTIONS = [
     icon: 'bx-plug',
     accent: '#2dd4bf',
     items: [
-      { label: 'Replicon Sync',       icon: 'bx-sync',            desc: 'Configure Replicon API data sync',         live: false },
+      { label: 'Replicon Sync',       icon: 'bx-sync',            desc: 'Import all Replicon data into PSA',        live: true, to: '/migration' },
       { label: 'Calendar',            icon: 'bx-calendar',        desc: 'Google and Outlook calendar sync',         live: false },
       { label: 'API Keys',            icon: 'bx-key',             desc: 'Manage external API credentials',          live: false },
       { label: 'Webhooks',            icon: 'bx-broadcast',       desc: 'Real-time event delivery to endpoints',    live: false },

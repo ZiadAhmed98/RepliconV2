@@ -30,6 +30,7 @@ import ProjectDetail      from './pages/ProjectDetail';
 import TimesheetApproval  from './pages/TimesheetApproval';
 import Administration    from './pages/Administration'
 import AuditLog         from './pages/AuditLog';
+import Migration        from './pages/Migration';
 
 import { useRepliconData }    from './hooks/useRepliconData';
 import { repliconApi }        from './api/replicon';
@@ -191,6 +192,7 @@ function AppContent() {
                 <Route path="/settings"            element={<GuardedRoute page="administration"  ><Settings         sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/administration"      element={<GuardedRoute page="administration"  ><Administration /></GuardedRoute>} />
                 <Route path="/audit-log"          element={<GuardedRoute page="administration"  ><AuditLog /></GuardedRoute>} />
+                <Route path="/migration"          element={<GuardedRoute page="administration"  ><Migration /></GuardedRoute>} />
               </Routes>
             )}
           </main>
