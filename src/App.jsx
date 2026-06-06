@@ -184,7 +184,7 @@ function AppContent() {
                 <Route path="/projects-admin"      element={<GuardedRoute page="settings" ><ProjectsAdmin   sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/projects-admin/:id"  element={<GuardedRoute page="settings" ><ProjectDetail   sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/profile"             element={<Profile />} />
-                <Route path="/timesheets-approval" element={<GuardedRoute page="settings"><TimesheetApproval sessionUser={sessionUser} /></GuardedRoute>} />
+                <Route path="/timesheets-approval" element={<GuardedRoute page="timesheetApproval"><TimesheetApproval sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/settings"       element={<GuardedRoute page="settings" ><Settings         sessionUser={sessionUser} /></GuardedRoute>} />
               </Routes>
             )}

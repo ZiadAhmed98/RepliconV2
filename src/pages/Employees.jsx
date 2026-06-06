@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '../context/ToastContext';
 
 const ROLES = [
@@ -25,6 +25,12 @@ function SkillTag({ label, onRemove }) {
   );
 }
 
+const PAGE_LABELS = {
+  dashboard: 'Dashboard', employees: 'Employees', timesheets: 'Timesheets (Replicon)',
+  projects: 'Projects', clients: 'Clients', aiInsights: 'AI Insights',
+  chatbot: 'Chatbot', myTimesheet: 'My Timesheet', timesheetApproval: 'Approvals',
+};
+
 // ── Employee Form Modal ────────────────────────────────────────────────────────
 
 function EmployeeModal({ employee, allEmployees, onSave, onClose }) {
@@ -44,9 +50,53 @@ function EmployeeModal({ employee, allEmployees, onSave, onClose }) {
   });
   const [skillInput, setSkillInput] = useState('');
   const [saving, setSaving] = useState(false);
+  const [account, setAccount]   = useState(null); // loaded from API
+  const [accForm, setAccForm]   = useState({ userId: '', isAdmin: false, permissions: {}, password: '', confirmPwd: '' });
+  const [accTab,  setAccTab]    = useState(false); // show system access section
   const { toast } = useToast();
+  const isEdit = !!employee;
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const set    = (k, v) => setForm(f  => ({ ...f,  [k]: v }));
+  const setAcc = (k, v) => setAccForm(f => ({ ...f, [k]: v }));
+
+  // Load account info when opening an existing employee
+  useEffect(() => {
+    if (!isEdit || !employee?.id) return;
+    fetch(`/api/v1/employees/${employee.id}/account`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (!d) return;
+        setAccount(d);
+        setAccForm(f => ({
+          ...f,
+          userId:      d.userId || '',
+          isAdmin:     d.isAdmin || false,
+          permissions: d.permissions || {},
+        }));
+      })
+      .catch(() => {});
+  }, [employee?.id, isEdit]);
+
+  const saveAccount = async () => {
+    if (!accForm.userId.trim()) { toast.error('Login username is required'); return; }
+    if (accForm.password && accForm.password !== accForm.confirmPwd) { toast.error('Passwords do not match'); return; }
+    const payload = {
+      userId:      accForm.userId.trim(),
+      isAdmin:     accForm.isAdmin,
+      permissions: accForm.permissions,
+      ...(accForm.password ? { password: accForm.password } : {}),
+    };
+    const r = await fetch(`/api/v1/employees/${employee.id}/account`, {
+      method: 'PUT', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (!r.ok) { toast.error(d.error || 'Failed to save account'); return; }
+    setAccount({ ...account, ...d, userId: accForm.userId });
+    setAccForm(f => ({ ...f, password: '', confirmPwd: '' }));
+    toast.success('System access updated');
+  };
 
   const addSkill = (skill) => {
     const s = skill.trim();
@@ -64,8 +114,8 @@ function EmployeeModal({ employee, allEmployees, onSave, onClose }) {
     setSaving(true);
     try {
       const payload = { ...form, supervisorId: form.supervisorId || null, endDate: form.endDate || null, email: form.email || undefined, employeeId: form.employeeId || undefined };
-      const url    = isEdit ? `/api/v1/employees/${employee.id}` : '/api/v1/employees';
-      const method = isEdit ? 'PUT' : 'POST';
+      const url    = employee?.id ? `/api/v1/employees/${employee.id}` : '/api/v1/employees';
+      const method = employee?.id ? 'PUT' : 'POST';
       const r = await fetch(url, { method, credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const d = await r.json();
       if (!r.ok) { toast.error(d.error || 'Save failed'); return; }
@@ -77,15 +127,16 @@ function EmployeeModal({ employee, allEmployees, onSave, onClose }) {
   const inputStyle = { width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '9px', padding: '9px 12px', color: 'var(--text-main)', fontSize: '0.88rem', fontFamily: 'inherit', boxSizing: 'border-box' };
   const labelStyle = { fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '5px' };
 
-  // Supervisors = all active employees except self
   const supervisorOptions = allEmployees.filter(e => e.status === 'active' && e.id !== employee?.id);
+
+  const allPageKeys = Object.keys(PAGE_LABELS);
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={onClose}>
-      <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '20px', padding: '32px', width: '620px', maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '20px', padding: '32px', width: '660px', maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <h3 style={{ margin: '0 0 24px', fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>
-          <i className={`bx ${isEdit ? 'bx-edit' : 'bx-user-plus'}`} style={{ color: '#a855f7', marginRight: '10px' }} />
-          {isEdit ? 'Edit Employee' : 'Add Employee'}
+          <i className={`bx ${employee?.id ? 'bx-edit' : 'bx-user-plus'}`} style={{ color: '#a855f7', marginRight: '10px' }} />
+          {employee?.id ? 'Edit Employee' : 'Add Employee'}
         </h3>
 
         {/* Profile section */}
@@ -137,13 +188,84 @@ function EmployeeModal({ employee, allEmployees, onSave, onClose }) {
         </div>
 
         {/* Status (edit only) */}
-        {isEdit && (
+        {employee?.id && (
           <div style={{ marginTop: '14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <label style={{ ...labelStyle, margin: 0 }}>Status</label>
             <button onClick={() => set('status', form.status === 'active' ? 'inactive' : 'active')}
               style={{ background: form.status === 'active' ? 'rgba(48,209,88,0.12)' : 'rgba(255,59,48,0.1)', border: `1px solid ${form.status === 'active' ? 'rgba(48,209,88,0.3)' : 'rgba(255,59,48,0.25)'}`, borderRadius: '8px', padding: '5px 14px', cursor: 'pointer', color: form.status === 'active' ? '#30d158' : '#ff3b30', fontSize: '0.83rem', fontFamily: 'inherit', fontWeight: 600 }}>
               {form.status === 'active' ? '● Active' : '○ Inactive'}
             </button>
+          </div>
+        )}
+
+        {/* System Access (admin only, edit only) */}
+        {employee?.id && (
+          <div style={{ marginTop: '20px', borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: '16px' }}>
+            <button
+              onClick={() => setAccTab(t => !t)}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', background: 'none', border: 'none', cursor: 'pointer', color: accTab ? '#a78bfa' : 'var(--text-muted)', fontFamily: 'inherit', padding: 0, marginBottom: accTab ? '16px' : 0 }}
+            >
+              <i className={`bx ${accTab ? 'bx-chevron-down' : 'bx-chevron-right'}`} style={{ fontSize: '16px' }} />
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>System Access</span>
+              {account?.hasAccount && <span style={{ fontSize: '0.7rem', background: 'rgba(139,92,246,0.15)', color: '#a78bfa', borderRadius: '5px', padding: '1px 7px', fontWeight: 600 }}>Has Login</span>}
+            </button>
+
+            {accTab && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={labelStyle}>Login Username</label>
+                    <input value={accForm.userId} onChange={e => setAcc('userId', e.target.value)} placeholder="e.g. jsmith" style={inputStyle} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: '2px' }}>
+                    <button
+                      onClick={() => setAcc('isAdmin', !accForm.isAdmin)}
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', background: accForm.isAdmin ? 'rgba(168,85,247,0.12)' : 'rgba(255,255,255,0.04)', border: `1px solid ${accForm.isAdmin ? 'rgba(168,85,247,0.3)' : 'rgba(255,255,255,0.1)'}`, borderRadius: '8px', padding: '8px 14px', cursor: 'pointer', color: accForm.isAdmin ? '#c084fc' : 'var(--text-muted)', fontFamily: 'inherit', fontSize: '0.83rem', fontWeight: 600 }}
+                    >
+                      <i className={`bx ${accForm.isAdmin ? 'bxs-shield-alt-2' : 'bx-shield'}`} />
+                      {accForm.isAdmin ? 'Admin' : 'Not Admin'}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Page Permissions</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {allPageKeys.map(p => {
+                      const on = accForm.isAdmin ? true : (accForm.permissions[p] !== false && accForm.permissions[p] !== undefined ? accForm.permissions[p] : true);
+                      return (
+                        <button
+                          key={p}
+                          disabled={accForm.isAdmin}
+                          onClick={() => setAcc('permissions', { ...accForm.permissions, [p]: !on })}
+                          style={{ padding: '3px 10px', borderRadius: '6px', border: `1px solid ${on ? 'rgba(139,92,246,0.3)' : 'rgba(255,255,255,0.08)'}`, background: on ? 'rgba(139,92,246,0.12)' : 'rgba(255,255,255,0.03)', color: on ? '#a78bfa' : 'rgba(255,255,255,0.3)', fontSize: '0.72rem', fontWeight: 600, cursor: accForm.isAdmin ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: accForm.isAdmin ? 0.5 : 1 }}
+                        >
+                          {PAGE_LABELS[p]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={labelStyle}>{account?.hasAccount ? 'New Password' : 'Password *'}</label>
+                    <input type="password" value={accForm.password} onChange={e => setAcc('password', e.target.value)} placeholder={account?.hasAccount ? 'Leave blank to keep current' : 'Set a password'} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Confirm Password</label>
+                    <input type="password" value={accForm.confirmPwd} onChange={e => setAcc('confirmPwd', e.target.value)} placeholder="Repeat password" style={inputStyle} />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button onClick={saveAccount} style={{ background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', border: 'none', borderRadius: '9px', padding: '8px 20px', cursor: 'pointer', color: '#fff', fontSize: '0.83rem', fontFamily: 'inherit', fontWeight: 600 }}>
+                    <i className='bx bx-key' style={{ marginRight: '6px' }} />
+                    {account?.hasAccount ? 'Update Account' : 'Create Account'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

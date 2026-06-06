@@ -5,6 +5,7 @@ import { createSession, requireAuth, verifyPassword,
 import { loadUsers, saveUsers, ALL_PAGES,
          allPermissions, appendAudit }               from '../lib/rbac.js';
 import { logger, auditLog }                          from '../lib/helpers.js';
+import db                                            from '../lib/db.js';
 
 const router = Router();
 
@@ -53,11 +54,14 @@ async function handleLogin(req, res) {
   });
   if (permChanged) { users[id] = user; saveUsers(users); }
 
+  const emp = db.prepare('SELECT role, id AS employeeId FROM employees WHERE userId=?').get(id);
   const sessionUser = {
     id:          user.id,
     name:        user.displayName,
     isAdmin:     user.isAdmin || false,
     permissions: user.permissions || allPermissions(),
+    role:        emp?.role || 'resource',
+    employeeId:  emp?.employeeId || null,
   };
   const { token: sessionToken } = createSession(sessionUser);
 

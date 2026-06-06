@@ -1,14 +1,15 @@
 import { Router } from 'express';
 import crypto     from 'crypto';
-import { requireAuth, requireAdmin }        from '../lib/auth.js';
+import { requireAuth, requireAdmin, requirePM } from '../lib/auth.js';
 import { auditLog }                         from '../lib/helpers.js';
 import db, { buildTimesheetRows,
              buildSingleRow }               from '../lib/db.js';
 
 const router = Router();
 
-// ── Admin: list all timesheets across all users ───────────────────────────────
-router.get('/api/v1/admin/psa/timesheets', requireAdmin, (req, res) => {
+// ── Admin/PM: list timesheets ─────────────────────────────────────────────────
+// Admins see all; PMs see only timesheets that contain rows from their projects
+router.get('/api/v1/admin/psa/timesheets', requirePM, (req, res) => {
   const { status, userId } = req.query;
   let q = `
     SELECT ts.*,
@@ -20,6 +21,25 @@ router.get('/api/v1/admin/psa/timesheets', requireAdmin, (req, res) => {
   const params = [];
   if (status && status !== 'all') { q += ' AND ts.status = ?'; params.push(status); }
   if (userId)                     { q += ' AND ts.userId = ?'; params.push(userId); }
+
+  // PMs: restrict to timesheets that have at least one row in a project they manage
+  if (!req.user.isAdmin && req.user.role === 'pm') {
+    const pmEmp = db.prepare('SELECT id FROM employees WHERE userId=?').get(req.user.id);
+    if (pmEmp) {
+      q += `
+        AND EXISTS (
+          SELECT 1 FROM psa_timesheet_rows r
+          JOIN projects p ON p.id = r.projectId
+          WHERE r.timesheetId = ts.id
+            AND (p.projectManagerId = ?
+              OR EXISTS (SELECT 1 FROM project_resources pr WHERE pr.projectId = p.id AND pr.employeeId = ?))
+        )`;
+      params.push(pmEmp.id, pmEmp.id);
+    } else {
+      return res.json({ timesheets: [] });
+    }
+  }
+
   q += ' ORDER BY ts.weekStart DESC, employeeName ASC';
   const rows = db.prepare(q).all(...params);
   const timesheets = rows.map(ts => {
@@ -30,8 +50,8 @@ router.get('/api/v1/admin/psa/timesheets', requireAdmin, (req, res) => {
   res.json({ timesheets });
 });
 
-// ── Admin: approve a timesheet ────────────────────────────────────────────────
-router.post('/api/v1/admin/psa/timesheets/:id/approve', requireAdmin, (req, res) => {
+// ── Admin/PM: approve a timesheet ────────────────────────────────────────────
+router.post('/api/v1/admin/psa/timesheets/:id/approve', requirePM, (req, res) => {
   const ts = db.prepare('SELECT * FROM psa_timesheets WHERE id=?').get(req.params.id);
   if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
   if (ts.status === 'approved') return res.status(409).json({ error: 'Already approved' });
@@ -41,8 +61,8 @@ router.post('/api/v1/admin/psa/timesheets/:id/approve', requireAdmin, (req, res)
   res.json({ ok: true, status: 'approved' });
 });
 
-// ── Admin: reject a timesheet ─────────────────────────────────────────────────
-router.post('/api/v1/admin/psa/timesheets/:id/reject', requireAdmin, (req, res) => {
+// ── Admin/PM: reject a timesheet ─────────────────────────────────────────────
+router.post('/api/v1/admin/psa/timesheets/:id/reject', requirePM, (req, res) => {
   const ts = db.prepare('SELECT * FROM psa_timesheets WHERE id=?').get(req.params.id);
   if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
   const { reason } = req.body || {};

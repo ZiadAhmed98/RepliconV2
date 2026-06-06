@@ -17,16 +17,16 @@ const NAV = [
     ],
   },
   { to: '/ai-insights',  icon: 'bx-brain',            label: 'AI Insights', perm: 'aiInsights', glow: true },
-  { to: '/my-timesheet', icon: 'bx-calendar-check',   label: 'My Time',     perm: 'myTimesheet' },
+  { to: '/my-timesheet',       icon: 'bx-calendar-check',  label: 'My Time',     perm: 'myTimesheet'       },
+  { to: '/timesheets-approval', icon: 'bx-check-double',   label: 'Approvals',   perm: 'timesheetApproval' },
 
   // ── Admin — data management (PSA build) ──
   {
     label: 'Admin', icon: 'bx-shield', group: true, perm: 'settings',
     children: [
-      { to: '/employees',          icon: 'bx-group',        label: 'Employees'  },
-      { to: '/clients',            icon: 'bx-briefcase',    label: 'Clients'    },
-      { to: '/projects-admin',     icon: 'bx-folder-open',  label: 'Projects'   },
-      { to: '/timesheets-approval', icon: 'bx-check-double', label: 'Timesheets' },
+      { to: '/employees',      icon: 'bx-group',       label: 'Employees' },
+      { to: '/clients',        icon: 'bx-briefcase',   label: 'Clients'   },
+      { to: '/projects-admin', icon: 'bx-folder-open', label: 'Projects'  },
     ],
   },
   { to: '/settings',    icon: 'bx-cog',            label: 'Settings',    perm: 'settings'   },
@@ -144,7 +144,7 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
   const groupPaths = {
     Projects: ['/projects', '/new-project', '/projects/edit'],
     Clients:  ['/clients/create', '/clients/edit'],
-    Admin:    ['/employees', '/clients', '/projects-admin', '/timesheets-approval'],
+    Admin:    ['/employees', '/clients', '/projects-admin'],
   };
   const [openGroups, setOpenGroups] = useState(() => {
     const init = {};

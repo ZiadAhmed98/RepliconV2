@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { z }      from 'zod';
 import crypto     from 'crypto';
-import { requireAuth }            from '../lib/auth.js';
-import { logger, auditLog }       from '../lib/helpers.js';
-import { loadUsers }              from '../lib/rbac.js';
-import db                         from '../lib/db.js';
+import { requireAuth, hashPassword } from '../lib/auth.js';
+import { logger, auditLog }          from '../lib/helpers.js';
+import { loadUsers, saveUsers,
+         allPermissions, ALL_PAGES }  from '../lib/rbac.js';
+import db                            from '../lib/db.js';
 
 const router = Router();
 
@@ -99,6 +100,61 @@ router.delete('/api/v1/employees/:id', requireAuth, (req, res) => {
   db.prepare('UPDATE employees SET status=?, updatedAt=? WHERE id=?').run('inactive', new Date().toISOString(), req.params.id);
   auditLog(req.user.id, 'EMPLOYEE_DEACTIVATE', { id: req.params.id });
   res.json({ ok: true });
+});
+
+// ── System account management (admin only) ────────────────────────────────────
+
+router.get('/api/v1/employees/:id/account', requireAuth, (req, res) => {
+  if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin only' });
+  const emp = db.prepare('SELECT id, userId FROM employees WHERE id=?').get(req.params.id);
+  if (!emp) return res.status(404).json({ error: 'Employee not found' });
+  const users   = loadUsers();
+  const account = emp.userId ? (users[emp.userId] || null) : null;
+  res.json({
+    userId:      emp.userId || null,
+    hasAccount:  !!account,
+    isAdmin:     account?.isAdmin || false,
+    permissions: account?.permissions || {},
+  });
+});
+
+router.put('/api/v1/employees/:id/account', requireAuth, async (req, res) => {
+  if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin only' });
+  const emp = db.prepare('SELECT * FROM employees WHERE id=?').get(req.params.id);
+  if (!emp) return res.status(404).json({ error: 'Employee not found' });
+
+  const { userId, isAdmin, permissions, password } = req.body || {};
+  const uId = (userId !== undefined ? userId : emp.userId)?.toLowerCase().trim() || null;
+
+  if (userId !== undefined) {
+    db.prepare('UPDATE employees SET userId=?, updatedAt=? WHERE id=?')
+      .run(uId, new Date().toISOString(), req.params.id);
+  }
+
+  if (!uId) return res.json({ ok: true, hasAccount: false });
+
+  const users = loadUsers();
+  if (!users[uId]) {
+    if (!password) return res.status(400).json({ error: 'Password required to create a new account' });
+    users[uId] = {
+      id:          uId,
+      displayName: emp.displayName || `${emp.firstName} ${emp.lastName}`,
+      passwordHash: await hashPassword(password),
+      isAdmin:     isAdmin || false,
+      permissions: permissions || allPermissions(),
+      createdAt:   new Date().toISOString(),
+    };
+  } else {
+    users[uId].displayName = emp.displayName || `${emp.firstName} ${emp.lastName}`;
+    if (isAdmin     !== undefined) users[uId].isAdmin     = isAdmin;
+    if (permissions !== undefined) users[uId].permissions = permissions;
+    if (password)                  users[uId].passwordHash = await hashPassword(password);
+  }
+
+  ALL_PAGES.forEach(p => { if (users[uId].permissions[p] === undefined) users[uId].permissions[p] = true; });
+  saveUsers(users);
+  auditLog(req.user.id, 'EMPLOYEE_ACCOUNT_UPDATE', { employeeId: req.params.id, userId: uId });
+  res.json({ ok: true, hasAccount: true, isAdmin: users[uId].isAdmin });
 });
 
 // ── Profile ───────────────────────────────────────────────────────────────────

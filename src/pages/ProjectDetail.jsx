@@ -351,26 +351,35 @@ export default function ProjectDetail({ sessionUser }) {
   const navigate  = useNavigate();
   const { toast } = useToast();
 
-  const [project,  setProject]  = useState(null);
-  const [tasks,    setTasks]    = useState([]);
-  const [loading,  setLoading]  = useState(true);
+  const [project,   setProject]  = useState(null);
+  const [tasks,     setTasks]    = useState([]);
+  const [members,   setMembers]  = useState([]);
+  const [allEmps,   setAllEmps]  = useState([]);
+  const [loading,   setLoading]  = useState(true);
   const [activeTab, setActiveTab] = useState('tasks');
-  const [taskModal, setTaskModal] = useState(null); // null | { mode:'add' } | { mode:'edit', task }
+  const [taskModal, setTaskModal] = useState(null);
   const [xmlModal,  setXmlModal]  = useState(false);
+  const [addingMember, setAddingMember] = useState(false);
+  const [memberSearch, setMemberSearch] = useState('');
 
   const isAdmin = sessionUser?.isAdmin;
+  const canManageTeam = isAdmin || sessionUser?.role === 'pm';
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [pRes, tRes] = await Promise.all([
-        fetch(`/api/v1/psa/projects/${id}`, { credentials: 'include' }),
-        fetch(`/api/v1/psa/projects/${id}/tasks`, { credentials: 'include' }),
+      const [pRes, tRes, mRes, eRes] = await Promise.all([
+        fetch(`/api/v1/psa/projects/${id}`,           { credentials: 'include' }),
+        fetch(`/api/v1/psa/projects/${id}/tasks`,     { credentials: 'include' }),
+        fetch(`/api/v1/psa/projects/${id}/resources`, { credentials: 'include' }),
+        fetch('/api/v1/employees?status=active',       { credentials: 'include' }),
       ]);
-      const [pd, td] = await Promise.all([pRes.json(), tRes.json()]);
+      const [pd, td, md, ed] = await Promise.all([pRes.json(), tRes.json(), mRes.json(), eRes.json()]);
       if (!pRes.ok) { toast.error('Project not found'); navigate('/projects-admin'); return; }
       setProject(pd.project);
       setTasks(td.tasks || []);
+      setMembers(md.members || []);
+      setAllEmps((ed.employees || []).map(e => ({ ...e, skills: e.skills || [] })));
     } finally { setLoading(false); }
   }, [id]);
 
@@ -385,6 +394,25 @@ export default function ProjectDetail({ sessionUser }) {
   const handleXmlImported = (newTasks) => {
     setXmlModal(false);
     setTasks(newTasks);
+  };
+
+  const addMember = async (empId) => {
+    setAddingMember(true);
+    const r = await fetch(`/api/v1/psa/projects/${id}/resources`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ employeeId: empId }),
+    });
+    const d = await r.json();
+    if (!r.ok) { toast.error(d.error || 'Failed to add'); }
+    else { await load(); setMemberSearch(''); }
+    setAddingMember(false);
+  };
+
+  const removeMember = async (empId) => {
+    const r = await fetch(`/api/v1/psa/projects/${id}/resources/${empId}`, { method: 'DELETE', credentials: 'include' });
+    if (r.ok) { setMembers(prev => prev.filter(m => m.id !== empId)); toast.success('Removed from team'); }
+    else { const d = await r.json(); toast.error(d.error || 'Failed'); }
   };
 
   const handleDeleteTask = async (t) => {
@@ -524,12 +552,16 @@ export default function ProjectDetail({ sessionUser }) {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', padding: '4px', width: 'fit-content' }}>
-        {[{ key: 'tasks', label: 'Tasks', icon: 'bx-task' }, { key: 'info', label: 'Info', icon: 'bx-info-circle' }].map(tab => (
+        {[
+          { key: 'tasks', label: 'Tasks', icon: 'bx-task', badge: tasks.length },
+          { key: 'team',  label: 'Team',  icon: 'bx-group', badge: members.length },
+          { key: 'info',  label: 'Info',  icon: 'bx-info-circle' },
+        ].map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)}
             style={{ display: 'flex', alignItems: 'center', gap: '6px', background: activeTab === tab.key ? 'rgba(124,58,237,0.2)' : 'transparent', border: activeTab === tab.key ? '1px solid rgba(139,92,246,0.4)' : '1px solid transparent', borderRadius: '8px', padding: '7px 16px', cursor: 'pointer', color: activeTab === tab.key ? '#c4b5fd' : 'var(--text-muted)', fontSize: '0.85rem', fontFamily: 'inherit', fontWeight: activeTab === tab.key ? 600 : 400, transition: 'all 0.15s' }}>
             <i className={`bx ${tab.icon}`} style={{ fontSize: '0.95rem' }} />{tab.label}
-            {tab.key === 'tasks' && tasks.length > 0 && (
-              <span style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8', borderRadius: '9px', padding: '0 6px', fontSize: '0.7rem', fontWeight: 700 }}>{tasks.length}</span>
+            {tab.badge > 0 && (
+              <span style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8', borderRadius: '9px', padding: '0 6px', fontSize: '0.7rem', fontWeight: 700 }}>{tab.badge}</span>
             )}
           </button>
         ))}
@@ -584,6 +616,108 @@ export default function ProjectDetail({ sessionUser }) {
           </div>
         </>
       )}
+
+      {/* Team Tab */}
+      {activeTab === 'team' && (() => {
+        const assignedIds = new Set(members.map(m => m.id));
+        const searchLc    = memberSearch.toLowerCase();
+        const available   = allEmps.filter(e =>
+          !assignedIds.has(e.id) &&
+          (`${e.firstName} ${e.lastName} ${e.email || ''} ${e.employeeId || ''}`).toLowerCase().includes(searchLc)
+        );
+        const ROLE_C = { admin: '#a855f7', pm: '#6366f1', resource: '#64748b' };
+
+        return (
+          <div style={{ maxWidth: '700px' }}>
+            {/* PM note */}
+            {project.projectManagerName && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '10px', padding: '10px 16px', marginBottom: '18px' }}>
+                <i className='bx bx-user-pin' style={{ color: '#818cf8', fontSize: '18px' }} />
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                  Project Manager: <strong style={{ color: '#c4b5fd' }}>{project.projectManagerName}</strong>
+                  <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.25)', marginLeft: '8px' }}>(set on project, not in team list)</span>
+                </span>
+              </div>
+            )}
+
+            {/* Current team */}
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', overflow: 'hidden', marginBottom: '20px' }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                Assigned Team Members ({members.length})
+              </div>
+              {members.length === 0 ? (
+                <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                  <i className='bx bx-user-x' style={{ fontSize: '32px', display: 'block', marginBottom: '8px', opacity: 0.3 }} />
+                  No team members assigned yet
+                </div>
+              ) : members.map((m, i) => (
+                <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderBottom: i < members.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                  <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: `${ROLE_C[m.role] || '#64748b'}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '13px', color: ROLE_C[m.role] || '#64748b', flexShrink: 0 }}>
+                    {m.firstName?.[0]}{m.lastName?.[0]}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)' }}>{m.displayName || `${m.firstName} ${m.lastName}`}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '1px' }}>{m.email || m.employeeId || ''}</div>
+                  </div>
+                  <span style={{ fontSize: '0.72rem', background: `${ROLE_C[m.role] || '#64748b'}20`, color: ROLE_C[m.role] || '#64748b', borderRadius: '5px', padding: '2px 8px', fontWeight: 600 }}>
+                    {m.role === 'pm' ? 'PM' : m.role}
+                  </span>
+                  {canManageTeam && (
+                    <button onClick={() => removeMember(m.id)}
+                      style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', color: '#f87171', fontSize: '0.75rem', fontFamily: 'inherit' }}>
+                      Remove
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Add member */}
+            {canManageTeam && (
+              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '16px' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '12px' }}>Add Team Member</div>
+                <div style={{ position: 'relative', marginBottom: '12px' }}>
+                  <i className='bx bx-search' style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '15px' }} />
+                  <input
+                    value={memberSearch}
+                    onChange={e => setMemberSearch(e.target.value)}
+                    placeholder="Search employees by name or email…"
+                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '8px 12px 8px 36px', color: 'var(--text-main)', fontSize: '0.85rem', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                  />
+                </div>
+                {memberSearch.length > 0 && (
+                  <div style={{ maxHeight: '220px', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px' }}>
+                    {available.length === 0 ? (
+                      <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.83rem' }}>
+                        {allEmps.filter(e => !assignedIds.has(e.id)).length === 0 ? 'All active employees are already assigned' : 'No employees match'}
+                      </div>
+                    ) : available.slice(0, 10).map(e => (
+                      <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)', transition: 'background 0.1s' }}
+                        onMouseEnter={ev => ev.currentTarget.style.background = 'rgba(139,92,246,0.08)'}
+                        onMouseLeave={ev => ev.currentTarget.style.background = 'transparent'}
+                        onClick={() => !addingMember && addMember(e.id)}>
+                        <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: `${ROLE_C[e.role] || '#64748b'}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '12px', color: ROLE_C[e.role] || '#64748b', flexShrink: 0 }}>
+                          {e.firstName?.[0]}{e.lastName?.[0]}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>{e.displayName || `${e.firstName} ${e.lastName}`}</div>
+                          {e.email && <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{e.email}</div>}
+                        </div>
+                        <span style={{ fontSize: '0.7rem', background: `${ROLE_C[e.role] || '#64748b'}20`, color: ROLE_C[e.role] || '#64748b', borderRadius: '4px', padding: '1px 6px', fontWeight: 600 }}>
+                          {e.role === 'pm' ? 'PM' : e.role}
+                        </span>
+                        <i className='bx bx-plus' style={{ color: '#a78bfa', fontSize: '18px' }} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Info Tab */}
       {activeTab === 'info' && (

@@ -21,7 +21,7 @@ const psaProjectSchema = z.object({
 });
 
 router.get('/api/v1/psa/projects', requireAuth, (req, res) => {
-  const { status, clientId, pmId, search } = req.query;
+  const { status, clientId, pmId, search, mine } = req.query;
   let q = `
     SELECT p.*, c.name AS clientName, e.firstName || ' ' || e.lastName AS projectManagerName
     FROM projects p
@@ -34,6 +34,15 @@ router.get('/api/v1/psa/projects', requireAuth, (req, res) => {
   if (clientId) { q += ' AND p.clientId = ?';         params.push(clientId); }
   if (pmId)     { q += ' AND p.projectManagerId = ?'; params.push(pmId); }
   if (search)   { q += ' AND (p.name LIKE ? OR p.code LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
+  if (mine === 'true') {
+    const emp = db.prepare('SELECT id FROM employees WHERE userId=?').get(req.user.id);
+    if (emp) {
+      q += ` AND (p.projectManagerId = ? OR EXISTS (
+        SELECT 1 FROM project_resources pr WHERE pr.projectId = p.id AND pr.employeeId = ?
+      ))`;
+      params.push(emp.id, emp.id);
+    }
+  }
   q += ' ORDER BY p.createdAt DESC';
   res.json({ projects: db.prepare(q).all(...params) });
 });
@@ -104,6 +113,47 @@ router.delete('/api/v1/psa/projects/:id', requireAuth, (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Project not found' });
   db.prepare('UPDATE projects SET status=?,updatedAt=? WHERE id=?').run('archived', new Date().toISOString(), req.params.id);
   auditLog(req.user.id, 'PROJECT_ARCHIVE', { id: req.params.id });
+  res.json({ ok: true });
+});
+
+// ── Project resource (team) assignment ────────────────────────────────────────
+
+router.get('/api/v1/psa/projects/:id/resources', requireAuth, (req, res) => {
+  const members = db.prepare(`
+    SELECT e.id, e.firstName, e.lastName, e.displayName, e.email, e.role, e.employeeId,
+           pr.assignedAt
+    FROM project_resources pr
+    JOIN employees e ON e.id = pr.employeeId
+    WHERE pr.projectId = ?
+    ORDER BY e.lastName, e.firstName
+  `).all(req.params.id);
+  res.json({ members });
+});
+
+router.post('/api/v1/psa/projects/:id/resources', requireAuth, (req, res) => {
+  if (!req.user.isAdmin && req.user.role !== 'pm') return res.status(403).json({ error: 'Admin or PM only' });
+  const { employeeId } = req.body || {};
+  if (!employeeId) return res.status(400).json({ error: 'employeeId required' });
+  const proj = db.prepare('SELECT id FROM projects WHERE id=?').get(req.params.id);
+  if (!proj) return res.status(404).json({ error: 'Project not found' });
+  const emp = db.prepare('SELECT id FROM employees WHERE id=?').get(employeeId);
+  if (!emp) return res.status(404).json({ error: 'Employee not found' });
+  try {
+    db.prepare('INSERT INTO project_resources (projectId, employeeId, assignedAt) VALUES (?,?,?)')
+      .run(req.params.id, employeeId, new Date().toISOString());
+  } catch (e) {
+    if (e.message?.includes('UNIQUE')) return res.status(409).json({ error: 'Already assigned' });
+    throw e;
+  }
+  auditLog(req.user.id, 'PROJECT_RESOURCE_ADD', { projectId: req.params.id, employeeId });
+  res.status(201).json({ ok: true });
+});
+
+router.delete('/api/v1/psa/projects/:id/resources/:employeeId', requireAuth, (req, res) => {
+  if (!req.user.isAdmin && req.user.role !== 'pm') return res.status(403).json({ error: 'Admin or PM only' });
+  db.prepare('DELETE FROM project_resources WHERE projectId=? AND employeeId=?')
+    .run(req.params.id, req.params.employeeId);
+  auditLog(req.user.id, 'PROJECT_RESOURCE_REMOVE', { projectId: req.params.id, employeeId: req.params.employeeId });
   res.json({ ok: true });
 });
 
