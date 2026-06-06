@@ -24,6 +24,8 @@ COPY --from=builder /app/node_modules ./node_modules
 # Copy built frontend and server
 COPY --from=builder /app/dist ./dist
 COPY server.js .
+COPY lib/ ./lib/
+COPY routes/ ./routes/
 COPY .env .
 
 EXPOSE 3000
