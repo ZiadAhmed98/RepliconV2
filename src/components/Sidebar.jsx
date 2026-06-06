@@ -1,38 +1,40 @@
 import React, { useState } from 'react';
-import { NavLink, useLocation, useNavigate, Link } from 'react-router-dom';
+import { NavLink, useLocation, Link } from 'react-router-dom';
 import { usePermissions } from '../context/PermissionContext';
 
 // ── Navigation structure ───────────────────────────────────────────────────
+// Groups: each child has its own perm — group is visible when ≥1 child passes.
+// Standalone items: use top-level perm directly.
 const NAV = [
-  // ── Analytics / Replicon views (read-only dashboard data) ──
-  { to: '/',             icon: 'bx-line-chart',       label: 'Dashboard',   perm: 'dashboard'  },
-  { to: '/employee',     icon: 'bx-user-pin',         label: 'Workforce',   perm: 'employees'  },
-  { to: '/timesheets',   icon: 'bx-time-five',        label: 'Timesheets',  perm: 'timesheets', badge: true },
   {
-    label: 'Projects', icon: 'bx-folder', group: true, perm: 'projects',
+    label: 'Analytics', icon: 'bx-line-chart', group: true,
     children: [
-      { to: '/projects',      icon: 'bx-bar-chart-alt-2', label: 'Analytics'    },
-      { to: '/new-project',   icon: 'bx-plus-circle',     label: 'Add Project'  },
-      { to: '/projects/edit', icon: 'bx-edit',            label: 'Edit Project' },
+      { to: '/dashboard',  icon: 'bx-grid-alt',        label: 'Dashboard', perm: 'dashboard' },
+      { to: '/employee',   icon: 'bx-users',            label: 'Employees', perm: 'employees' },
+      { to: '/projects',   icon: 'bx-bar-chart-alt-2',  label: 'Projects',  perm: 'projects'  },
     ],
   },
-  { to: '/ai-insights',  icon: 'bx-brain',            label: 'AI Insights', perm: 'aiInsights', glow: true },
-  { to: '/my-timesheet',       icon: 'bx-calendar-check',  label: 'My Time',     perm: 'myTimesheet'       },
-  { to: '/timesheets-approval', icon: 'bx-check-double',   label: 'Approvals',   perm: 'timesheetApproval' },
-
-  // ── Admin — data management (PSA build) ──
   {
-    label: 'Admin', icon: 'bx-shield', group: true, perm: 'settings',
+    label: 'Replicon', icon: 'bx-sync', group: true,
     children: [
-      { to: '/employees',      icon: 'bx-group',       label: 'Employees' },
-      { to: '/clients',        icon: 'bx-briefcase',   label: 'Clients'   },
-      { to: '/projects-admin', icon: 'bx-folder-open', label: 'Projects'  },
+      { to: '/new-project',   icon: 'bx-plus-circle', label: 'Add Project',   perm: 'projects'   },
+      { to: '/projects/edit', icon: 'bx-edit',         label: 'Edit Projects', perm: 'projects'   },
+      { to: '/timesheets',    icon: 'bx-time-five',    label: 'Timesheets',    perm: 'timesheets', badge: true },
     ],
   },
-  { to: '/settings',    icon: 'bx-cog',            label: 'Settings',    perm: 'settings'   },
+  {
+    label: 'Test', icon: 'bx-test-tube', group: true,
+    children: [
+      { to: '/my-timesheet',        icon: 'bx-calendar-check', label: 'My Time',   perm: 'myTimesheet'       },
+      { to: '/timesheets-approval', icon: 'bx-check-double',   label: 'Approvals', perm: 'timesheetApproval' },
+      { to: '/clients',             icon: 'bx-briefcase',      label: 'Clients',   perm: 'clients'           },
+      { to: '/projects-admin',      icon: 'bx-folder-open',    label: 'Projects',  perm: 'projects'          },
+    ],
+  },
+  { to: '/ai-insights', icon: 'bx-brain', label: 'AI Insights', perm: 'aiInsights', glow: true },
 ];
 
-// ── Inline style helpers ───────────────────────────────────────────────────
+// ── Style helpers ──────────────────────────────────────────────────────────
 const S = {
   sidebar: (w) => ({
     width: w, minHeight: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 1100,
@@ -55,7 +57,10 @@ const S = {
     width: '36px', height: '36px', borderRadius: '10px', flexShrink: 0,
     display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
-  nav: { flex: 1, padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: '2px', overflowY: 'auto', overflowX: 'hidden' },
+  nav: {
+    flex: 1, padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: '2px',
+    overflowY: 'auto', overflowX: 'hidden',
+  },
   link: (isActive, collapsed) => ({
     display: 'flex', alignItems: 'center', gap: '11px',
     padding: collapsed ? '11px 18px' : '9px 12px',
@@ -84,12 +89,13 @@ const S = {
     cursor: 'pointer', transition: 'all 0.18s',
     whiteSpace: 'nowrap', overflow: 'hidden', width: '100%', fontFamily: 'inherit',
   }),
-  icon: (isActive) => ({
-    fontSize: '1.1rem', color: isActive ? '#a78bfa' : 'rgba(255,255,255,0.4)',
+  icon: (isActive, glow) => ({
+    fontSize: '1.1rem',
+    color: isActive ? (glow ? '#a78bfa' : '#a78bfa') : glow ? 'rgba(139,92,246,0.7)' : 'rgba(255,255,255,0.4)',
     flexShrink: 0, transition: 'color 0.18s, filter 0.18s',
     filter: isActive ? 'drop-shadow(0 0 5px rgba(167,139,250,0.7))' : 'none',
   }),
-  label: (isActive) => ({
+  labelText: (isActive) => ({
     fontSize: '13px', fontWeight: isActive ? 600 : 500,
     letterSpacing: '-0.01em', transition: 'color 0.18s',
   }),
@@ -105,7 +111,7 @@ const S = {
     transition: 'transform 0.2s', transform: open ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0,
   }),
   subGroup: (open) => ({
-    overflow: 'hidden', maxHeight: open ? '300px' : '0px',
+    overflow: 'hidden', maxHeight: open ? '400px' : '0px',
     transition: 'max-height 0.25s cubic-bezier(0.4,0,0.2,1)',
     paddingLeft: '8px',
   }),
@@ -127,43 +133,51 @@ const S = {
 };
 
 export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, collapsed, onToggle }) {
-  const location    = useLocation();
+  const location  = useLocation();
   const { permissions, isAdmin } = usePermissions();
-  const sidebarW    = collapsed ? 'var(--sidebar-wc, 72px)' : 'var(--sidebar-w, 240px)';
-  const userName    = sessionUser?.name || 'User';
+  const sidebarW  = collapsed ? 'var(--sidebar-wc, 72px)' : 'var(--sidebar-w, 240px)';
+  const userName  = sessionUser?.name || 'User';
 
+  // ── Permission helper ──────────────────────────────────────────────────
   const canSee = (perm) => {
     if (!perm) return true;
-    if (perm === 'settings') return isAdmin;
-    return isAdmin || permissions[perm] === true;
+    if (isAdmin) return true;
+    return permissions[perm] === true;
   };
 
-  const visibleNav = NAV.filter(item => canSee(item.perm));
+  // ── Visible children per group ─────────────────────────────────────────
+  const visibleKids = (group) => group.children.filter(c => canSee(c.perm));
 
-  // Track which groups are open — default open if current route is inside
-  const groupPaths = {
-    Projects: ['/projects', '/new-project', '/projects/edit'],
-    Clients:  ['/clients/create', '/clients/edit'],
-    Admin:    ['/employees', '/clients', '/projects-admin'],
-  };
+  // ── Filter top-level NAV ───────────────────────────────────────────────
+  const visibleNav = NAV.filter(item =>
+    item.group ? visibleKids(item).length > 0 : canSee(item.perm)
+  );
+
+  // ── Open-group state — auto-open if current route is inside ───────────
   const [openGroups, setOpenGroups] = useState(() => {
     const init = {};
-    Object.entries(groupPaths).forEach(([g, paths]) => {
-      init[g] = paths.some(p => location.pathname === p || location.pathname.startsWith(p + '/'));
+    NAV.filter(i => i.group).forEach(g => {
+      init[g.label] = g.children.some(c =>
+        location.pathname === c.to || location.pathname.startsWith(c.to + '/')
+      );
     });
     return init;
   });
 
   const toggleGroup = (label) => setOpenGroups(prev => ({ ...prev, [label]: !prev[label] }));
 
-  const isGroupActive = (item) => item.children?.some(c => location.pathname === c.to || location.pathname.startsWith(c.to + '/')) ?? false;
+  const isGroupActive = (group) =>
+    group.children.some(c => location.pathname === c.to || location.pathname.startsWith(c.to + '/'));
+
+  const isAdminRouteActive = location.pathname === '/administration';
 
   return (
     <aside style={S.sidebar(sidebarW)}>
-      {/* Logo */}
+
+      {/* ── Logo ──────────────────────────────────────────────────────── */}
       <div style={S.logoWrap(collapsed)}>
         <div style={S.logoIcon}>
-          <img src="/logo.png" alt="Liveroute" style={{ width: '36px', height: '36px', borderRadius: '10px', objectFit: 'contain', display: 'block' }} />
+          <img src="/logo.png" alt="Logo" style={{ width: '36px', height: '36px', borderRadius: '10px', objectFit: 'contain', display: 'block' }} />
         </div>
         {!collapsed && (
           <div style={{ overflow: 'hidden' }}>
@@ -173,27 +187,29 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
         )}
       </div>
 
-      {/* Nav */}
+      {/* ── Nav ───────────────────────────────────────────────────────── */}
       <nav style={S.nav}>
         {visibleNav.map((item) => {
+
+          // ── Collapsible group ──────────────────────────────────────
           if (item.group) {
+            const kids      = visibleKids(item);
             const anyActive = isGroupActive(item);
-            const open = openGroups[item.label];
+            const open      = openGroups[item.label];
+
             if (collapsed) {
-              // Collapsed: show first active child or group icon only
-              const activeChild = item.children.find(c => location.pathname === c.to);
               return (
-                <div key={item.label} style={{ position: 'relative' }}>
+                <div key={item.label} title={item.label}>
                   <button
-                    title={item.label}
                     onClick={() => toggleGroup(item.label)}
                     style={{ ...S.groupBtn(anyActive), padding: '11px 18px', justifyContent: 'center' }}
                   >
-                    <i className={`bx ${item.icon}`} style={S.icon(anyActive)} />
+                    <i className={`bx ${item.icon}`} style={S.icon(anyActive, false)} />
                   </button>
                 </div>
               );
             }
+
             return (
               <div key={item.label}>
                 <button
@@ -202,14 +218,16 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
                   onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
                   onMouseLeave={e => { e.currentTarget.style.background = anyActive ? 'rgba(139,92,246,0.08)' : 'transparent'; e.currentTarget.style.color = anyActive ? '#fff' : 'rgba(255,255,255,0.45)'; }}
                 >
-                  <i className={`bx ${item.icon}`} style={S.icon(anyActive)} />
-                  <span style={S.label(anyActive)}>{item.label}</span>
+                  <i className={`bx ${item.icon}`} style={S.icon(anyActive, false)} />
+                  <span style={S.labelText(anyActive)}>{item.label}</span>
                   <i className='bx bx-chevron-right' style={S.chevron(open)} />
                 </button>
                 <div style={S.subGroup(open)}>
-                  {item.children.map(child => (
+                  {kids.map(child => (
                     <NavLink
-                      key={child.to} to={child.to} end={child.to === '/projects'}
+                      key={child.to}
+                      to={child.to}
+                      end={child.to === '/projects' || child.to === '/dashboard'}
                       style={({ isActive }) => S.subLink(isActive)}
                       onMouseEnter={e => { if (!e.currentTarget.style.background.includes('rgba(139')) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
                       onMouseLeave={e => { if (!e.currentTarget.style.background.includes('rgba(139')) e.currentTarget.style.background = 'transparent'; }}
@@ -217,7 +235,12 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
                       {({ isActive }) => (
                         <>
                           <i className={`bx ${child.icon}`} style={{ fontSize: '0.95rem', color: isActive ? '#a78bfa' : 'rgba(255,255,255,0.35)', flexShrink: 0, filter: isActive ? 'drop-shadow(0 0 4px rgba(167,139,250,0.6))' : 'none' }} />
-                          <span style={{ fontSize: '12px', fontWeight: isActive ? 600 : 400 }}>{child.label}</span>
+                          <span style={{ fontSize: '12px', fontWeight: isActive ? 600 : 400, flex: 1 }}>{child.label}</span>
+                          {child.badge && pendingCount > 0 && (
+                            <span style={{ ...S.badge, marginLeft: 'auto', minWidth: '16px', height: '16px', fontSize: '9px' }}>
+                              {pendingCount > 99 ? '99+' : pendingCount}
+                            </span>
+                          )}
                         </>
                       )}
                     </NavLink>
@@ -227,25 +250,27 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
             );
           }
 
-          // Regular link
+          // ── Standalone link ────────────────────────────────────────
           return (
             <NavLink
-              key={item.to} to={item.to} end={item.to === '/'}
+              key={item.to}
+              to={item.to}
+              end={item.to === '/'}
               title={collapsed ? item.label : undefined}
-              style={({ isActive }) => ({ ...S.link(isActive, collapsed), ...(item.glow && isActive ? { boxShadow: '0 0 16px rgba(139,92,246,0.3), inset 0 1px 0 rgba(255,255,255,0.08)' } : {}) })}
+              style={({ isActive }) => ({
+                ...S.link(isActive, collapsed),
+                ...(item.glow && isActive ? { boxShadow: '0 0 16px rgba(139,92,246,0.3), inset 0 1px 0 rgba(255,255,255,0.08)' } : {}),
+              })}
               onMouseEnter={e => { const el = e.currentTarget; if (!el.style.background.includes('rgba(124')) { el.style.background = 'rgba(255,255,255,0.04)'; el.style.color = 'rgba(255,255,255,0.7)'; } }}
               onMouseLeave={e => { const el = e.currentTarget; if (!el.style.background.includes('rgba(124')) { el.style.background = 'transparent'; el.style.color = 'rgba(255,255,255,0.45)'; } }}
             >
               {({ isActive }) => (
                 <>
-                  <i className={`bx ${item.icon}`} style={{ ...S.icon(isActive), ...(item.glow ? { color: isActive ? '#a78bfa' : 'rgba(139,92,246,0.7)' } : {}) }} />
-                  {!collapsed && <span style={S.label(isActive)}>{item.label}</span>}
-                  {item.badge && pendingCount > 0 && (
-                    <span style={{ ...S.badge, marginLeft: collapsed ? 'unset' : 'auto', position: collapsed ? 'absolute' : 'static', top: collapsed ? '5px' : 'auto', right: collapsed ? '5px' : 'auto', minWidth: collapsed ? '16px' : '18px', height: collapsed ? '16px' : '18px', fontSize: '9px' }}>
-                      {pendingCount > 99 ? '99+' : pendingCount}
-                    </span>
+                  <i className={`bx ${item.icon}`} style={S.icon(isActive, item.glow)} />
+                  {!collapsed && <span style={S.labelText(isActive)}>{item.label}</span>}
+                  {item.glow && !collapsed && (
+                    <i className='bx bx-sparkles' style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'rgba(139,92,246,0.6)', flexShrink: 0 }} />
                   )}
-                  {item.glow && !collapsed && <i className='bx bx-sparkles' style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'rgba(139,92,246,0.6)', flexShrink: 0 }} />}
                 </>
               )}
             </NavLink>
@@ -253,8 +278,41 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
         })}
       </nav>
 
-      {/* Bottom */}
+      {/* ── Bottom section ────────────────────────────────────────────── */}
       <div style={S.bottom}>
+
+        {/* Administration link — admin / supervisor only */}
+        {canSee('administration') && (
+          <NavLink
+            to="/administration"
+            title={collapsed ? 'Administration' : undefined}
+            style={({ isActive }) => ({
+              display: 'flex', alignItems: 'center', gap: '11px',
+              padding: collapsed ? '10px 18px' : '9px 12px',
+              borderRadius: '11px', textDecoration: 'none',
+              color: isActive ? '#fcd34d' : 'rgba(255,255,255,0.35)',
+              background: isActive ? 'rgba(251,191,36,0.08)' : 'transparent',
+              border: isActive ? '1px solid rgba(251,191,36,0.25)' : '1px solid transparent',
+              transition: 'all 0.18s', whiteSpace: 'nowrap', overflow: 'hidden',
+              marginBottom: '4px',
+            })}
+            onMouseEnter={e => { if (!e.currentTarget.style.background.includes('rgba(251')) { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = 'rgba(255,255,255,0.65)'; } }}
+            onMouseLeave={e => {
+              const isActive = location.pathname === '/administration';
+              e.currentTarget.style.background = isActive ? 'rgba(251,191,36,0.08)' : 'transparent';
+              e.currentTarget.style.color = isActive ? '#fcd34d' : 'rgba(255,255,255,0.35)';
+            }}
+          >
+            {({ isActive }) => (
+              <>
+                <i className='bx bx-shield-alt-2' style={{ fontSize: '1.1rem', color: isActive ? '#fcd34d' : 'rgba(255,255,255,0.3)', flexShrink: 0, filter: isActive ? 'drop-shadow(0 0 5px rgba(251,191,36,0.5))' : 'none' }} />
+                {!collapsed && <span style={{ fontSize: '13px', fontWeight: isActive ? 600 : 500, letterSpacing: '-0.01em' }}>Administration</span>}
+              </>
+            )}
+          </NavLink>
+        )}
+
+        {/* Collapse toggle */}
         <button
           style={{ ...S.collapseBtn, justifyContent: collapsed ? 'center' : 'flex-start' }}
           onClick={onToggle}
@@ -265,9 +323,11 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
           {!collapsed && <span style={{ fontSize: '12px', fontWeight: 500, fontFamily: 'inherit' }}>Collapse</span>}
         </button>
 
+        {/* User avatar + logout */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: collapsed ? '10px 12px' : '6px 8px' }}>
-          {/* Avatar + name → profile */}
-          <Link to="/profile" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 8px', borderRadius: '10px', textDecoration: 'none', transition: 'background 0.15s', minWidth: 0 }}
+          <Link
+            to="/profile"
+            style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 8px', borderRadius: '10px', textDecoration: 'none', transition: 'background 0.15s', minWidth: 0 }}
             title={collapsed ? `${userName} — My Profile` : undefined}
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(168,85,247,0.1)'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
@@ -280,8 +340,9 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
               </div>
             )}
           </Link>
-          {/* Logout icon */}
-          <button onClick={onLogout} title="Logout"
+          <button
+            onClick={onLogout}
+            title="Logout"
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px 8px', borderRadius: '8px', color: 'rgba(239,68,68,0.5)', fontSize: '15px', flexShrink: 0, transition: 'all 0.15s' }}
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; e.currentTarget.style.color = '#ef4444'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'rgba(239,68,68,0.5)'; }}

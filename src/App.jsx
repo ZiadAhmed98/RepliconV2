@@ -28,6 +28,7 @@ import Profile         from './pages/Profile';
 import ProjectsAdmin      from './pages/ProjectsAdmin';
 import ProjectDetail      from './pages/ProjectDetail';
 import TimesheetApproval  from './pages/TimesheetApproval';
+import Administration    from './pages/Administration';
 
 import { useRepliconData }    from './hooks/useRepliconData';
 import { repliconApi }        from './api/replicon';
@@ -181,11 +182,12 @@ function AppContent() {
                 <Route path="/my-timesheet"   element={<GuardedRoute page="myTimesheet"><MyTimesheet    dataMatrix={dataMatrix} /></GuardedRoute>} />
                 <Route path="/employees"           element={<GuardedRoute page="employees" ><Employees       sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/clients"             element={<GuardedRoute page="clients"  ><Clients         sessionUser={sessionUser} /></GuardedRoute>} />
-                <Route path="/projects-admin"      element={<GuardedRoute page="settings" ><ProjectsAdmin   sessionUser={sessionUser} /></GuardedRoute>} />
-                <Route path="/projects-admin/:id"  element={<GuardedRoute page="settings" ><ProjectDetail   sessionUser={sessionUser} /></GuardedRoute>} />
+                <Route path="/projects-admin"      element={<GuardedRoute page="projects"       ><ProjectsAdmin   sessionUser={sessionUser} /></GuardedRoute>} />
+                <Route path="/projects-admin/:id"  element={<GuardedRoute page="projects"       ><ProjectDetail   sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/profile"             element={<Profile />} />
                 <Route path="/timesheets-approval" element={<GuardedRoute page="timesheetApproval"><TimesheetApproval sessionUser={sessionUser} /></GuardedRoute>} />
-                <Route path="/settings"       element={<GuardedRoute page="settings" ><Settings         sessionUser={sessionUser} /></GuardedRoute>} />
+                <Route path="/settings"            element={<GuardedRoute page="administration"  ><Settings         sessionUser={sessionUser} /></GuardedRoute>} />
+                <Route path="/administration"      element={<GuardedRoute page="administration"  ><Administration /></GuardedRoute>} />
               </Routes>
             )}
           </main>
