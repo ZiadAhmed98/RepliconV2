@@ -1,11 +1,56 @@
 import { Router } from 'express';
 import crypto     from 'crypto';
-import { requireAuth }                      from '../lib/auth.js';
+import { requireAuth, requireAdmin }        from '../lib/auth.js';
 import { auditLog }                         from '../lib/helpers.js';
 import db, { buildTimesheetRows,
              buildSingleRow }               from '../lib/db.js';
 
 const router = Router();
+
+// ── Admin: list all timesheets across all users ───────────────────────────────
+router.get('/api/v1/admin/psa/timesheets', requireAdmin, (req, res) => {
+  const { status, userId } = req.query;
+  let q = `
+    SELECT ts.*,
+           COALESCE(e.displayName, e.firstName || ' ' || e.lastName, ts.userId) AS employeeName
+    FROM psa_timesheets ts
+    LEFT JOIN employees e ON e.userId = ts.userId
+    WHERE 1=1
+  `;
+  const params = [];
+  if (status && status !== 'all') { q += ' AND ts.status = ?'; params.push(status); }
+  if (userId)                     { q += ' AND ts.userId = ?'; params.push(userId); }
+  q += ' ORDER BY ts.weekStart DESC, employeeName ASC';
+  const rows = db.prepare(q).all(...params);
+  const timesheets = rows.map(ts => {
+    const rows2 = buildTimesheetRows(ts.id);
+    const totalHours = rows2.reduce((sum, r) => sum + Object.values(r.hours || {}).reduce((s, h) => s + h, 0), 0);
+    return { ...ts, rows: rows2, totalHours: Math.round(totalHours * 4) / 4 };
+  });
+  res.json({ timesheets });
+});
+
+// ── Admin: approve a timesheet ────────────────────────────────────────────────
+router.post('/api/v1/admin/psa/timesheets/:id/approve', requireAdmin, (req, res) => {
+  const ts = db.prepare('SELECT * FROM psa_timesheets WHERE id=?').get(req.params.id);
+  if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
+  if (ts.status === 'approved') return res.status(409).json({ error: 'Already approved' });
+  db.prepare('UPDATE psa_timesheets SET status=?,rejectedReason=NULL,updatedAt=? WHERE id=?')
+    .run('approved', new Date().toISOString(), req.params.id);
+  auditLog(req.user.id, 'TIMESHEET_APPROVED', { timesheetId: req.params.id, userId: ts.userId, weekStart: ts.weekStart });
+  res.json({ ok: true, status: 'approved' });
+});
+
+// ── Admin: reject a timesheet ─────────────────────────────────────────────────
+router.post('/api/v1/admin/psa/timesheets/:id/reject', requireAdmin, (req, res) => {
+  const ts = db.prepare('SELECT * FROM psa_timesheets WHERE id=?').get(req.params.id);
+  if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
+  const { reason } = req.body || {};
+  db.prepare('UPDATE psa_timesheets SET status=?,rejectedReason=?,updatedAt=? WHERE id=?')
+    .run('rejected', reason || null, new Date().toISOString(), req.params.id);
+  auditLog(req.user.id, 'TIMESHEET_REJECTED', { timesheetId: req.params.id, userId: ts.userId, weekStart: ts.weekStart, reason });
+  res.json({ ok: true, status: 'rejected' });
+});
 
 router.get('/api/v1/psa/timesheets', requireAuth, (req, res) => {
   const { weekStart } = req.query;

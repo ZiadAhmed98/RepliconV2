@@ -23,9 +23,10 @@ const NAV = [
   {
     label: 'Admin', icon: 'bx-shield', group: true, perm: 'settings',
     children: [
-      { to: '/employees',      icon: 'bx-group',       label: 'Employees' },
-      { to: '/clients',        icon: 'bx-briefcase',   label: 'Clients'   },
-      { to: '/projects-admin', icon: 'bx-folder-open', label: 'Projects'  },
+      { to: '/employees',          icon: 'bx-group',        label: 'Employees'  },
+      { to: '/clients',            icon: 'bx-briefcase',    label: 'Clients'    },
+      { to: '/projects-admin',     icon: 'bx-folder-open',  label: 'Projects'   },
+      { to: '/timesheets-approval', icon: 'bx-check-double', label: 'Timesheets' },
     ],
   },
   { to: '/settings',    icon: 'bx-cog',            label: 'Settings',    perm: 'settings'   },
@@ -143,7 +144,7 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
   const groupPaths = {
     Projects: ['/projects', '/new-project', '/projects/edit'],
     Clients:  ['/clients/create', '/clients/edit'],
-    Admin:    ['/employees', '/clients', '/projects-admin'],
+    Admin:    ['/employees', '/clients', '/projects-admin', '/timesheets-approval'],
   };
   const [openGroups, setOpenGroups] = useState(() => {
     const init = {};
