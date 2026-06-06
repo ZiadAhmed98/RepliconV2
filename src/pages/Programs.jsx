@@ -91,7 +91,7 @@ function ProgramCard({ program, isAdmin, onEdit, onDelete }) {
 
       {/* Projects list */}
       {expanded && (
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', padding: '0 20px 16px' }}>
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', padding: '0 20px 16px', maxHeight: '300px', overflowY: 'auto' }}>
           {program.projects.length === 0 ? (
             <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px' }}>
               No projects linked to this program yet.
@@ -329,7 +329,7 @@ export default function Programs() {
           {search ? 'No programs match your search.' : 'No programs found.'}
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(480px, 1fr))', gap: '14px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(480px, 1fr))', gap: '14px', alignItems: 'start' }}>
           {filtered.map(prog => (
             <ProgramCard
               key={prog.id}
