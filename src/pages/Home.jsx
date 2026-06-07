@@ -112,7 +112,7 @@ function ResourceHome({ summary, sessionUser, nav, onRefresh }) {
   const name = sessionUser?.displayName || sessionUser?.name || 'there';
 
   return (
-    <div style={{ padding:'28px 32px', maxWidth:'1280px' }}>
+    <div style={{ padding:'28px 32px' }}>
 
       {/* Header */}
       <div style={{ marginBottom:'24px' }}>
@@ -357,7 +357,7 @@ function AdminHome({ summary, sessionUser, nav, onRefresh }) {
   };
 
   return (
-    <div style={{ padding:'28px 32px', maxWidth:'1280px' }}>
+    <div style={{ padding:'28px 32px' }}>
       <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
 
       {/* Header */}

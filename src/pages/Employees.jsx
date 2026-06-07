@@ -341,7 +341,7 @@ export default function Employees({ sessionUser }) {
   };
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: '1100px' }}>
+    <div style={{ padding: '32px 40px' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px', flexWrap: 'wrap', gap: '12px' }}>
         <div>

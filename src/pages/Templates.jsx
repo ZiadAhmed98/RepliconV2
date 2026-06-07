@@ -170,7 +170,7 @@ export default function Templates({ sessionUser }) {
     : pending;
 
   return (
-    <div style={{ padding:'28px 36px', maxWidth:'1200px' }}>
+    <div style={{ padding:'28px 36px' }}>
 
       {/* Header */}
       <div style={{ display:'flex', alignItems:'center', gap:'14px', marginBottom:'28px' }}>

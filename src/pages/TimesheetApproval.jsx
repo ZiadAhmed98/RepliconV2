@@ -271,7 +271,7 @@ export default function TimesheetApproval() {
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div style={{ padding: '28px 32px' }}>
 
       {/* Header */}
       <div style={{ marginBottom: '28px' }}>

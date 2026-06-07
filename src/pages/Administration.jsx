@@ -188,7 +188,7 @@ export default function Administration() {
   const navigate = useNavigate();
 
   return (
-    <div style={{ padding: '28px 36px', maxWidth: '1200px' }}>
+    <div style={{ padding: '28px 36px' }}>
 
       {/* Page header */}
       <div style={{ marginBottom: '36px' }}>

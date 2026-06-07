@@ -277,7 +277,7 @@ export default function Clients({ sessionUser }) {
   };
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: '1200px' }}>
+    <div style={{ padding: '32px 40px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-main)' }}>
