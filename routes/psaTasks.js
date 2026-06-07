@@ -33,14 +33,22 @@ router.post('/api/v1/psa/parse-xml', requireAuth, (req, res) => {
 });
 
 router.get('/api/v1/psa/tasks', requireAuth, (req, res) => {
-  const { projectId } = req.query;
+  const { projectId, mine } = req.query;
   let q = `
-    SELECT t.*, p.name AS projectName, p.clientId
-    FROM tasks t LEFT JOIN projects p ON p.id = t.projectId
+    SELECT t.*, p.name AS projectName, p.clientId, c.name AS clientName
+    FROM tasks t
+    LEFT JOIN projects p ON p.id = t.projectId
+    LEFT JOIN clients  c ON c.id = p.clientId
     WHERE 1=1
   `;
   const params = [];
   if (projectId) { q += ' AND t.projectId = ?'; params.push(projectId); }
+  if (mine === 'true') {
+    const emp = db.prepare('SELECT id FROM employees WHERE userId=?').get(req.user.id);
+    if (!emp) return res.json({ tasks: [] });
+    q += ' AND EXISTS (SELECT 1 FROM task_resources tr WHERE tr.taskId = t.id AND tr.employeeId = ?)';
+    params.push(emp.id);
+  }
   q += ' ORDER BY t.sortOrder ASC, t.name ASC';
   res.json({ tasks: db.prepare(q).all(...params) });
 });

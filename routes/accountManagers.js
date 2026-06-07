@@ -30,7 +30,15 @@ router.get('/api/v1/account-managers/:id', requireAuth, (req, res) => {
   const am = db.prepare('SELECT * FROM account_managers WHERE id=?').get(req.params.id);
   if (!am) return res.status(404).json({ error: 'Account manager not found' });
   const clients = db.prepare('SELECT id, name, status FROM clients WHERE managerId=? ORDER BY name').all(req.params.id);
-  res.json({ accountManager: { ...am, clients } });
+  const projects = db.prepare(`
+    SELECT p.id, p.name, p.code, p.status, p.clientId, c.name AS clientName
+    FROM projects p
+    LEFT JOIN clients c ON c.id = p.clientId
+    WHERE c.managerId = ? AND p.status != 'archived'
+    ORDER BY c.name ASC, p.name ASC
+  `).all(req.params.id);
+  const clientCount = db.prepare('SELECT COUNT(*) AS n FROM clients WHERE managerId=? AND status=?').get(req.params.id, 'active')?.n ?? 0;
+  res.json({ accountManager: { ...am, clients, projects, clientCount } });
 });
 
 router.post('/api/v1/account-managers', requireAdmin, (req, res) => {

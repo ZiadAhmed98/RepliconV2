@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 
 const ST = {
@@ -135,18 +136,21 @@ function AMModal({ am, onSave, onClose }) {
 
 // ── AM Card ────────────────────────────────────────────────────────────────────
 
-function AMCard({ am, isAdmin, onEdit, onToggle }) {
+function AMCard({ am, isAdmin, onEdit, onToggle, onNavigate }) {
   const st = ST[am.status] || ST.inactive;
   const initials = `${am.firstName?.[0] || ''}${am.lastName?.[0] || ''}`.toUpperCase() || '?';
 
   return (
-    <div style={{
-      background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
-      borderRadius: '14px', padding: '20px',
-      opacity: am.status === 'inactive' ? 0.55 : 1,
-      display: 'flex', flexDirection: 'column',
-      transition: 'border-color 0.2s, transform 0.15s',
-    }}
+    <div
+      onClick={onNavigate}
+      style={{
+        background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+        borderRadius: '14px', padding: '20px',
+        opacity: am.status === 'inactive' ? 0.55 : 1,
+        display: 'flex', flexDirection: 'column',
+        transition: 'border-color 0.2s, transform 0.15s',
+        cursor: 'pointer',
+      }}
       onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(52,211,153,0.35)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.transform = 'none'; }}
     >
@@ -176,11 +180,11 @@ function AMCard({ am, isAdmin, onEdit, onToggle }) {
       {/* Actions */}
       {isAdmin && (
         <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px', marginTop: '14px' }}>
-          <button onClick={() => onEdit(am)}
+          <button onClick={e => { e.stopPropagation(); onEdit(am); }}
             style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '7px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.82rem', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
             <i className='bx bx-pencil' /> Edit
           </button>
-          <button onClick={() => onToggle(am)}
+          <button onClick={e => { e.stopPropagation(); onToggle(am); }}
             style={{ flex: 1, background: am.status === 'active' ? 'rgba(255,59,48,0.07)' : 'rgba(48,209,88,0.08)', border: `1px solid ${am.status === 'active' ? 'rgba(255,59,48,0.2)' : 'rgba(48,209,88,0.2)'}`, borderRadius: '8px', padding: '7px', cursor: 'pointer', color: am.status === 'active' ? '#ff3b30' : '#30d158', fontSize: '0.82rem', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
             <i className={`bx ${am.status === 'active' ? 'bx-pause-circle' : 'bx-play-circle'}`} />
             {am.status === 'active' ? 'Deactivate' : 'Reactivate'}
@@ -204,7 +208,8 @@ function InfoRow({ icon, value, color }) {
 
 export default function AccountManagers({ sessionUser }) {
   const { toast } = useToast();
-  const isAdmin = sessionUser?.isAdmin;
+  const navigate  = useNavigate();
+  const isAdmin   = sessionUser?.isAdmin;
 
   const [ams,          setAms]          = useState([]);
   const [loading,      setLoading]      = useState(true);
@@ -297,7 +302,8 @@ export default function AccountManagers({ sessionUser }) {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px', alignItems: 'start' }}>
           {ams.map(am => (
-            <AMCard key={am.id} am={am} isAdmin={isAdmin} onEdit={a => setModal(a)} onToggle={toggleStatus} />
+            <AMCard key={am.id} am={am} isAdmin={isAdmin} onEdit={a => setModal(a)} onToggle={toggleStatus}
+              onNavigate={() => navigate(`/account-managers/${am.id}`)} />
           ))}
         </div>
       )}

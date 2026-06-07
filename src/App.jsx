@@ -32,8 +32,9 @@ import AuditLog         from './pages/AuditLog';
 import Migration        from './pages/Migration';
 import Home            from './pages/Home';
 import Templates       from './pages/Templates';
-import AccountManagers from './pages/AccountManagers';
-import Programs        from './pages/Programs';
+import AccountManagers       from './pages/AccountManagers';
+import AccountManagerDetail  from './pages/AccountManagerDetail';
+import Programs              from './pages/Programs';
 
 import { useRepliconData }    from './hooks/useRepliconData';
 import { repliconApi }        from './api/replicon';
@@ -193,7 +194,8 @@ function AppContent() {
                 <Route path="/employees"           element={<GuardedRoute page="employees" ><Employees       sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/clients"             element={<GuardedRoute page="clients"  ><Clients         sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/programs"            element={<Programs />} />
-                <Route path="/account-managers"   element={<AccountManagers sessionUser={sessionUser} />} />
+                <Route path="/account-managers"       element={<AccountManagers sessionUser={sessionUser} />} />
+                <Route path="/account-managers/:id"  element={<AccountManagerDetail />} />
                 <Route path="/projects-admin"      element={<GuardedRoute page="projects"       ><ProjectsAdmin   sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/projects-admin/:id"  element={<GuardedRoute page="projects"       ><ProjectDetail   sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/profile"             element={<Profile />} />
