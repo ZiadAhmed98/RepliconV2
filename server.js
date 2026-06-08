@@ -31,13 +31,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
 
 const app = express();
+app.disable('x-powered-by');
 
-// Security headers (HTTP-only server — no HSTS, no upgrade-insecure-requests)
+// Security headers
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options',   'nosniff');
-  res.setHeader('X-Frame-Options',          'SAMEORIGIN');
+  res.setHeader('X-Frame-Options',          'DENY');
   res.setHeader('Referrer-Policy',          'strict-origin-when-cross-origin');
   res.setHeader('X-XSS-Protection',         '1; mode=block');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('Permissions-Policy',        'camera=(), microphone=(), geolocation=()');
   res.setHeader('Content-Security-Policy',
     "default-src 'self'; " +
     "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com; " +
@@ -105,6 +108,18 @@ app.use(express.static(path.join(__dirname, 'dist'), {
 app.get('*', (req, res) => {
   if (req.path.startsWith('/api')) return res.status(404).json({ error: 'API route not found' });
   res.sendFile(path.join(__dirname, 'dist/index.html'));
+});
+
+// Global error handler — must have 4 args so Express treats it as error middleware.
+// Catches body-parser SyntaxError, CORS rejections, and anything else that calls next(err).
+// Never expose stack traces or internal paths to the client.
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  logger.error({ err, path: req.path, method: req.method }, 'Unhandled error');
+  if (res.headersSent) return;
+  const status = err.status || err.statusCode || 500;
+  const safe   = status < 500 ? (err.message || 'Request error') : 'Internal server error';
+  res.status(status).json({ error: safe });
 });
 
 // Seed default users then start listening

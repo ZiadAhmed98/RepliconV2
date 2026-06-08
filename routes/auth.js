@@ -17,13 +17,7 @@ const loginLimiter = rateLimit({
 });
 
 router.get('/health', (req, res) => {
-  res.json({
-    status:    'ok',
-    uptime:    Math.round(process.uptime()),
-    timestamp: new Date().toISOString(),
-    version:   '2.0.0',
-    sessions:  sessionCount(),
-  });
+  res.json({ status: 'ok' });
 });
 
 async function handleLogin(req, res) {
@@ -67,9 +61,12 @@ async function handleLogin(req, res) {
   };
   const { token: sessionToken } = createSession(sessionUser);
 
+  const isSecure = process.env.NODE_ENV === 'production'
+    || req.secure
+    || req.headers['x-forwarded-proto'] === 'https';
   res.cookie('mds_session', sessionToken, {
     httpOnly: true,
-    secure:   process.env.NODE_ENV === 'production',
+    secure:   isSecure,
     sameSite: 'lax',
     maxAge:   Number(process.env.SESSION_MS) || 3600000,
   });
