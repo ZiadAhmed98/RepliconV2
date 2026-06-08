@@ -32,7 +32,9 @@ function useWindowWidth() {
 function ProgramRow({ program, isAdmin, onEdit, onDelete }) {
   const navigate = useNavigate();
   const w        = useWindowWidth();
-  const maxPills = w >= 1600 ? 7 : w >= 1400 ? 6 : w >= 1200 ? 5 : w >= 1000 ? 3 : w >= 768 ? 2 : w >= 600 ? 1 : 0;
+  // Subtract sidebar (~240px) + row chrome (~340px) to get usable pill space, ~130px per pill
+  const usable   = w - 580;
+  const maxPills = usable <= 0 ? 0 : Math.min(7, Math.floor(usable / 130));
   const icon     = PROGRAM_ICONS[program.name] || 'bx-collection';
   const visible  = program.projects.slice(0, maxPills);
   const hidden   = program.projects.length - visible.length;
@@ -71,7 +73,7 @@ function ProgramRow({ program, isAdmin, onEdit, onDelete }) {
       </div>
 
       {/* Project pills */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', flexWrap: 'nowrap' }}>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', flexWrap: 'nowrap' }}>
         {maxPills === 0 ? (
           <span style={{ fontSize: '12px', fontWeight: 600, color: '#a78bfa', background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: '20px', padding: '3px 10px' }}>
             {program.projectCount} project{program.projectCount !== 1 ? 's' : ''}
