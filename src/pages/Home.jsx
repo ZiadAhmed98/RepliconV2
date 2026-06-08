@@ -752,7 +752,8 @@ function AdminHome({ summary, sessionUser, nav, onRefresh }) {
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export default function Home({ sessionUser }) {
-  const nav = useNavigate();
+  const _nav = useNavigate();
+  const nav  = (path, opts) => _nav(typeof path === 'string' ? withToken(path) : path, opts);
   const [summary, setSummary]   = useState(null);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState('');

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
+import { withToken } from '../config/navToken';
 
 const ST = {
   active:   { bg: 'rgba(48,209,88,0.12)',  color: '#30d158', border: 'rgba(48,209,88,0.25)'  },
@@ -303,7 +304,7 @@ export default function AccountManagers({ sessionUser }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px', alignItems: 'start' }}>
           {ams.map(am => (
             <AMCard key={am.id} am={am} isAdmin={isAdmin} onEdit={a => setModal(a)} onToggle={toggleStatus}
-              onNavigate={() => navigate(`/account-managers/${am.id}`)} />
+              onNavigate={() => navigate(withToken(`/account-managers/${am.id}`))} />
           ))}
         </div>
       )}

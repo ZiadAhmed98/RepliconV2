@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, useLocation, Link } from 'react-router-dom';
 import { usePermissions } from '../context/PermissionContext';
 import { ADMIN_PATH } from '../config/adminRoutes';
+import { withToken } from '../config/navToken';
 
 // ── Navigation structure ───────────────────────────────────────────────────
 // Groups: each child has its own perm — group is visible when ≥1 child passes.
@@ -226,7 +227,7 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
                   {kids.map(child => (
                     <NavLink
                       key={child.to}
-                      to={child.to}
+                      to={withToken(child.to)}
                       end={child.to === '/projects' || child.to === '/dashboard'}
                       style={({ isActive }) => S.subLink(isActive)}
                       onMouseEnter={e => { if (!e.currentTarget.style.background.includes('rgba(139')) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
@@ -254,7 +255,7 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
           return (
             <NavLink
               key={item.to}
-              to={item.to}
+              to={withToken(item.to)}
               end={item.to === '/'}
               title={collapsed ? item.label : undefined}
               style={({ isActive }) => ({
@@ -284,7 +285,7 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
         {/* Administration link — isAdmin flag only, no permission override */}
         {isAdmin && (
           <NavLink
-            to={ADMIN_PATH.administration}
+            to={withToken(ADMIN_PATH.administration)}
             title={collapsed ? 'Administration' : undefined}
             style={({ isActive }) => ({
               display: 'flex', alignItems: 'center', gap: '11px',

@@ -37,6 +37,7 @@ import AccountManagerDetail  from './pages/AccountManagerDetail';
 import Programs              from './pages/Programs';
 
 import { ADMIN_PATH }         from './config/adminRoutes';
+import { setNavToken, withToken } from './config/navToken';
 import { useRepliconData }    from './hooks/useRepliconData';
 import { repliconApi }        from './api/replicon';
 import { ThemeProvider }      from './context/ThemeContext';
@@ -65,6 +66,7 @@ function AppContent() {
     const checkSession = async () => {
       try {
         const { user } = await repliconApi.me();
+        if (user.navToken) setNavToken(user.navToken);
         setSessionUser(user);
       } catch {
         // Cookie session invalid — try legacy localStorage
@@ -144,8 +146,9 @@ function AppContent() {
       <Login onLoginSuccess={async () => {
         try {
           const { user } = await repliconApi.me();
+          if (user.navToken) setNavToken(user.navToken);
           setSessionUser(user);
-          navigate('/home');   // always land on home after login — clears any prior admin URL
+          navigate(withToken('/home'));
         } catch { /* ignore */ }
       }} />
     );
