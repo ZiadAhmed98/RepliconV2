@@ -96,8 +96,11 @@ router.post('/api/v1/admin/import-csv', requireAdmin, async (req, res) => {
       }
 
       let defaultPwdHash = null;
+      let defaultPwd = null;
       if (createAccounts) {
-        defaultPwdHash = await hashPassword('Welcome1!');
+        // Generate a random temporary password — returned in the response so admin can distribute it
+        defaultPwd = crypto.randomBytes(8).toString('base64url');
+        defaultPwdHash = await hashPassword(defaultPwd);
       }
       const insertUser = createAccounts
         ? db.prepare('INSERT OR IGNORE INTO users (id,displayName,passwordHash,isAdmin,permissions,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?)')
@@ -131,14 +134,14 @@ router.post('/api/v1/admin/import-csv', requireAdmin, async (req, res) => {
         if (existing) {
           db.prepare(`
             UPDATE employees SET
-              firstName    = CASE WHEN ? != '' THEN ? ELSE firstName END,
-              lastName     = CASE WHEN ? != '' THEN ? ELSE lastName  END,
-              email        = CASE WHEN ? IS NOT NULL AND ? != '' THEN ? ELSE email END,
+              firstName    = CASE WHEN TRIM(?) != '' THEN ? ELSE firstName END,
+              lastName     = CASE WHEN TRIM(?) != '' THEN ? ELSE lastName  END,
+              email        = CASE WHEN ? IS NOT NULL AND TRIM(?) != '' THEN ? ELSE email END,
               status       = ?,
               role         = ?,
-              jobTitle     = CASE WHEN ? IS NOT NULL AND ? != '' THEN ? ELSE jobTitle END,
-              department   = CASE WHEN ? IS NOT NULL AND ? != '' THEN ? ELSE department END,
-              officeLocation = CASE WHEN ? IS NOT NULL AND ? != '' THEN ? ELSE officeLocation END,
+              jobTitle     = CASE WHEN ? IS NOT NULL AND TRIM(?) != '' THEN ? ELSE jobTitle END,
+              department   = CASE WHEN ? IS NOT NULL AND TRIM(?) != '' THEN ? ELSE department END,
+              officeLocation = CASE WHEN ? IS NOT NULL AND TRIM(?) != '' THEN ? ELSE officeLocation END,
               hourlyRate   = CASE WHEN ? > 0 THEN ? ELSE hourlyRate END,
               startDate    = CASE WHEN ? IS NOT NULL AND startDate IS NULL THEN ? ELSE startDate END,
               endDate      = CASE WHEN ? IS NOT NULL AND endDate   IS NULL THEN ? ELSE endDate   END,
@@ -324,7 +327,7 @@ router.post('/api/v1/admin/import-csv', requireAdmin, async (req, res) => {
 
     auditLog(req.user, 'csv_import', { employees: result.employees, projects: result.projects });
     logger.info({ result }, 'CSV import complete');
-    res.json({ ok: true, ...result });
+    res.json({ ok: true, ...(defaultPwd ? { temporaryPassword: defaultPwd } : {}), ...result });
 
   } catch (err) {
     logger.error({ err }, 'CSV import failed');

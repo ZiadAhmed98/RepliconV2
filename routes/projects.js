@@ -157,7 +157,7 @@ router.post('/api/v1/projects', requireAuth, async (req, res) => {
           if (newTaskUri) levelUriMap[level] = newTaskUri;
           if (newTaskUri && t.assignedUsers?.length) capturedTasks.push({ taskUri: newTaskUri, assignedUris: t.assignedUsers });
           res.write(JSON.stringify({ step: 'tasks', current: i + 1, total: tasks.length }) + '\n');
-        } catch { logger.warn(`Task ${i + 1} skipped due to error`); }
+        } catch (e) { logger.warn({ err: e }, `Task ${i + 1}/${tasks.length} skipped`); }
       }
     }
 
@@ -176,7 +176,7 @@ router.post('/api/v1/projects', requireAuth, async (req, res) => {
         await wcfRequest(`Assign Users Task ${i + 1}`, `https://ap1.replicon.com/${company}/services/TaskService1.svc/BulkUpdateResourceAssignments`, { taskUri: ct.taskUri, resourceUris: ct.assignedUris, isAssigned: true }, headers);
         completedAssign += ct.assignedUris.length;
         res.write(JSON.stringify({ step: 'resources', current: completedAssign, total: totalAssign }) + '\n');
-      } catch { logger.warn(`Task assignment failed for ${ct.taskUri}`); }
+      } catch (e) { logger.warn({ err: e, taskUri: ct.taskUri }, 'Task assignment failed'); }
     }
 
     res.write(JSON.stringify({ step: 'finalizing' }) + '\n');

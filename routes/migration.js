@@ -39,13 +39,14 @@ function mondayOf(ts) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+const _slugExists = db.prepare('SELECT id FROM users WHERE id=?');
 function makeSlug(name) {
   let base = name.toLowerCase()
     .replace(/\s+/g, '.')
     .replace(/[^a-z0-9.]/g, '');
   let candidate = base;
   let i = 1;
-  while (db.prepare('SELECT id FROM users WHERE id=?').get(candidate)) { candidate = `${base}${i++}`; }
+  while (_slugExists.get(candidate)) { candidate = `${base}${i++}`; }
   return candidate;
 }
 

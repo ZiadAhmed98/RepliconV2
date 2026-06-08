@@ -11,6 +11,8 @@ const router = Router();
 // Admins see all; PMs see only timesheets that contain rows from their projects
 router.get('/api/v1/admin/psa/timesheets', requirePM, (req, res) => {
   const { status, userId } = req.query;
+  // userId is optional but must be a non-empty string of safe characters if provided
+  if (userId && !/^[\w-]{1,128}$/.test(userId)) return res.status(400).json({ error: 'Invalid userId' });
   let q = `
     SELECT ts.*,
            COALESCE(e.displayName, e.firstName || ' ' || e.lastName, ts.userId) AS employeeName

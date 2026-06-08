@@ -25,7 +25,7 @@ router.post('/api/v1/timesheets/action', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/api/timesheets/action', async (req, res) => {
+router.post('/api/timesheets/action', requireAuth, async (req, res) => {
   const { action, uris } = req.body || {};
   if (!action || !Array.isArray(uris) || uris.length === 0) return res.status(400).json({ error: 'action and uris[] are required.' });
   if (!['approve', 'reject'].includes(action)) return res.status(400).json({ error: 'action must be "approve" or "reject".' });
@@ -36,7 +36,10 @@ router.post('/api/timesheets/action', async (req, res) => {
   try {
     await wcfRequest(`Timesheet ${action} (compat)`, `https://ap1.replicon.com/${company}/services/TimesheetService1.svc/${method}`, { timesheetUris: uris }, headers);
     res.json({ message: `Successfully ${action}d ${uris.length} timesheet(s).` });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    logger.error({ err, action, user: req.user?.name }, 'Timesheet action (compat) failed');
+    res.status(500).json({ error: err?.message || 'Timesheet action failed.' });
+  }
 });
 
 router.get('/api/v1/clients/search', requireAuth, async (req, res) => {

@@ -82,7 +82,8 @@ export function useRepliconData(externalSessionUser) {
 
   // Inline star-schema processor (fallback when Worker isn't available)
   const processInline = useCallback((rawData) => {
-    const EXCLUDED = ['Habib Matta', 'Ziad Shafik', 'Irfan Najmi', 'Admin', 'Admin '];
+    const EXCLUDED = (import.meta.env.VITE_EXCLUDED_USERS || 'Habib Matta,Ziad Shafik,Irfan Najmi,Admin,Admin ')
+      .split(',').map(s => s.trim()).filter(Boolean);
     const getMonday = (d) => { d = new Date(d); const day = d.getDay(); return new Date(d.setDate(d.getDate() - day + (day === 0 ? -6 : 1))).setHours(0,0,0,0); };
 
     const dimensionTable = {}; const factTable = []; const allTimeClientsMap = {}; const userMaxTsMap = {};

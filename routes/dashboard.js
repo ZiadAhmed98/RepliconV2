@@ -63,7 +63,7 @@ router.get('/api/v1/dashboard', requireAuth, async (req, res) => {
       users: [], projectManagers: [], accountManagers: [],
     };
 
-    logger.info({ user: req.user.name }, 'Dashboard fetch started');
+    logger.info({ user: req.user?.name ?? 'unknown' }, 'Dashboard fetch started');
 
     [dictionaries.clients, dictionaries.programs] = await Promise.all([
       fetchListData('Clients',  'ClientListService1',  'urn:replicon:client-list-column:client'),

@@ -72,7 +72,7 @@ router.get('/api/v1/admin/audit', requireAdmin, (req, res) => {
 router.post('/api/v1/audit/pageview', requireAuth, (req, res) => {
   const { page } = req.body || {};
   if (!page) return res.status(400).json({ error: 'page required.' });
-  appendAudit({ user: req.user.name, action: 'PAGE_VIEW', page: String(page).slice(0, 100) });
+  appendAudit({ user: String(req.user.name || '').slice(0, 100), action: 'PAGE_VIEW', page: String(page).slice(0, 200) });
   res.json({ ok: true });
 });
 
