@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
-import { withToken } from '../config/navToken';
 
 const STATUS_TABS = [
   { key: '',           label: 'All'       },
@@ -361,7 +360,7 @@ export default function ProjectsAdmin({ sessionUser }) {
               <tbody>
                 {projects.map(p => (
                   <tr key={p.id}
-                    onClick={() => navigate(withToken(`/projects-admin/${p.id}`))}
+                    onClick={() => navigate(`/projects-admin/${p.id}`)}
                     style={{ cursor: 'pointer', transition: 'background 0.12s' }}
                     onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>

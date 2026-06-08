@@ -1,6 +1,5 @@
 import { Router }                                    from 'express';
 import rateLimit                                     from 'express-rate-limit';
-import crypto                                        from 'crypto';
 import { createSession, requireAuth, verifyPassword,
          deleteSession, sessionCount }               from '../lib/auth.js';
 import { ALL_PAGES, allPermissions, appendAudit }   from '../lib/rbac.js';
@@ -58,7 +57,6 @@ async function handleLogin(req, res) {
   }
 
   const emp = db.prepare('SELECT role, id AS employeeId FROM employees WHERE userId=?').get(id);
-  const navToken = crypto.randomBytes(12).toString('hex');
   const sessionUser = {
     id:          row.id,
     name:        row.displayName,
@@ -66,7 +64,6 @@ async function handleLogin(req, res) {
     permissions,
     role:        emp?.role || 'resource',
     employeeId:  emp?.employeeId || null,
-    navToken,
   };
   const { token: sessionToken } = createSession(sessionUser);
 
@@ -80,7 +77,7 @@ async function handleLogin(req, res) {
   appendAudit({ user: row.displayName, action: 'LOGIN', ip: req.ip });
   auditLog(row.displayName, 'LOGIN', { ip: req.ip });
   logger.info({ user: row.displayName }, 'Login success');
-  res.json({ success: true, displayName: row.displayName, navToken });
+  res.json({ success: true, displayName: row.displayName });
 }
 
 router.post('/api/v1/login', loginLimiter, (req, res) => handleLogin(req, res));

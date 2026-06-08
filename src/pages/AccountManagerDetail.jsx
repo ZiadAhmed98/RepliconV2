@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { withToken } from '../config/navToken';
 
 const STATUS_STYLE = {
   in_progress: { bg: 'rgba(139,92,246,0.15)', color: '#a78bfa' },
@@ -42,7 +41,7 @@ export default function AccountManagerDetail() {
 
       {/* Back */}
       <button
-        onClick={() => navigate(withToken('/account-managers'))}
+        onClick={() => navigate('/account-managers')}
         style={{ display: 'flex', alignItems: 'center', gap: '7px', background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: '0.84rem', marginBottom: '24px', padding: 0, fontFamily: 'inherit', transition: 'color 0.15s' }}
         onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.85)'}
         onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}
@@ -121,7 +120,7 @@ export default function AccountManagerDetail() {
               return (
                 <div
                   key={proj.id}
-                  onClick={() => navigate(withToken(`/projects-admin/${proj.id}`), { state: { from: `/account-managers/${id}`, fromLabel: am.displayName } })}
+                  onClick={() => navigate(`/projects-admin/${proj.id}`, { state: { from: `/account-managers/${id}`, fromLabel: am.displayName } })}
                   style={{ background: 'var(--bg-card)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '16px 18px', cursor: 'pointer', transition: 'border-color 0.2s, transform 0.15s, box-shadow 0.2s' }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(96,165,250,0.35)'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.2)'; }}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}

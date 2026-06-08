@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePermissions } from '../context/PermissionContext';
-import { withToken } from '../config/navToken';
 
 const PROGRAM_ICONS = {
   'Deployment Projects':                  'bx-rocket',
@@ -84,7 +83,7 @@ function ProgramRow({ program, isAdmin, onEdit, onDelete }) {
             {visible.map(proj => (
               <span
                 key={proj.id}
-                onClick={e => { e.stopPropagation(); navigate(withToken(`/projects-admin/${proj.id}`), { state: { from: '/programs', fromLabel: 'Programs' } }); }}
+                onClick={e => { e.stopPropagation(); navigate(`/projects-admin/${proj.id}`, { state: { from: '/programs', fromLabel: 'Programs' } }); }}
                 style={{
                   background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.2)',
                   borderRadius: '20px', padding: '3px 11px', fontSize: '12px', fontWeight: 500,

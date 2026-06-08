@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
-import { withToken } from '../config/navToken';
 
 const STATUS_COLORS = {
   in_progress: { bg: 'rgba(34,197,94,0.12)',  color: '#4ade80', label: 'In Progress' },
@@ -381,7 +380,7 @@ export default function ProjectDetail({ sessionUser }) {
       if (canManageTeam) fetches.push(fetch(`/api/v1/psa/projects/${id}/access-requests`, { credentials: 'include' }));
       const results = await Promise.all(fetches);
       const [pd, td, md, ed, rd] = await Promise.all(results.map(r => r.json()));
-      if (!results[0].ok) { toast.error('Project not found'); navigate(withToken('/projects-admin')); return; }
+      if (!results[0].ok) { toast.error('Project not found'); navigate('/projects-admin'); return; }
       setProject(pd.project);
       setTasks(td.tasks || []);
       setMembers(md.members || []);
@@ -544,7 +543,7 @@ export default function ProjectDetail({ sessionUser }) {
   return (
     <div style={{ padding: '28px 36px' }}>
       {/* Back */}
-      <button onClick={() => navigate(withToken('/projects-admin'))}
+      <button onClick={() => navigate('/projects-admin')}
         style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.85rem', fontFamily: 'inherit', padding: '0', marginBottom: '20px', transition: 'color 0.15s' }}
         onMouseEnter={e => e.currentTarget.style.color = 'var(--text-main)'}
         onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>

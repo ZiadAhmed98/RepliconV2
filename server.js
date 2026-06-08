@@ -7,7 +7,6 @@ import cookieParser  from 'cookie-parser';
 
 import { logger }            from './lib/helpers.js';
 import { ensureDefaultUsers } from './lib/rbac.js';
-import { validateSession }    from './lib/auth.js';
 
 import authRouter        from './routes/auth.js';
 import adminRouter       from './routes/admin.js';
@@ -84,31 +83,14 @@ app.use(templatesRouter);
 app.use(homeRouter);
 app.use(programsRouter);
 
-// Nav-token guard: all front-end page requests must carry a valid per-session
-// token (?_t=...). This blocks direct URL typing and sharing of raw paths.
-// Static assets (.js/.css/etc.) and /api routes are exempt.
-const LEGACY_BLOCKED = ['/settings', '/administration', '/audit-log', '/migration'];
+// Block old human-readable admin routes — return 403 before the SPA catch-all
+// so typing these URLs directly never renders a page.
+const BLOCKED_FRONT_PATHS = ['/settings', '/administration', '/audit-log', '/migration'];
 app.use((req, res, next) => {
-  // Pass through API routes and static asset extensions
-  if (req.path.startsWith('/api')) return next();
-  const ext = req.path.split('.').pop().toLowerCase();
-  if (['js','css','png','jpg','jpeg','svg','ico','woff','woff2','ttf','map','webmanifest'].includes(ext)) return next();
-
-  // Block deprecated readable paths unconditionally
   const p = req.path.replace(/\/$/, '');
-  if (LEGACY_BLOCKED.includes(p)) return res.status(403).send('403 Forbidden');
-
-  // Root path (login screen) — always allowed
-  if (p === '' || p === '/') return next();
-
-  // Every other page request needs a valid nav token
-  const session = validateSession(req.cookies?.mds_session);
-  if (!session) return res.status(403).send('403 Forbidden');
-
-  const expected = session.user?.navToken;
-  const provided = req.query._t;
-  if (!expected || provided !== expected) return res.status(403).send('403 Forbidden');
-
+  if (BLOCKED_FRONT_PATHS.includes(p)) {
+    return res.status(403).send('403 Forbidden');
+  }
   next();
 });
 
