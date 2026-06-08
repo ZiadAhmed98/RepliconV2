@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, useLocation, Link } from 'react-router-dom';
 import { usePermissions } from '../context/PermissionContext';
+import { ADMIN_PATH } from '../config/adminRoutes';
 
 // ── Navigation structure ───────────────────────────────────────────────────
 // Groups: each child has its own perm — group is visible when ≥1 child passes.
@@ -168,7 +169,7 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
   const isGroupActive = (group) =>
     group.children.some(c => location.pathname === c.to || location.pathname.startsWith(c.to + '/'));
 
-  const isAdminRouteActive = location.pathname === '/administration';
+  const isAdminRouteActive = location.pathname === ADMIN_PATH.administration;
 
   return (
     <aside style={S.sidebar(sidebarW)}>
@@ -283,7 +284,7 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
         {/* Administration link — isAdmin flag only, no permission override */}
         {isAdmin && (
           <NavLink
-            to="/administration"
+            to={ADMIN_PATH.administration}
             title={collapsed ? 'Administration' : undefined}
             style={({ isActive }) => ({
               display: 'flex', alignItems: 'center', gap: '11px',
@@ -297,7 +298,7 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
             })}
             onMouseEnter={e => { if (!e.currentTarget.style.background.includes('rgba(251')) { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = 'rgba(255,255,255,0.65)'; } }}
             onMouseLeave={e => {
-              const isActive = location.pathname === '/administration';
+              const isActive = location.pathname === ADMIN_PATH.administration;
               e.currentTarget.style.background = isActive ? 'rgba(251,191,36,0.08)' : 'transparent';
               e.currentTarget.style.color = isActive ? '#fcd34d' : 'rgba(255,255,255,0.35)';
             }}

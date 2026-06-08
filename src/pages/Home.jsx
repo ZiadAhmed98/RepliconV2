@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate }   from 'react-router-dom';
 import { useToast }      from '../context/ToastContext';
+import { ADMIN_PATH }    from '../config/adminRoutes';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -728,9 +729,9 @@ function AdminHome({ summary, sessionUser, nav, onRefresh }) {
               { label:'Add Client',        icon:'bx-building-house',color:'#34d399', to:'/clients'         },
               { label:'Manage Employees',  icon:'bx-group',         color:'#60a5fa', to:'/employees'        },
               { label:'Timesheet Approvals',icon:'bx-check-double', color:'#ef4444', to:'/timesheets-approval'},
-              { label:'Audit Log',         icon:'bx-history',       color:'#2dd4bf', to:'/audit-log'       },
-              { label:'Replicon Migration',icon:'bx-cloud-download',color:'#fbbf24', to:'/migration'       },
-              { label:'Administration',    icon:'bx-shield-alt-2',  color:'#a78bfa', to:'/administration'  },
+              { label:'Audit Log',         icon:'bx-history',       color:'#2dd4bf', to: ADMIN_PATH.auditLog       },
+              { label:'Replicon Migration',icon:'bx-cloud-download',color:'#fbbf24', to: ADMIN_PATH.migration      },
+              { label:'Administration',    icon:'bx-shield-alt-2',  color:'#a78bfa', to: ADMIN_PATH.administration },
             ].map(a => (
               <button key={a.label} onClick={() => nav(a.to)}
                 style={{ display:'flex', alignItems:'center', gap:'10px', padding:'9px 12px', borderRadius:'9px', background:`${a.color}0c`, border:`1px solid ${a.color}20`, cursor:'pointer', fontFamily:'inherit', transition:'all 0.14s', textAlign:'left', width:'100%' }}

@@ -36,6 +36,7 @@ import AccountManagers       from './pages/AccountManagers';
 import AccountManagerDetail  from './pages/AccountManagerDetail';
 import Programs              from './pages/Programs';
 
+import { ADMIN_PATH }         from './config/adminRoutes';
 import { useRepliconData }    from './hooks/useRepliconData';
 import { repliconApi }        from './api/replicon';
 import { ThemeProvider }      from './context/ThemeContext';
@@ -200,10 +201,9 @@ function AppContent() {
                 <Route path="/projects-admin/:id"  element={<GuardedRoute page="projects"       ><ProjectDetail   sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/profile"             element={<Profile />} />
                 <Route path="/timesheets-approval" element={<GuardedRoute page="timesheetApproval"><TimesheetApproval sessionUser={sessionUser} /></GuardedRoute>} />
-                <Route path="/settings"            element={<Navigate to="/employees" replace />} />
-                <Route path="/administration"      element={<GuardedRoute page="administration"  ><Administration /></GuardedRoute>} />
-                <Route path="/audit-log"          element={<GuardedRoute page="administration"  ><AuditLog /></GuardedRoute>} />
-                <Route path="/migration"          element={<GuardedRoute page="administration"  ><Migration /></GuardedRoute>} />
+                <Route path={ADMIN_PATH.administration} element={<GuardedRoute page="administration"><Administration /></GuardedRoute>} />
+                <Route path={ADMIN_PATH.auditLog}       element={<GuardedRoute page="administration"><AuditLog /></GuardedRoute>} />
+                <Route path={ADMIN_PATH.migration}      element={<GuardedRoute page="administration"><Migration /></GuardedRoute>} />
               </Routes>
             )}
           </main>

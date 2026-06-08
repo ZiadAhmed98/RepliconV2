@@ -83,6 +83,17 @@ app.use(templatesRouter);
 app.use(homeRouter);
 app.use(programsRouter);
 
+// Block old human-readable admin routes — return 403 before the SPA catch-all
+// so typing these URLs directly never renders a page.
+const BLOCKED_FRONT_PATHS = ['/settings', '/administration', '/audit-log', '/migration'];
+app.use((req, res, next) => {
+  const p = req.path.replace(/\/$/, '');
+  if (BLOCKED_FRONT_PATHS.includes(p)) {
+    return res.status(403).send('403 Forbidden');
+  }
+  next();
+});
+
 // Static files + SPA fallback
 app.use(express.static(path.join(__dirname, 'dist'), {
   setHeaders: (res, filePath) => {

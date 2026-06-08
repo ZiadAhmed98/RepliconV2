@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
+import { ADMIN_PATH } from '../config/adminRoutes';
 
 // ── Section definitions ────────────────────────────────────────────────────
 // live: true  → button is active and navigates to `to`
@@ -73,7 +74,7 @@ const SECTIONS = [
     accent: '#a78bfa',
     items: [
       { label: 'Employees & Access',   icon: 'bx-group',           desc: 'Employee records, roles, login accounts and permissions', live: true, to: '/employees' },
-      { label: 'Audit Log',           icon: 'bx-history',         desc: 'Full trail of every system action',           live: true, to: '/audit-log'  },
+      { label: 'Audit Log',           icon: 'bx-history',         desc: 'Full trail of every system action',           live: true, to: ADMIN_PATH.auditLog  },
       { label: 'Roles & Permissions', icon: 'bx-lock-alt',        desc: 'Define role presets and access policies',     live: false },
       { label: 'Team Hierarchy',      icon: 'bx-sitemap',         desc: 'Org chart, supervisors and reporting lines',  live: false },
     ],
@@ -95,7 +96,7 @@ const SECTIONS = [
     icon: 'bx-plug',
     accent: '#2dd4bf',
     items: [
-      { label: 'Replicon Sync',       icon: 'bx-sync',            desc: 'Import all Replicon data into PSA',        live: true, to: '/migration' },
+      { label: 'Replicon Sync',       icon: 'bx-sync',            desc: 'Import all Replicon data into PSA',        live: true, to: ADMIN_PATH.migration },
       { label: 'Calendar',            icon: 'bx-calendar',        desc: 'Google and Outlook calendar sync',         live: false },
       { label: 'API Keys',            icon: 'bx-key',             desc: 'Manage external API credentials',          live: false },
       { label: 'Webhooks',            icon: 'bx-broadcast',       desc: 'Real-time event delivery to endpoints',    live: false },
