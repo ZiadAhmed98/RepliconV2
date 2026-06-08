@@ -87,7 +87,8 @@ function AppContent() {
     try { await repliconApi.logout(); } catch { /* ignore */ }
     localStorage.removeItem('mds_dashboard_session');
     setSessionUser(null);
-  }, []);
+    navigate('/', { replace: true });
+  }, [navigate]);
 
   // Listen for unauthorized events from api layer
   useEffect(() => {
@@ -204,6 +205,7 @@ function AppContent() {
                 <Route path={ADMIN_PATH.administration} element={<GuardedRoute page="administration"><Administration /></GuardedRoute>} />
                 <Route path={ADMIN_PATH.auditLog}       element={<GuardedRoute page="administration"><AuditLog /></GuardedRoute>} />
                 <Route path={ADMIN_PATH.migration}      element={<GuardedRoute page="administration"><Migration /></GuardedRoute>} />
+                <Route path="*" element={<Navigate to="/home" replace />} />
               </Routes>
             )}
           </main>

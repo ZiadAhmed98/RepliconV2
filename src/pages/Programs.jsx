@@ -19,25 +19,40 @@ const PROGRAM_ICONS = {
   'Internal':                             'bx-home-circle',
 };
 
-function useWindowWidth() {
-  const [w, setW] = useState(window.innerWidth);
-  useEffect(() => {
-    const fn = () => setW(window.innerWidth);
-    window.addEventListener('resize', fn);
-    return () => window.removeEventListener('resize', fn);
-  }, []);
-  return w;
-}
+// Estimated rendered width of a pill: ~7.5px per char + 24px padding + 6px gap
+function pillEstW(name) { return Math.ceil(name.length * 7.5 + 24) + 6; }
+const MORE_W = 72; // "+999 more" badge
 
 function ProgramRow({ program, isAdmin, onEdit, onDelete }) {
-  const navigate = useNavigate();
-  const w        = useWindowWidth();
-  // Subtract sidebar (~240px) + row chrome (~340px) to get usable pill space, ~130px per pill
-  const usable   = w - 580;
-  const maxPills = usable <= 0 ? 0 : Math.min(7, Math.floor(usable / 130));
-  const icon     = PROGRAM_ICONS[program.name] || 'bx-collection';
-  const visible  = program.projects.slice(0, maxPills);
-  const hidden   = program.projects.length - visible.length;
+  const navigate  = useNavigate();
+  const pillsRef  = useRef(null);
+  const [pillsW, setPillsW] = useState(() => Math.max(0, window.innerWidth - 580));
+
+  useEffect(() => {
+    const el = pillsRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setPillsW(entry.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const icon = PROGRAM_ICONS[program.name] || 'bx-collection';
+
+  // Greedily fit pills within measured width, always reserve space for "+N more" badge
+  let used = 0;
+  const visible = [];
+  for (const proj of program.projects) {
+    const pw = pillEstW(proj.name);
+    const remaining = program.projects.length - visible.length - 1;
+    const badgeRoom = remaining > 0 ? MORE_W : 0;
+    if (used + pw + badgeRoom <= pillsW) {
+      visible.push(proj);
+      used += pw;
+    } else {
+      break;
+    }
+  }
+  const hidden = program.projects.length - visible.length;
 
   return (
     <div
@@ -73,12 +88,8 @@ function ProgramRow({ program, isAdmin, onEdit, onDelete }) {
       </div>
 
       {/* Project pills */}
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', flexWrap: 'nowrap' }}>
-        {maxPills === 0 ? (
-          <span style={{ fontSize: '12px', fontWeight: 600, color: '#a78bfa', background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: '20px', padding: '3px 10px' }}>
-            {program.projectCount} project{program.projectCount !== 1 ? 's' : ''}
-          </span>
-        ) : program.projectCount === 0 ? (
+      <div ref={pillsRef} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', flexWrap: 'nowrap' }}>
+        {program.projectCount === 0 ? (
           <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.2)' }}>No projects</span>
         ) : (
           <>
