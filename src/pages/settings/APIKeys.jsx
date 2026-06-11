@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import SettingsLayout from '../../components/settings/SettingsLayout';
 import { useCrud }    from '../../hooks/useSettings';
+import { S }          from '../../components/settings/styles';
 
 export default function APIKeys() {
   const { items, loading, remove, reload } = useCrud('api-keys');
@@ -11,110 +12,84 @@ export default function APIKeys() {
   const [confirm, setConfirm] = useState(null);
 
   async function submit(e) {
-    e.preventDefault();
-    setBusy(true);
+    e.preventDefault(); setBusy(true);
     try {
-      const r    = await fetch('/api/v1/admin/api-keys', {
-        method:      'POST',
-        credentials: 'include',
-        headers:     { 'Content-Type': 'application/json' },
-        body:        JSON.stringify({ name }),
-      });
+      const r    = await fetch('/api/v1/admin/api-keys', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ name }) });
       const data = await r.json();
       if (data.fullKey) setNewKey(data.fullKey);
-      setModal(false);
-      reload();
+      setModal(false); reload();
     } finally { setBusy(false); }
   }
 
+  if (loading) return <SettingsLayout title="API Keys" accent="#2dd4bf"><p style={S.muted}>Loading…</p></SettingsLayout>;
+
   return (
     <SettingsLayout title="API Keys" subtitle="Manage programmatic access credentials" accent="#2dd4bf">
-      {loading ? <div className="text-slate-500 text-sm">Loading…</div> : (
-        <>
-          <div className="flex justify-end mb-4">
-            <button onClick={() => { setName(''); setModal(true); }}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm transition-colors">
-              <i className="bx bx-plus" /> Generate Key
+      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:'14px' }}>
+        <button onClick={()=>{ setName(''); setModal(true); }} style={S.addBtn}><i className="bx bx-plus" style={{ fontSize:'14px' }} /> Generate Key</button>
+      </div>
+
+      {newKey && (
+        <div style={{ marginBottom:'16px', background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.25)', borderRadius:'12px', padding:'16px' }}>
+          <p style={{ margin:'0 0 8px', fontSize:'13px', fontWeight:700, color:'#fbbf24' }}>Save this key — it won't be shown again.</p>
+          <div style={{ display:'flex', alignItems:'center', gap:'8px', background:'rgba(0,0,0,0.3)', borderRadius:'8px', padding:'10px 14px' }}>
+            <code style={{ flex:1, fontSize:'12px', fontFamily:'monospace', color:'#4ade80', wordBreak:'break-all' }}>{newKey}</code>
+            <button onClick={()=>navigator.clipboard.writeText(newKey)} style={{ ...S.iconBtn, color:'rgba(255,255,255,0.4)', fontSize:'15px' }}>
+              <i className="bx bx-copy" />
             </button>
           </div>
+          <button onClick={()=>setNewKey(null)} style={{ marginTop:'8px', background:'none', border:'none', color:'rgba(255,255,255,0.3)', fontSize:'12px', cursor:'pointer', padding:0 }}>Dismiss</button>
+        </div>
+      )}
 
-          {newKey && (
-            <div className="mb-4 bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
-              <p className="text-amber-400 text-sm font-semibold mb-2">Save this key — it won't be shown again.</p>
-              <div className="flex items-center gap-2 bg-slate-800 rounded-lg px-3 py-2">
-                <code className="flex-1 text-green-400 text-sm font-mono break-all">{newKey}</code>
-                <button onClick={() => navigator.clipboard.writeText(newKey)} className="text-slate-400 hover:text-white ml-2">
-                  <i className="bx bx-copy" />
-                </button>
-              </div>
-              <button onClick={() => setNewKey(null)} className="mt-2 text-xs text-slate-500 hover:text-white">Dismiss</button>
-            </div>
-          )}
+      <div style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'14px', overflow:'hidden' }}>
+        <table style={S.table}>
+          <thead><tr>
+            <th style={S.th}>Name</th><th style={S.th}>Key Preview</th><th style={S.th}>Created</th>
+            <th style={{ ...S.th, textAlign:'right' }}>Actions</th>
+          </tr></thead>
+          <tbody>
+            {items.length===0 ? (
+              <tr><td colSpan={4} style={{ ...S.td, textAlign:'center', color:'rgba(255,255,255,0.2)', padding:'32px' }}>No API keys yet.</td></tr>
+            ) : items.map(k => (
+              <tr key={k.id}>
+                <td style={S.td}>{k.name}</td>
+                <td style={{ ...S.td, fontFamily:'monospace', fontSize:'11px', color:'rgba(255,255,255,0.4)' }}>{k.keyPreview}</td>
+                <td style={{ ...S.td, fontSize:'11px', color:'rgba(255,255,255,0.3)' }}>{k.createdAt?.slice(0,10)}</td>
+                <td style={{ ...S.td, textAlign:'right' }}>
+                  <button onClick={()=>setConfirm(k.id)} style={S.iconBtn} onMouseEnter={e=>e.currentTarget.style.color='#f87171'} onMouseLeave={e=>e.currentTarget.style.color='rgba(255,255,255,0.3)'}><i className="bx bx-trash" /></button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
-          <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-700">
-                  <th className="text-left px-4 py-3 text-slate-400 font-medium">Name</th>
-                  <th className="text-left px-4 py-3 text-slate-400 font-medium">Key Preview</th>
-                  <th className="text-left px-4 py-3 text-slate-400 font-medium">Created</th>
-                  <th className="text-right px-4 py-3 text-slate-400 font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.length === 0 ? (
-                  <tr><td colSpan={4} className="text-center py-8 text-slate-500">No API keys yet.</td></tr>
-                ) : items.map(k => (
-                  <tr key={k.id} className="border-b border-slate-700/50 hover:bg-slate-700/30">
-                    <td className="px-4 py-3 text-slate-300">{k.name}</td>
-                    <td className="px-4 py-3 font-mono text-slate-400 text-xs">{k.keyPreview}</td>
-                    <td className="px-4 py-3 text-slate-500 text-xs">{k.createdAt?.slice(0, 10)}</td>
-                    <td className="px-4 py-3 text-right">
-                      <button onClick={() => setConfirm(k.id)} className="p-1.5 text-slate-400 hover:text-red-400">
-                        <i className="bx bx-trash" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {confirm && (
+        <div style={S.overlay}><div style={{ ...S.modal, maxWidth:'360px', padding:'24px' }}>
+          <p style={{ margin:'0 0 6px', fontSize:'15px', fontWeight:700, color:'#fff' }}>Revoke API key?</p>
+          <p style={{ ...S.muted, marginBottom:'20px' }}>Any integrations using this key will stop working immediately.</p>
+          <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+            <button onClick={()=>setConfirm(null)} style={S.cancelBtn}>Cancel</button>
+            <button onClick={()=>{ remove(confirm); setConfirm(null); }} style={S.deleteBtn}>Revoke</button>
           </div>
+        </div></div>
+      )}
 
-          {confirm && (
-            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-              <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 w-80">
-                <p className="text-white font-semibold mb-2">Revoke API key?</p>
-                <p className="text-slate-400 text-sm">Any integrations using this key will stop working immediately.</p>
-                <div className="flex gap-3 justify-end mt-4">
-                  <button onClick={() => setConfirm(null)} className="px-4 py-2 text-sm border border-slate-600 text-slate-400 rounded-lg">Cancel</button>
-                  <button onClick={() => { remove(confirm); setConfirm(null); }} className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg">Revoke</button>
-                </div>
-              </div>
+      {modal && (
+        <div style={S.overlay}><div style={S.modal}>
+          <div style={S.modalH}><p style={S.modalT}>Generate API Key</p><button onClick={()=>setModal(false)} style={S.closeBtn}><i className="bx bx-x" /></button></div>
+          <form onSubmit={submit} style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'14px' }}>
+            <div>
+              <label style={S.label}>Key Name <span style={{ color:'#f87171' }}>*</span></label>
+              <input required type="text" style={S.input} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. CI Pipeline, Mobile App" />
             </div>
-          )}
-
-          {modal && (
-            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-              <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-md">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
-                  <h3 className="text-white font-semibold">Generate API Key</h3>
-                  <button onClick={() => setModal(false)} className="text-slate-400 hover:text-white"><i className="bx bx-x text-xl" /></button>
-                </div>
-                <form onSubmit={submit} className="px-6 py-4 space-y-4">
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">Key Name <span className="text-red-400">*</span></label>
-                    <input required type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. CI Pipeline, Mobile App"
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500" />
-                  </div>
-                  <div className="flex gap-3 justify-end pt-2">
-                    <button type="button" onClick={() => setModal(false)} className="px-4 py-2 text-sm border border-slate-600 text-slate-400 rounded-lg">Cancel</button>
-                    <button type="submit" disabled={busy} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg disabled:opacity-50">{busy ? 'Generating…' : 'Generate'}</button>
-                  </div>
-                </form>
-              </div>
+            <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+              <button type="button" onClick={()=>setModal(false)} style={S.cancelBtn}>Cancel</button>
+              <button type="submit" disabled={busy} style={{ ...S.saveBtn, opacity:busy?0.6:1 }}>{busy?'Generating…':'Generate'}</button>
             </div>
-          )}
-        </>
+          </form>
+        </div></div>
       )}
     </SettingsLayout>
   );

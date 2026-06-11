@@ -1,54 +1,74 @@
 import { useState } from 'react';
 
+const S = {
+  addBtn:  { display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#6366f1', border: 'none', borderRadius: '8px', padding: '8px 16px', color: '#fff', fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer', fontWeight: 600 },
+  table:   { width: '100%', borderCollapse: 'collapse', fontSize: '13px' },
+  th:      { fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.08em', padding: '10px 16px', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.06)' },
+  td:      { padding: '12px 16px', color: 'rgba(255,255,255,0.7)', borderBottom: '1px solid rgba(255,255,255,0.04)', verticalAlign: 'middle' },
+  iconBtn: { background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', fontSize: '16px', padding: '4px', lineHeight: 1 },
+  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
+  modal:   { background: '#1e293b', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '24px', width: '320px' },
+  cancelBtn: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '8px 16px', color: 'rgba(255,255,255,0.5)', fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer' },
+  deleteBtn: { background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', padding: '8px 16px', color: '#f87171', fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer' },
+};
+
 export default function CrudTable({ columns, items, onAdd, onEdit, onDelete, loading }) {
   const [confirm, setConfirm] = useState(null);
 
   if (loading) return (
-    <div className="flex items-center justify-center h-32 text-slate-500">
-      <i className="bx bx-loader-alt bx-spin mr-2" /> Loading…
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '120px', color: 'rgba(255,255,255,0.3)', fontSize: '13px', gap: '8px' }}>
+      <i className="bx bx-loader-alt bx-spin" /> Loading…
     </div>
   );
 
   return (
     <div>
-      <div className="flex justify-end mb-4">
-        <button onClick={onAdd} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm transition-colors">
-          <i className="bx bx-plus" /> Add New
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '14px' }}>
+        <button onClick={onAdd} style={S.addBtn}>
+          <i className="bx bx-plus" style={{ fontSize: '14px' }} /> Add New
         </button>
       </div>
 
-      <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-        <table className="w-full text-sm">
+      <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', overflow: 'hidden' }}>
+        <table style={S.table}>
           <thead>
-            <tr className="border-b border-slate-700">
-              {columns.map(c => (
-                <th key={c.key} className="text-left px-4 py-3 text-slate-400 font-medium">{c.label}</th>
-              ))}
-              <th className="text-right px-4 py-3 text-slate-400 font-medium">Actions</th>
+            <tr>
+              {columns.map(c => <th key={c.key} style={S.th}>{c.label}</th>)}
+              <th style={{ ...S.th, textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {items.length === 0 ? (
               <tr>
-                <td colSpan={columns.length + 1} className="text-center py-8 text-slate-500">No entries yet.</td>
+                <td colSpan={columns.length + 1} style={{ ...S.td, textAlign: 'center', color: 'rgba(255,255,255,0.2)', padding: '32px' }}>
+                  No entries yet.
+                </td>
               </tr>
             ) : items.map(item => (
-              <tr key={item.id} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
+              <tr key={item.id} style={{ transition: 'background 0.1s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+              >
                 {columns.map(c => (
-                  <td key={c.key} className="px-4 py-3 text-slate-300">
+                  <td key={c.key} style={S.td}>
                     {c.render ? c.render(item[c.key], item) : (item[c.key] ?? '—')}
                   </td>
                 ))}
-                <td className="px-4 py-3 text-right">
-                  <div className="flex items-center justify-end gap-2">
+                <td style={{ ...S.td, textAlign: 'right' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
                     {onEdit && (
-                      <button onClick={() => onEdit(item)} className="p-1.5 text-slate-400 hover:text-indigo-400 transition-colors">
+                      <button onClick={() => onEdit(item)} style={S.iconBtn}
+                        onMouseEnter={e => { e.currentTarget.style.color = '#818cf8'; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.3)'; }}
+                        title="Edit"
+                      >
                         <i className="bx bx-edit-alt" />
                       </button>
                     )}
-                    <button
-                      onClick={() => setConfirm(item.id)}
-                      className="p-1.5 text-slate-400 hover:text-red-400 transition-colors"
+                    <button onClick={() => setConfirm(item.id)} style={S.iconBtn}
+                      onMouseEnter={e => { e.currentTarget.style.color = '#f87171'; }}
+                      onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.3)'; }}
+                      title="Delete"
                     >
                       <i className="bx bx-trash" />
                     </button>
@@ -61,13 +81,13 @@ export default function CrudTable({ columns, items, onAdd, onEdit, onDelete, loa
       </div>
 
       {confirm && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 w-80">
-            <h3 className="text-white font-semibold mb-2">Delete entry?</h3>
-            <p className="text-slate-400 text-sm mb-4">This action cannot be undone.</p>
-            <div className="flex gap-3 justify-end">
-              <button onClick={() => setConfirm(null)} className="px-4 py-2 text-sm text-slate-400 hover:text-white border border-slate-600 rounded-lg transition-colors">Cancel</button>
-              <button onClick={() => { onDelete(confirm); setConfirm(null); }} className="px-4 py-2 text-sm bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors">Delete</button>
+        <div style={S.overlay}>
+          <div style={S.modal}>
+            <p style={{ margin: '0 0 6px', fontSize: '15px', fontWeight: 700, color: '#fff' }}>Delete entry?</p>
+            <p style={{ margin: '0 0 20px', fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>This action cannot be undone.</p>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setConfirm(null)} style={S.cancelBtn}>Cancel</button>
+              <button onClick={() => { onDelete(confirm); setConfirm(null); }} style={S.deleteBtn}>Delete</button>
             </div>
           </div>
         </div>

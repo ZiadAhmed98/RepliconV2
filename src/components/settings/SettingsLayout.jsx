@@ -3,22 +3,24 @@ import { useNavigate } from 'react-router-dom';
 export default function SettingsLayout({ title, subtitle, accent = '#818cf8', children }) {
   const navigate = useNavigate();
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div style={{ padding: '32px', minHeight: '100vh', color: '#e2e8f0', fontFamily: 'inherit', maxWidth: '900px' }}>
       <button
         onClick={() => navigate('/administration')}
-        className="flex items-center gap-2 text-sm text-slate-400 hover:text-white mb-6 transition-colors"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', color: 'rgba(255,255,255,0.35)', cursor: 'pointer', fontSize: '13px', fontFamily: 'inherit', padding: '0 0 20px 0' }}
+        onMouseEnter={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
+        onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.35)'; }}
       >
-        <i className="bx bx-arrow-back" />
+        <i className="bx bx-arrow-back" style={{ fontSize: '14px' }} />
         Back to Administration
       </button>
 
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-1">
-          <div className="w-1 h-8 rounded-full" style={{ background: accent }} />
-          <h1 className="text-2xl font-bold text-white">{title}</h1>
-        </div>
-        {subtitle && <p className="text-slate-400 ml-4 text-sm">{subtitle}</p>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' }}>
+        <div style={{ width: '4px', height: '28px', borderRadius: '4px', background: accent, flexShrink: 0 }} />
+        <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}>{title}</h1>
       </div>
+      {subtitle && (
+        <p style={{ margin: '4px 0 28px 16px', fontSize: '13px', color: 'rgba(255,255,255,0.38)' }}>{subtitle}</p>
+      )}
 
       {children}
     </div>

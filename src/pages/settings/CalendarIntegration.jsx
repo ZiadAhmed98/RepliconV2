@@ -1,74 +1,86 @@
+import { useState } from 'react';
 import { useSettings } from '../../hooks/useSettings';
 import SettingsLayout  from '../../components/settings/SettingsLayout';
+import { S }           from '../../components/settings/styles';
+
+function Toggle({ checked, onChange }) {
+  return (
+    <label style={{ position:'relative', display:'inline-flex', alignItems:'center', cursor:'pointer' }}>
+      <input type="checkbox" style={{ position:'absolute', opacity:0, width:0, height:0 }} checked={checked} onChange={onChange} />
+      <div style={{ width:'36px', height:'20px', borderRadius:'10px', background:checked?'#6366f1':'rgba(255,255,255,0.1)', transition:'background 0.2s', position:'relative' }}>
+        <div style={{ position:'absolute', top:'3px', left:checked?'19px':'3px', width:'14px', height:'14px', borderRadius:'50%', background:'#fff', transition:'left 0.2s' }} />
+      </div>
+    </label>
+  );
+}
 
 export default function CalendarIntegration() {
   const { settings, loading, saving, dirty, update, save } = useSettings('calendar');
+  const [copied, setCopied] = useState(false);
+
+  function copyFeed() {
+    navigator.clipboard.writeText(window.location.origin + '/api/v1/calendar/feed.ics');
+    setCopied(true); setTimeout(()=>setCopied(false),2000);
+  }
+
+  if (loading) return <SettingsLayout title="Calendar Integration" accent="#2dd4bf"><p style={S.muted}>Loading…</p></SettingsLayout>;
+
+  const gEnabled  = settings.googleEnabled  === 'true' || settings.googleEnabled  === true;
+  const msEnabled = settings.outlookEnabled === 'true' || settings.outlookEnabled === true;
 
   return (
     <SettingsLayout title="Calendar Integration" subtitle="Connect external calendar systems" accent="#2dd4bf">
-      {loading ? <div className="text-slate-500 text-sm">Loading…</div> : (
-        <div className="space-y-6">
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-white font-semibold">Google Calendar</h2>
-                <p className="text-slate-400 text-xs mt-0.5">Sync project deadlines and milestones</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" className="sr-only peer" checked={!!settings.googleEnabled} onChange={e => update('googleEnabled', e.target.checked)} />
-                <div className="w-10 h-5 bg-slate-600 peer-checked:bg-indigo-600 rounded-full transition-colors" />
-                <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5" />
-              </label>
-            </div>
-            {settings.googleEnabled && (
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Google Calendar ID</label>
-                <input type="text" value={settings.googleCalendarId ?? ''} onChange={e => update('googleCalendarId', e.target.value)}
-                  placeholder="primary or calendar@group.calendar.google.com"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500" />
-              </div>
-            )}
-          </div>
 
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-white font-semibold">Microsoft Outlook</h2>
-                <p className="text-slate-400 text-xs mt-0.5">Sync via Microsoft Graph API</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" className="sr-only peer" checked={!!settings.outlookEnabled} onChange={e => update('outlookEnabled', e.target.checked)} />
-                <div className="w-10 h-5 bg-slate-600 peer-checked:bg-indigo-600 rounded-full transition-colors" />
-                <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5" />
-              </label>
-            </div>
-            {settings.outlookEnabled && (
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Tenant ID</label>
-                <input type="text" value={settings.outlookTenantId ?? ''} onChange={e => update('outlookTenantId', e.target.value)}
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500" />
-              </div>
-            )}
+      <div style={S.card}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: gEnabled ? '16px' : 0 }}>
+          <div>
+            <p style={{ margin:'0 0 2px', fontSize:'14px', fontWeight:700, color:'#fff' }}>Google Calendar</p>
+            <p style={{ margin:0, fontSize:'12px', color:'rgba(255,255,255,0.35)' }}>Sync project deadlines and milestones</p>
           </div>
-
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
-            <h2 className="text-white font-semibold mb-3">iCal Feed</h2>
-            <p className="text-slate-400 text-xs mb-3">Subscribe to project deadlines via iCal URL</p>
-            <div className="flex items-center gap-2 bg-slate-700 rounded-lg px-3 py-2">
-              <i className="bx bx-link text-slate-400" />
-              <span className="text-slate-400 text-sm font-mono">/api/v1/calendar/feed.ics</span>
-              <button className="ml-auto text-xs text-indigo-400 hover:text-indigo-300">Copy</button>
-            </div>
-          </div>
-
-          <div className="flex justify-end">
-            <button onClick={save} disabled={!dirty || saving}
-              className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg text-sm transition-colors">
-              {saving ? 'Saving…' : 'Save Changes'}
-            </button>
-          </div>
+          <Toggle checked={gEnabled} onChange={e=>update('googleEnabled', e.target.checked?'true':'false')} />
         </div>
-      )}
+        {gEnabled && (
+          <div>
+            <label style={S.label}>Google Calendar ID</label>
+            <input style={S.input} type="text" value={settings.googleCalendarId||''} onChange={e=>update('googleCalendarId',e.target.value)}
+              placeholder="primary or calendar@group.calendar.google.com" />
+          </div>
+        )}
+      </div>
+
+      <div style={S.card}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: msEnabled ? '16px' : 0 }}>
+          <div>
+            <p style={{ margin:'0 0 2px', fontSize:'14px', fontWeight:700, color:'#fff' }}>Microsoft Outlook</p>
+            <p style={{ margin:0, fontSize:'12px', color:'rgba(255,255,255,0.35)' }}>Sync via Microsoft Graph API</p>
+          </div>
+          <Toggle checked={msEnabled} onChange={e=>update('outlookEnabled', e.target.checked?'true':'false')} />
+        </div>
+        {msEnabled && (
+          <div>
+            <label style={S.label}>Tenant ID</label>
+            <input style={S.input} type="text" value={settings.outlookTenantId||''} onChange={e=>update('outlookTenantId',e.target.value)} />
+          </div>
+        )}
+      </div>
+
+      <div style={S.card}>
+        <p style={{ margin:'0 0 4px', fontSize:'14px', fontWeight:700, color:'#fff' }}>iCal Feed</p>
+        <p style={{ ...S.muted, marginBottom:'12px' }}>Subscribe to project deadlines via iCal URL</p>
+        <div style={{ display:'flex', alignItems:'center', gap:'10px', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'8px', padding:'10px 14px' }}>
+          <i className="bx bx-link" style={{ color:'rgba(255,255,255,0.3)', fontSize:'16px' }} />
+          <span style={{ flex:1, fontSize:'12px', fontFamily:'monospace', color:'rgba(255,255,255,0.45)' }}>/api/v1/calendar/feed.ics</span>
+          <button onClick={copyFeed} style={{ ...S.iconBtn, color: copied ? '#34d399' : 'rgba(255,255,255,0.3)', fontSize:'14px' }}>
+            <i className={`bx ${copied?'bx-check':'bx-copy'}`} />
+          </button>
+        </div>
+      </div>
+
+      <div style={S.saveRow}>
+        <button onClick={save} disabled={!dirty||saving} style={{ ...S.saveBtn, opacity:(!dirty||saving)?0.6:1 }}>
+          {saving?'Saving…':'Save Changes'}
+        </button>
+      </div>
     </SettingsLayout>
   );
 }
