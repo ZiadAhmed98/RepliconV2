@@ -26,7 +26,7 @@ export default function EmailTemplates() {
         <button onClick={openAdd} style={S.addBtn}><i className="bx bx-plus" style={{ fontSize:'14px' }} /> Add Template</button>
       </div>
 
-      <div style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'14px', overflow:'hidden' }}>
+      <div style={S.tableWrap}>
         <table style={S.table}>
           <thead><tr>
             <th style={S.th}>Name</th><th style={S.th}>Type</th><th style={S.th}>Subject</th>
