@@ -36,6 +36,40 @@ import AccountManagers       from './pages/AccountManagers';
 import AccountManagerDetail  from './pages/AccountManagerDetail';
 import Programs              from './pages/Programs';
 
+// Settings pages
+import GeneralSettings      from './pages/settings/GeneralSettings';
+import Branding             from './pages/settings/Branding';
+import Localization         from './pages/settings/Localization';
+import BackupRestore        from './pages/settings/BackupRestore';
+import ProjectSettings      from './pages/settings/ProjectSettings';
+import ProjectCategories    from './pages/settings/ProjectCategories';
+import ProjectTemplates     from './pages/settings/ProjectTemplates';
+import BillingSettings      from './pages/settings/BillingSettings';
+import ClientSettings       from './pages/settings/ClientSettings';
+import ClientTiers          from './pages/settings/ClientTiers';
+import SLAConfiguration     from './pages/settings/SLAConfiguration';
+import ContractTemplates    from './pages/settings/ContractTemplates';
+import TaskSettings         from './pages/settings/TaskSettings';
+import TaskCategories       from './pages/settings/TaskCategories';
+import PriorityLevels       from './pages/settings/PriorityLevels';
+import WorkflowRules        from './pages/settings/WorkflowRules';
+import TimesheetPeriods     from './pages/settings/TimesheetPeriods';
+import ApprovalWorkflow     from './pages/settings/ApprovalWorkflow';
+import OvertimeRules        from './pages/settings/OvertimeRules';
+import HolidayCalendar      from './pages/settings/HolidayCalendar';
+import BillingRates         from './pages/settings/BillingRates';
+import CurrencySettings     from './pages/settings/CurrencySettings';
+import InvoiceTemplates     from './pages/settings/InvoiceTemplates';
+import CostCenters          from './pages/settings/CostCenters';
+import RolesPermissions     from './pages/settings/RolesPermissions';
+import TeamHierarchy        from './pages/settings/TeamHierarchy';
+import EmailTemplates       from './pages/settings/EmailTemplates';
+import AlertRules           from './pages/settings/AlertRules';
+import NotificationPreferences from './pages/settings/NotificationPreferences';
+import CalendarIntegration  from './pages/settings/CalendarIntegration';
+import APIKeys              from './pages/settings/APIKeys';
+import Webhooks             from './pages/settings/Webhooks';
+
 import { ADMIN_PATH }         from './config/adminRoutes';
 import { useRepliconData }    from './hooks/useRepliconData';
 import { repliconApi }        from './api/replicon';
@@ -205,6 +239,41 @@ function AppContent() {
                 <Route path={ADMIN_PATH.administration} element={<GuardedRoute page="administration"><Administration /></GuardedRoute>} />
                 <Route path={ADMIN_PATH.auditLog}       element={<GuardedRoute page="administration"><AuditLog /></GuardedRoute>} />
                 <Route path={ADMIN_PATH.migration}      element={<GuardedRoute page="administration"><Migration /></GuardedRoute>} />
+
+                {/* Settings routes */}
+                <Route path="/settings/general"                element={<GuardedRoute page="administration"><GeneralSettings /></GuardedRoute>} />
+                <Route path="/settings/branding"               element={<GuardedRoute page="administration"><Branding /></GuardedRoute>} />
+                <Route path="/settings/localization"           element={<GuardedRoute page="administration"><Localization /></GuardedRoute>} />
+                <Route path="/settings/backup"                 element={<GuardedRoute page="administration"><BackupRestore /></GuardedRoute>} />
+                <Route path="/settings/projects"               element={<GuardedRoute page="administration"><ProjectSettings /></GuardedRoute>} />
+                <Route path="/settings/project-categories"     element={<GuardedRoute page="administration"><ProjectCategories /></GuardedRoute>} />
+                <Route path="/settings/project-templates"      element={<GuardedRoute page="administration"><ProjectTemplates /></GuardedRoute>} />
+                <Route path="/settings/billing"                element={<GuardedRoute page="administration"><BillingSettings /></GuardedRoute>} />
+                <Route path="/settings/clients"                element={<GuardedRoute page="administration"><ClientSettings /></GuardedRoute>} />
+                <Route path="/settings/client-tiers"           element={<GuardedRoute page="administration"><ClientTiers /></GuardedRoute>} />
+                <Route path="/settings/sla"                    element={<GuardedRoute page="administration"><SLAConfiguration /></GuardedRoute>} />
+                <Route path="/settings/contracts"              element={<GuardedRoute page="administration"><ContractTemplates /></GuardedRoute>} />
+                <Route path="/settings/tasks"                  element={<GuardedRoute page="administration"><TaskSettings /></GuardedRoute>} />
+                <Route path="/settings/task-categories"        element={<GuardedRoute page="administration"><TaskCategories /></GuardedRoute>} />
+                <Route path="/settings/priorities"             element={<GuardedRoute page="administration"><PriorityLevels /></GuardedRoute>} />
+                <Route path="/settings/workflows"              element={<GuardedRoute page="administration"><WorkflowRules /></GuardedRoute>} />
+                <Route path="/settings/timesheet-periods"      element={<GuardedRoute page="administration"><TimesheetPeriods /></GuardedRoute>} />
+                <Route path="/settings/approval-workflow"      element={<GuardedRoute page="administration"><ApprovalWorkflow /></GuardedRoute>} />
+                <Route path="/settings/overtime"               element={<GuardedRoute page="administration"><OvertimeRules /></GuardedRoute>} />
+                <Route path="/settings/holidays"               element={<GuardedRoute page="administration"><HolidayCalendar /></GuardedRoute>} />
+                <Route path="/settings/billing-rates"          element={<GuardedRoute page="administration"><BillingRates /></GuardedRoute>} />
+                <Route path="/settings/currency"               element={<GuardedRoute page="administration"><CurrencySettings /></GuardedRoute>} />
+                <Route path="/settings/invoice-templates"      element={<GuardedRoute page="administration"><InvoiceTemplates /></GuardedRoute>} />
+                <Route path="/settings/cost-centers"           element={<GuardedRoute page="administration"><CostCenters /></GuardedRoute>} />
+                <Route path="/settings/roles"                  element={<GuardedRoute page="administration"><RolesPermissions /></GuardedRoute>} />
+                <Route path="/settings/team-hierarchy"         element={<GuardedRoute page="administration"><TeamHierarchy /></GuardedRoute>} />
+                <Route path="/settings/email-templates"        element={<GuardedRoute page="administration"><EmailTemplates /></GuardedRoute>} />
+                <Route path="/settings/alert-rules"            element={<GuardedRoute page="administration"><AlertRules /></GuardedRoute>} />
+                <Route path="/settings/notification-preferences" element={<GuardedRoute page="administration"><NotificationPreferences /></GuardedRoute>} />
+                <Route path="/settings/calendar"               element={<GuardedRoute page="administration"><CalendarIntegration /></GuardedRoute>} />
+                <Route path="/settings/api-keys"               element={<GuardedRoute page="administration"><APIKeys /></GuardedRoute>} />
+                <Route path="/settings/webhooks"               element={<GuardedRoute page="administration"><Webhooks /></GuardedRoute>} />
+
                 <Route path="*" element={<Navigate to="/home" replace />} />
               </Routes>
             )}

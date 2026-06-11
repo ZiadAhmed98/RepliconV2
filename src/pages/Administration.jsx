@@ -13,10 +13,10 @@ const SECTIONS = [
     icon: 'bx-folder-open',
     accent: '#818cf8',
     items: [
-      { label: 'Project Settings',    icon: 'bx-slider-alt',      desc: 'Default project behaviours & rules',      live: false },
-      { label: 'Billing Settings',    icon: 'bx-dollar-circle',   desc: 'Configure billing models and rate cards',  live: false },
-      { label: 'Project Templates',   icon: 'bx-copy',            desc: 'Reusable project structures & task sets',  live: false },
-      { label: 'Project Categories',  icon: 'bx-purchase-tag',    desc: 'Classify projects by type or department',  live: false },
+      { label: 'Project Settings',    icon: 'bx-slider-alt',      desc: 'Default project behaviours & rules',      live: true, to: '/settings/projects' },
+      { label: 'Billing Settings',    icon: 'bx-dollar-circle',   desc: 'Configure billing models and rate cards',  live: true, to: '/settings/billing' },
+      { label: 'Project Templates',   icon: 'bx-copy',            desc: 'Reusable project structures & task sets',  live: true, to: '/settings/project-templates' },
+      { label: 'Project Categories',  icon: 'bx-purchase-tag',    desc: 'Classify projects by type or department',  live: true, to: '/settings/project-categories' },
     ],
   },
   {
@@ -25,10 +25,10 @@ const SECTIONS = [
     icon: 'bx-briefcase',
     accent: '#34d399',
     items: [
-      { label: 'Client Settings',     icon: 'bx-cog',             desc: 'Default client onboarding configuration',  live: false },
-      { label: 'SLA Configuration',   icon: 'bx-time-five',       desc: 'Define service level agreement terms',     live: false },
-      { label: 'Contract Templates',  icon: 'bx-file',            desc: 'Standardised contract and SOW formats',    live: false },
-      { label: 'Client Tiers',        icon: 'bx-medal',           desc: 'Tier-based segmentation and priorities',   live: false },
+      { label: 'Client Settings',     icon: 'bx-cog',             desc: 'Default client onboarding configuration',  live: true, to: '/settings/clients' },
+      { label: 'SLA Configuration',   icon: 'bx-time-five',       desc: 'Define service level agreement terms',     live: true, to: '/settings/sla' },
+      { label: 'Contract Templates',  icon: 'bx-file',            desc: 'Standardised contract and SOW formats',    live: true, to: '/settings/contracts' },
+      { label: 'Client Tiers',        icon: 'bx-medal',           desc: 'Tier-based segmentation and priorities',   live: true, to: '/settings/client-tiers' },
     ],
   },
   {
@@ -37,10 +37,10 @@ const SECTIONS = [
     icon: 'bx-task',
     accent: '#fbbf24',
     items: [
-      { label: 'Task Settings',       icon: 'bx-slider-alt',      desc: 'Default task behaviours and constraints',  live: false },
-      { label: 'Task Categories',     icon: 'bx-purchase-tag',    desc: 'Classify tasks by discipline or phase',    live: false },
-      { label: 'Priority Levels',     icon: 'bx-sort-alt-2',      desc: 'Define and order task priority tiers',     live: false },
-      { label: 'Workflow Rules',      icon: 'bx-git-branch',      desc: 'Automated status-transition triggers',     live: false },
+      { label: 'Task Settings',       icon: 'bx-slider-alt',      desc: 'Default task behaviours and constraints',  live: true, to: '/settings/tasks' },
+      { label: 'Task Categories',     icon: 'bx-purchase-tag',    desc: 'Classify tasks by discipline or phase',    live: true, to: '/settings/task-categories' },
+      { label: 'Priority Levels',     icon: 'bx-sort-alt-2',      desc: 'Define and order task priority tiers',     live: true, to: '/settings/priorities' },
+      { label: 'Workflow Rules',      icon: 'bx-git-branch',      desc: 'Automated status-transition triggers',     live: true, to: '/settings/workflows' },
     ],
   },
   {
@@ -49,10 +49,10 @@ const SECTIONS = [
     icon: 'bx-time-five',
     accent: '#60a5fa',
     items: [
-      { label: 'Timesheet Periods',   icon: 'bx-calendar',        desc: 'Fiscal weeks, cut-offs and lock rules',    live: false },
-      { label: 'Approval Workflow',   icon: 'bx-check-shield',    desc: 'Multi-step approval chains and escalation', live: false },
-      { label: 'Overtime Rules',      icon: 'bx-timer',           desc: 'Thresholds, caps and OT pay settings',     live: false },
-      { label: 'Holiday Calendar',    icon: 'bx-calendar-star',   desc: 'Public and company-wide holidays',         live: false },
+      { label: 'Timesheet Periods',   icon: 'bx-calendar',        desc: 'Fiscal weeks, cut-offs and lock rules',    live: true, to: '/settings/timesheet-periods' },
+      { label: 'Approval Workflow',   icon: 'bx-check-shield',    desc: 'Multi-step approval chains and escalation', live: true, to: '/settings/approval-workflow' },
+      { label: 'Overtime Rules',      icon: 'bx-timer',           desc: 'Thresholds, caps and OT pay settings',     live: true, to: '/settings/overtime' },
+      { label: 'Holiday Calendar',    icon: 'bx-calendar-star',   desc: 'Public and company-wide holidays',         live: true, to: '/settings/holidays' },
     ],
   },
   {
@@ -61,10 +61,10 @@ const SECTIONS = [
     icon: 'bx-dollar',
     accent: '#f472b6',
     items: [
-      { label: 'Billing Rates',       icon: 'bx-money',           desc: 'Role and employee billing rate tables',    live: false },
-      { label: 'Currency Settings',   icon: 'bx-coin',            desc: 'Multi-currency support and FX rates',      live: false },
-      { label: 'Invoice Templates',   icon: 'bx-receipt',         desc: 'Customise invoice layout and branding',    live: false },
-      { label: 'Cost Centers',        icon: 'bx-buildings',       desc: 'Internal cost allocation and P&L mapping', live: false },
+      { label: 'Billing Rates',       icon: 'bx-money',           desc: 'Role and employee billing rate tables',    live: true, to: '/settings/billing-rates' },
+      { label: 'Currency Settings',   icon: 'bx-coin',            desc: 'Multi-currency support and FX rates',      live: true, to: '/settings/currency' },
+      { label: 'Invoice Templates',   icon: 'bx-receipt',         desc: 'Customise invoice layout and branding',    live: true, to: '/settings/invoice-templates' },
+      { label: 'Cost Centers',        icon: 'bx-buildings',       desc: 'Internal cost allocation and P&L mapping', live: true, to: '/settings/cost-centers' },
     ],
   },
   {
@@ -75,8 +75,8 @@ const SECTIONS = [
     items: [
       { label: 'Employees & Access',   icon: 'bx-group',           desc: 'Employee records, roles, login accounts and permissions', live: true, to: '/employees' },
       { label: 'Audit Log',           icon: 'bx-history',         desc: 'Full trail of every system action',           live: true, to: ADMIN_PATH.auditLog  },
-      { label: 'Roles & Permissions', icon: 'bx-lock-alt',        desc: 'Define role presets and access policies',     live: false },
-      { label: 'Team Hierarchy',      icon: 'bx-sitemap',         desc: 'Org chart, supervisors and reporting lines',  live: false },
+      { label: 'Roles & Permissions', icon: 'bx-lock-alt',        desc: 'Define role presets and access policies',     live: true, to: '/settings/roles' },
+      { label: 'Team Hierarchy',      icon: 'bx-sitemap',         desc: 'Org chart, supervisors and reporting lines',  live: true, to: '/settings/team-hierarchy' },
     ],
   },
   {
@@ -85,9 +85,9 @@ const SECTIONS = [
     icon: 'bx-bell',
     accent: '#fb923c',
     items: [
-      { label: 'Email Templates',     icon: 'bx-envelope',        desc: 'Branded templates for system emails',      live: false },
-      { label: 'Alert Rules',         icon: 'bx-error-circle',    desc: 'Trigger-based alerts and escalations',     live: false },
-      { label: 'Notification Prefs',  icon: 'bx-toggle-right',    desc: 'Per-user delivery channel preferences',    live: false },
+      { label: 'Email Templates',     icon: 'bx-envelope',        desc: 'Branded templates for system emails',      live: true, to: '/settings/email-templates' },
+      { label: 'Alert Rules',         icon: 'bx-error-circle',    desc: 'Trigger-based alerts and escalations',     live: true, to: '/settings/alert-rules' },
+      { label: 'Notification Prefs',  icon: 'bx-toggle-right',    desc: 'Per-user delivery channel preferences',    live: true, to: '/settings/notification-preferences' },
     ],
   },
   {
@@ -97,9 +97,9 @@ const SECTIONS = [
     accent: '#2dd4bf',
     items: [
       { label: 'Replicon Sync',       icon: 'bx-sync',            desc: 'Import all Replicon data into PSA',        live: true, to: ADMIN_PATH.migration },
-      { label: 'Calendar',            icon: 'bx-calendar',        desc: 'Google and Outlook calendar sync',         live: false },
-      { label: 'API Keys',            icon: 'bx-key',             desc: 'Manage external API credentials',          live: false },
-      { label: 'Webhooks',            icon: 'bx-broadcast',       desc: 'Real-time event delivery to endpoints',    live: false },
+      { label: 'Calendar',            icon: 'bx-calendar',        desc: 'Google and Outlook calendar sync',         live: true, to: '/settings/calendar' },
+      { label: 'API Keys',            icon: 'bx-key',             desc: 'Manage external API credentials',          live: true, to: '/settings/api-keys' },
+      { label: 'Webhooks',            icon: 'bx-broadcast',       desc: 'Real-time event delivery to endpoints',    live: true, to: '/settings/webhooks' },
     ],
   },
   {
@@ -108,10 +108,10 @@ const SECTIONS = [
     icon: 'bx-cog',
     accent: '#94a3b8',
     items: [
-      { label: 'General Settings',    icon: 'bx-wrench',          desc: 'Platform-wide preferences and defaults',   live: false },
-      { label: 'Branding',            icon: 'bx-palette',         desc: 'Logo, accent colours and display name',    live: false },
-      { label: 'Localization',        icon: 'bx-globe',           desc: 'Language, timezone and date formats',      live: false },
-      { label: 'Backup & Restore',    icon: 'bx-cloud-upload',    desc: 'Export data and restore from backup',      live: false },
+      { label: 'General Settings',    icon: 'bx-wrench',          desc: 'Platform-wide preferences and defaults',   live: true, to: '/settings/general' },
+      { label: 'Branding',            icon: 'bx-palette',         desc: 'Logo, accent colours and display name',    live: true, to: '/settings/branding' },
+      { label: 'Localization',        icon: 'bx-globe',           desc: 'Language, timezone and date formats',      live: true, to: '/settings/localization' },
+      { label: 'Backup & Restore',    icon: 'bx-cloud-upload',    desc: 'Export data and restore from backup',      live: true, to: '/settings/backup' },
     ],
   },
 ];

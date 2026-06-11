@@ -26,6 +26,7 @@ import accountManagersRouter from './routes/accountManagers.js';
 import templatesRouter   from './routes/templates.js';
 import homeRouter        from './routes/home.js';
 import programsRouter    from './routes/programs.js';
+import settingsRouter    from './routes/settings.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
@@ -85,6 +86,7 @@ app.use(accountManagersRouter);
 app.use(templatesRouter);
 app.use(homeRouter);
 app.use(programsRouter);
+app.use(settingsRouter);
 
 // Block old human-readable admin routes — return 403 before the SPA catch-all
 // so typing these URLs directly never renders a page.
