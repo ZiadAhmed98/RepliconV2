@@ -10,6 +10,8 @@ import ToastStack         from './components/Toast';
 import GlobalSearch       from './components/GlobalSearch';
 import KeyboardShortcuts  from './components/KeyboardShortcuts';
 import ChatBot            from './components/ChatBot';
+import ErrorBoundary      from './components/ErrorBoundary';
+import OfflineBanner      from './components/OfflineBanner';
 
 import Dashboard       from './pages/Dashboard';
 import Employee        from './pages/Employee';
@@ -69,6 +71,7 @@ import NotificationPreferences from './pages/settings/NotificationPreferences';
 import CalendarIntegration  from './pages/settings/CalendarIntegration';
 import APIKeys              from './pages/settings/APIKeys';
 import Webhooks             from './pages/settings/Webhooks';
+import SupportTickets       from './pages/settings/SupportTickets';
 
 import { ADMIN_PATH }         from './config/adminRoutes';
 import { useRepliconData }    from './hooks/useRepliconData';
@@ -76,6 +79,7 @@ import { repliconApi }        from './api/replicon';
 import { ThemeProvider }      from './context/ThemeContext';
 import { ToastProvider }      from './context/ToastContext';
 import { PermissionProvider, useCan } from './context/PermissionContext';
+import { SupportProvider }    from './context/SupportContext';
 
 const SIDEBAR_COLLAPSED_KEY = 'mds_sidebar_collapsed';
 
@@ -213,6 +217,7 @@ function AppContent() {
           {/* key=sessionUser.id forces full remount of all page components on user switch */}
           <main key={sessionUser?.id || 'anon'} className="dashboard-container" style={{ flex: 1 }}>
             {dataMatrix && (
+              <ErrorBoundary key={location.pathname} name="This page">
               <Routes>
                 <Route path="/"               element={<Navigate to="/home" replace />} />
                 <Route path="/home"           element={<Home sessionUser={sessionUser} />} />
@@ -273,9 +278,11 @@ function AppContent() {
                 <Route path="/settings/calendar"               element={<GuardedRoute page="administration"><CalendarIntegration /></GuardedRoute>} />
                 <Route path="/settings/api-keys"               element={<GuardedRoute page="administration"><APIKeys /></GuardedRoute>} />
                 <Route path="/settings/webhooks"               element={<GuardedRoute page="administration"><Webhooks /></GuardedRoute>} />
+                <Route path="/settings/support"                element={<GuardedRoute page="administration"><SupportTickets /></GuardedRoute>} />
 
                 <Route path="*" element={<Navigate to="/home" replace />} />
               </Routes>
+              </ErrorBoundary>
             )}
           </main>
         </div>
@@ -294,7 +301,10 @@ export default function App() {
   return (
     <ThemeProvider>
       <ToastProvider>
-        <AppContent />
+        <SupportProvider>
+          <OfflineBanner />
+          <AppContent />
+        </SupportProvider>
       </ToastProvider>
     </ThemeProvider>
   );

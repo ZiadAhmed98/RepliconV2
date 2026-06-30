@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme }         from '../context/ThemeContext';
+import { useSupport }       from '../context/SupportContext';
 import NotificationsCenter  from './NotificationsCenter';
 
 function relativeTime(ts) {
@@ -14,6 +15,7 @@ function relativeTime(ts) {
 
 export default function Ribbon({ sessionUser, onLogout, onSync, onSearchOpen, lastSynced, dataMatrix }) {
   const { theme, toggleTheme } = useTheme();
+  const { openTicket }         = useSupport();
   const [syncLabel, setSyncLabel] = useState(null);
   const [syncing,   setSyncing]   = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -165,6 +167,9 @@ export default function Ribbon({ sessionUser, onLogout, onSync, onSearchOpen, la
         </button>
 
         <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.07)' }} />
+
+        {/* Help & support */}
+        {iconBtn(() => openTicket(), 'bx-lifebuoy', 'Help & support')}
 
         {/* Theme */}
         {iconBtn(toggleTheme, theme === 'dark' ? 'bx-sun' : 'bx-moon', `Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`)}

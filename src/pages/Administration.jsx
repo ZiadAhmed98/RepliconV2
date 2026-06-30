@@ -103,6 +103,15 @@ const SECTIONS = [
     ],
   },
   {
+    id: 'support',
+    title: 'Support',
+    icon: 'bx-lifebuoy',
+    accent: '#22d3ee',
+    items: [
+      { label: 'Support Tickets',  icon: 'bx-message-square-dots', desc: 'Employee-reported issues and requests',   live: true, to: '/settings/support' },
+    ],
+  },
+  {
     id: 'system',
     title: 'System',
     icon: 'bx-cog',
