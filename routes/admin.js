@@ -2,8 +2,24 @@ import { Router }                               from 'express';
 import { requireAuth, requireAdmin, hashPassword } from '../lib/auth.js';
 import { allPermissions, loadAuditLog, appendAudit } from '../lib/rbac.js';
 import db                                          from '../lib/db.js';
+import { validate, z }                             from '../lib/validate.js';
 
 const router = Router();
+
+// ── Validation schemas ────────────────────────────────────────────────────────
+const createUserSchema = z.object({
+  id:          z.string().trim().min(1).max(64),
+  displayName: z.string().trim().min(1).max(120),
+  password:    z.string().min(10, 'Password must be at least 10 characters.').max(200),
+  isAdmin:     z.boolean().optional(),
+  permissions: z.record(z.boolean()).optional(),
+});
+const updateUserSchema = z.object({
+  displayName: z.string().trim().min(1).max(120).optional(),
+  password:    z.string().min(10, 'Password must be at least 10 characters.').max(200).optional(),
+  isAdmin:     z.boolean().optional(),
+  permissions: z.record(z.boolean()).optional(),
+});
 
 // ── User CRUD (SQLite) ────────────────────────────────────────────────────────
 
@@ -12,10 +28,8 @@ router.get('/api/v1/admin/users', requireAdmin, (req, res) => {
   res.json({ users: rows.map(u => ({ ...u, isAdmin: !!u.isAdmin, permissions: JSON.parse(u.permissions || '{}') })) });
 });
 
-router.post('/api/v1/admin/users', requireAdmin, async (req, res) => {
-  const { id, displayName, password, isAdmin, permissions } = req.body || {};
-  if (!id || !displayName || !password) return res.status(400).json({ error: 'id, displayName, password required.' });
-  if (String(password).length < 10) return res.status(400).json({ error: 'Password must be at least 10 characters.' });
+router.post('/api/v1/admin/users', requireAdmin, validate(createUserSchema), async (req, res) => {
+  const { id, displayName, password, isAdmin, permissions } = req.body;
 
   const cleanId = String(id).toLowerCase().trim().replace(/\s+/g, '_');
   if (db.prepare('SELECT id FROM users WHERE id=?').get(cleanId)) {
@@ -33,14 +47,13 @@ router.post('/api/v1/admin/users', requireAdmin, async (req, res) => {
   res.json({ success: true, user: { ...row, isAdmin: !!row.isAdmin, permissions: JSON.parse(row.permissions) } });
 });
 
-router.put('/api/v1/admin/users/:uid', requireAdmin, async (req, res) => {
+router.put('/api/v1/admin/users/:uid', requireAdmin, validate(updateUserSchema), async (req, res) => {
   const { uid } = req.params;
   if (!db.prepare('SELECT id FROM users WHERE id=?').get(uid)) {
     return res.status(404).json({ error: 'User not found.' });
   }
 
-  const { displayName, password, isAdmin, permissions } = req.body || {};
-  if (password && String(password).length < 10) return res.status(400).json({ error: 'Password must be at least 10 characters.' });
+  const { displayName, password, isAdmin, permissions } = req.body;
   const now = new Date().toISOString();
   if (displayName)                  db.prepare('UPDATE users SET displayName=?,updatedAt=? WHERE id=?').run(String(displayName).trim(), now, uid);
   if (typeof isAdmin === 'boolean') db.prepare('UPDATE users SET isAdmin=?,updatedAt=? WHERE id=?').run(isAdmin ? 1 : 0, now, uid);

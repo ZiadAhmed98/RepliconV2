@@ -17,6 +17,13 @@ git pull
 docker compose up -d --build
 ```
 
+## Promotion flow (dev → test → prod)
+- **`dev`** branch → dev env (`:8082`) — active development.
+- **`test`** branch → test env (`:8081`) — validation / UAT. Merge here only after the **CI build passes**.
+- **`main`** branch → prod (`:443`) — promote by merging `test → main` after sign-off on test.
+
+CI (`.github/workflows/ci.yml`) runs install + Vite build on every push/PR — keep prod promotion gated on a green build. For prod-like data in test, periodically restore a recent prod backup into the test DB (see the restore drill below), scrubbing secrets as needed.
+
 ## Rollback (fast)
 ```bash
 cd /var/www/replicon/test
