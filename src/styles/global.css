@@ -25,11 +25,21 @@
   --border-glow:    rgba(139,92,246,0.4);
 
   /* Text */
-  --text-1:   #fafafa;
-  --text-2:   #d4d4d8;
-  --text-3:   #a1a1aa;
-  --text-4:   #71717a;
-  --text-5:   #52525b;
+  --text-1:   #f4f4f6;
+  --text-2:   #cdcdd4;
+  --text-3:   #9a9aa6;
+  --text-4:   #6e6e7a;
+  --text-5:   #4d4d57;
+
+  /* ── Compatibility aliases — referenced ~300× across pages/components.
+        These were never defined, so "muted" text was falling back to white
+        and killing all visual hierarchy. Defining them fixes the whole app. */
+  --text-main:      var(--text-1);
+  --text-muted:     var(--text-3);
+  --text-faint:     var(--text-4);
+  --bg-main:        var(--bg-void);
+  --accent-primary: var(--violet);
+  --border-color:   var(--border);
 
   /* Brand gradient */
   --grad-primary:  linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
@@ -139,6 +149,8 @@
   --text-1: #09090b; --text-2: #27272a; --text-3: #71717a;
   --text-4: #a1a1aa; --text-5: #d4d4d8;
   --shadow-card: 0 0 0 1px var(--border), 0 4px 20px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.9);
+  --text-main: var(--text-1); --text-muted: var(--text-3); --text-faint: var(--text-4);
+  --bg-main: var(--bg-void); --accent-primary: #6d28d9; --border-color: var(--border);
 }
 
 /* ── 2. RESET & BASE ───────────────────────────────────────────────────── */
@@ -502,3 +514,71 @@ select:focus {
 @media (max-width: 1280px) { :root { --pad: 22px; } }
 @media (max-width: 1024px) { :root { --pad: 16px; } }
 @media (max-width: 768px)  { :root { --pad: 12px; --sidebar-w: var(--sidebar-wc); } }
+
+/* ── 17. MODERN UI PRIMITIVES (revamp) ─────────────────────────────────── */
+.surface {
+  background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.022));
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 30px rgba(0,0,0,0.32);
+}
+[data-theme="light"] .surface {
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);
+}
+.surface-sub {
+  background: rgba(255,255,255,0.028);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+}
+
+/* Page header pattern */
+.page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 26px; }
+.page-title { margin: 0; font-size: 1.55rem; font-weight: 800; letter-spacing: -0.03em; color: var(--text-main); display: flex; align-items: center; gap: 11px; line-height: 1.15; }
+.page-title i { color: var(--violet); font-size: 1.5rem; }
+.page-sub { margin: 5px 0 0; font-size: 0.85rem; color: var(--text-muted); }
+.toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+
+/* Pills / filter chips */
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 13px; border-radius: 9px; font-size: 0.8rem; font-weight: 600;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+  color: var(--text-muted); cursor: pointer; transition: all 0.15s; font-family: inherit; white-space: nowrap;
+}
+.chip:hover { background: rgba(255,255,255,0.075); color: var(--text-2); }
+.chip.active { background: rgba(139,92,246,0.16); border-color: rgba(139,92,246,0.42); color: #c4b5fd; }
+
+/* Modern data table */
+.tbl { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.tbl thead th {
+  text-align: left; padding: 12px 18px; font-size: 0.7rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-faint);
+  background: rgba(255,255,255,0.025); border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.tbl tbody td { padding: 13px 18px; border-bottom: 1px solid rgba(255,255,255,0.05); color: var(--text-2); vertical-align: middle; }
+.tbl tbody tr { transition: background 0.12s; }
+.tbl tbody tr:hover { background: rgba(255,255,255,0.025); }
+.tbl tbody tr:last-child td { border-bottom: none; }
+
+/* Status / category badge */
+.tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 7px; font-size: 0.7rem; font-weight: 700;
+  letter-spacing: 0.02em; white-space: nowrap;
+}
+
+/* Icon button */
+.iconbtn {
+  width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.045); border: 1px solid var(--border);
+  color: var(--text-muted); cursor: pointer; transition: all 0.15s; font-size: 1rem;
+}
+.iconbtn:hover { background: rgba(139,92,246,0.14); border-color: rgba(139,92,246,0.34); color: #a78bfa; }
+
+/* Section eyebrow label */
+.eyebrow { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-faint); }
+
+/* Soft entrance for page content */
+.fade-up { animation: slideUp 0.4s cubic-bezier(0.2,0.8,0.2,1) both; }
