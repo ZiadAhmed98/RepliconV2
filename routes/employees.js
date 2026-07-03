@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z }      from 'zod';
 import crypto     from 'crypto';
 import { requireAuth, hashPassword } from '../lib/auth.js';
-import { logger, auditLog }          from '../lib/helpers.js';
+import { logger, auditLog, pageArgs } from '../lib/helpers.js';
 import { ALL_PAGES, defaultPermissionsForRole } from '../lib/rbac.js';
 import db                            from '../lib/db.js';
 
@@ -24,18 +24,21 @@ const employeeSchema = z.object({
 
 router.get('/api/v1/employees', requireAuth, (req, res) => {
   const { status, role, search } = req.query;
-  let query  = 'SELECT * FROM employees WHERE 1=1';
+  let where = ' WHERE 1=1';
   const params = [];
-  if (status) { query += ' AND status = ?'; params.push(status); }
-  if (role)   { query += ' AND role = ?';   params.push(role); }
+  if (status) { where += ' AND status = ?'; params.push(status); }
+  if (role)   { where += ' AND role = ?';   params.push(role); }
   if (search) {
-    query += ' AND (firstName LIKE ? OR lastName LIKE ? OR email LIKE ? OR employeeId LIKE ?)';
+    where += ' AND (firstName LIKE ? OR lastName LIKE ? OR email LIKE ? OR employeeId LIKE ?)';
     const like = `%${search}%`;
     params.push(like, like, like, like);
   }
-  query += ' ORDER BY lastName, firstName';
-  const rows = db.prepare(query).all(...params);
-  res.json({ employees: rows.map(r => ({ ...r, skills: JSON.parse(r.skills || '[]') })) });
+  const { limit, offset, paged } = pageArgs(req);
+  const total = paged ? db.prepare('SELECT COUNT(*) AS n FROM employees' + where).get(...params).n : null;
+  let query = 'SELECT * FROM employees' + where + ' ORDER BY lastName, firstName';
+  if (paged) query += ' LIMIT ? OFFSET ?';
+  const rows = db.prepare(query).all(...(paged ? [...params, limit, offset] : params));
+  res.json({ employees: rows.map(r => ({ ...r, skills: JSON.parse(r.skills || '[]') })), total: total ?? rows.length });
 });
 
 router.get('/api/v1/employees/:id', requireAuth, (req, res) => {

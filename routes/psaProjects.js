@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z }      from 'zod';
 import crypto     from 'crypto';
 import { requireAuth }  from '../lib/auth.js';
-import { auditLog }     from '../lib/helpers.js';
+import { auditLog, pageArgs } from '../lib/helpers.js';
 import db               from '../lib/db.js';
 
 const router = Router();
@@ -26,31 +26,33 @@ const psaProjectSchema = z.object({
 
 router.get('/api/v1/psa/projects', requireAuth, (req, res) => {
   const { status, clientId, pmId, search, mine } = req.query;
+  let where = ' WHERE 1=1';
+  const params = [];
+  if (status)   { where += ' AND p.status = ?';           params.push(status); }
+  if (clientId) { where += ' AND p.clientId = ?';         params.push(clientId); }
+  if (pmId)     { where += ' AND p.projectManagerId = ?'; params.push(pmId); }
+  if (search)   { where += ' AND (p.name LIKE ? OR p.code LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
+  if (mine === 'true') {
+    const emp = db.prepare('SELECT id FROM employees WHERE userId=?').get(req.user.id);
+    if (emp) {
+      where += ` AND (p.projectManagerId = ? OR EXISTS (
+        SELECT 1 FROM project_resources pr WHERE pr.projectId = p.id AND pr.employeeId = ?
+      ))`;
+      params.push(emp.id, emp.id);
+    }
+  }
+  const { limit, offset, paged } = pageArgs(req);
+  const total = paged ? db.prepare('SELECT COUNT(*) AS n FROM projects p' + where).get(...params).n : null;
   let q = `
     SELECT p.*, c.name AS clientName, e.firstName || ' ' || e.lastName AS projectManagerName,
            pr.name AS programName
     FROM projects p
     LEFT JOIN clients   c  ON c.id  = p.clientId
     LEFT JOIN employees e  ON e.id  = p.projectManagerId
-    LEFT JOIN programs  pr ON pr.id = p.programId
-    WHERE 1=1
-  `;
-  const params = [];
-  if (status)   { q += ' AND p.status = ?';           params.push(status); }
-  if (clientId) { q += ' AND p.clientId = ?';         params.push(clientId); }
-  if (pmId)     { q += ' AND p.projectManagerId = ?'; params.push(pmId); }
-  if (search)   { q += ' AND (p.name LIKE ? OR p.code LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
-  if (mine === 'true') {
-    const emp = db.prepare('SELECT id FROM employees WHERE userId=?').get(req.user.id);
-    if (emp) {
-      q += ` AND (p.projectManagerId = ? OR EXISTS (
-        SELECT 1 FROM project_resources pr WHERE pr.projectId = p.id AND pr.employeeId = ?
-      ))`;
-      params.push(emp.id, emp.id);
-    }
-  }
-  q += ' ORDER BY p.createdAt DESC';
-  res.json({ projects: db.prepare(q).all(...params) });
+    LEFT JOIN programs  pr ON pr.id = p.programId` + where + ' ORDER BY p.createdAt DESC';
+  if (paged) q += ' LIMIT ? OFFSET ?';
+  const rows = db.prepare(q).all(...(paged ? [...params, limit, offset] : params));
+  res.json({ projects: rows, total: total ?? rows.length });
 });
 
 router.get('/api/v1/psa/projects/:id', requireAuth, (req, res) => {

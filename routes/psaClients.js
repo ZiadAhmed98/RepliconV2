@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z }      from 'zod';
 import crypto     from 'crypto';
 import { requireAuth, requireAdmin } from '../lib/auth.js';
-import { auditLog }                  from '../lib/helpers.js';
+import { auditLog, pageArgs }        from '../lib/helpers.js';
 import db                            from '../lib/db.js';
 
 const router = Router();
@@ -34,16 +34,20 @@ const CLIENT_SELECT = `
 
 router.get('/api/v1/clients', requireAuth, (req, res) => {
   const { status, search } = req.query;
-  let query = CLIENT_SELECT + ' WHERE 1=1';
+  let where = ' WHERE 1=1';
   const params = [];
-  if (status) { query += ' AND c.status = ?'; params.push(status); }
+  if (status) { where += ' AND c.status = ?'; params.push(status); }
   if (search) {
-    query += ' AND (c.name LIKE ? OR c.code LIKE ? OR c.contactName LIKE ? OR c.contactEmail LIKE ?)';
+    where += ' AND (c.name LIKE ? OR c.code LIKE ? OR c.contactName LIKE ? OR c.contactEmail LIKE ?)';
     const like = `%${search}%`;
     params.push(like, like, like, like);
   }
-  query += ' ORDER BY c.name';
-  res.json({ clients: db.prepare(query).all(...params) });
+  const { limit, offset, paged } = pageArgs(req);
+  const total = paged ? db.prepare('SELECT COUNT(*) AS n FROM clients c' + where).get(...params).n : null;
+  let query = CLIENT_SELECT + where + ' ORDER BY c.name';
+  if (paged) query += ' LIMIT ? OFFSET ?';
+  const rows = db.prepare(query).all(...(paged ? [...params, limit, offset] : params));
+  res.json({ clients: rows, total: total ?? rows.length });
 });
 
 router.get('/api/v1/clients/:id', requireAuth, (req, res) => {
