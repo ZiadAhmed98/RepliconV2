@@ -105,15 +105,10 @@ function AppContent() {
         const { user } = await repliconApi.me();
         setSessionUser(user);
       } catch {
-        // Cookie session invalid — try legacy localStorage
-        const legacy = localStorage.getItem('mds_dashboard_session');
-        if (legacy) {
-          try {
-            const parsed = JSON.parse(legacy);
-            if (Date.now() < parsed.expiresAt) setSessionUser(parsed.user);
-            else localStorage.removeItem('mds_dashboard_session');
-          } catch { localStorage.removeItem('mds_dashboard_session'); }
-        }
+        // Not authenticated. Auth relies solely on the httpOnly cookie via
+        // /api/v1/me — the legacy localStorage session path was removed as it
+        // was a weaker, client-controllable trust path.
+        localStorage.removeItem('mds_dashboard_session');
       } finally {
         setIsAppReady(true);
       }

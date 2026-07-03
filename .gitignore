@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Runtime data & database (volume-mounted on the server, never in git)
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Secrets & environment
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db

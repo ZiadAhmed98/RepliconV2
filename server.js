@@ -35,6 +35,10 @@ const __dirname  = path.dirname(__filename);
 const app = express();
 app.disable('x-powered-by');
 
+// Behind nginx/Docker: trust the first proxy hop so req.ip and req.secure
+// reflect the real client — fixes rate-limiter keying and IP logging.
+app.set('trust proxy', 1);
+
 // Security headers
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options',   'nosniff');
@@ -58,7 +62,13 @@ app.use((req, res, next) => {
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost,https://localhost,http://129.151.146.210,https://129.151.146.210').split(',').map(o => o.trim());
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin || allowedOrigins.some(o => origin.startsWith(o))) return cb(null, true);
+    // No Origin header (same-origin nav, curl, server-to-server) → allow.
+    if (!origin) return cb(null, true);
+    // Exact match — prevents suffix-bypass like http://<ip>.evil.com that
+    // the previous startsWith() check allowed.
+    if (allowedOrigins.includes(origin)) return cb(null, true);
+    // Any localhost port for local development.
+    if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) return cb(null, true);
     cb(new Error(`CORS: Origin ${origin} not allowed`));
   },
   credentials: true,
