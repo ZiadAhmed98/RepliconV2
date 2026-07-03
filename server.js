@@ -59,16 +59,23 @@ app.use((req, res, next) => {
   next();
 });
 
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost,https://localhost,http://129.151.146.210,https://129.151.146.210').split(',').map(o => o.trim());
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost,https://localhost,http://129.151.146.210,https://129.151.146.210').split(',').map(o => o.trim()).filter(Boolean);
+
+// Allowed hostnames derived from the configured origins. We match the hostname
+// EXACTLY but allow any port, because the same host is served on several ports
+// (443 prod, 8081 test, 8082 dev). Exact-hostname matching still blocks
+// suffix-bypass origins like http://129.151.146.210.evil.com.
+const allowedHosts = new Set();
+for (const o of allowedOrigins) { try { allowedHosts.add(new URL(o).hostname); } catch { /* ignore bad entry */ } }
+
 app.use(cors({
   origin: (origin, cb) => {
     // No Origin header (same-origin nav, curl, server-to-server) → allow.
     if (!origin) return cb(null, true);
-    // Exact match — prevents suffix-bypass like http://<ip>.evil.com that
-    // the previous startsWith() check allowed.
     if (allowedOrigins.includes(origin)) return cb(null, true);
-    // Any localhost port for local development.
-    if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) return cb(null, true);
+    try {
+      if (allowedHosts.has(new URL(origin).hostname)) return cb(null, true); // same host, any port
+    } catch { /* malformed origin → falls through to reject */ }
     cb(new Error(`CORS: Origin ${origin} not allowed`));
   },
   credentials: true,
