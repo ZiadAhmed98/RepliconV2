@@ -87,7 +87,7 @@ function ApiMigration() {
 
       {/* Options */}
       {status === 'idle' && (
-        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '12px', padding: '20px 22px', marginBottom: '24px' }}>
+        <div className="surface" style={{ padding: '20px 22px', marginBottom: '24px' }}>
           <p style={{ margin: '0 0 16px', fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-main)' }}>Options</p>
           {[
             { key: 'createAccounts',   label: 'Create login accounts', desc: 'Default password: Welcome1!' },

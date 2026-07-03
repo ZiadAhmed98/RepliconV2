@@ -57,7 +57,9 @@ function ProgramRow({ program, isAdmin, onEdit, onDelete }) {
   return (
     <div
       style={{
-        background: 'var(--bg-card)', border: '1px solid rgba(255,255,255,0.07)',
+        background: 'linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.022))',
+        border: '1px solid rgba(255,255,255,0.08)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 6px 20px rgba(0,0,0,0.25)',
         borderRadius: '14px', padding: '14px 20px',
         display: 'flex', alignItems: 'center', gap: '16px',
         transition: 'border-color 0.2s, box-shadow 0.2s',

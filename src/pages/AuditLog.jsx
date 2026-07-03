@@ -4,7 +4,7 @@ const S = {
   page:     { padding: '32px', minHeight: '100vh', color: '#e2e8f0', fontFamily: 'inherit' },
   h1:       { fontSize: '22px', fontWeight: 700, color: '#fff', marginBottom: '6px', letterSpacing: '-0.02em' },
   sub:      { fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginBottom: '28px' },
-  card:     { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '0 20px', marginBottom: '16px' },
+  card:     { background: 'linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.022))', border: '1px solid rgba(255,255,255,0.08)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 26px rgba(0,0,0,0.28)', borderRadius: '14px', padding: '0 20px', marginBottom: '16px' },
   input:    { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '8px 12px', color: '#f1f5f9', fontSize: '13px', fontFamily: 'inherit', width: '100%', outline: 'none', boxSizing: 'border-box' },
   auditRow: { display: 'flex', gap: '12px', alignItems: 'flex-start', padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: '12px' },
   auditTs:  { color: 'rgba(255,255,255,0.3)', flexShrink: 0, minWidth: '140px', fontFamily: 'monospace' },

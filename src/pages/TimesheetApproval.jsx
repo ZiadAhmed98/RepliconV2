@@ -366,7 +366,7 @@ export default function TimesheetApproval() {
           <div style={{ fontSize: '13px' }}>Try a different tab or employee filter</div>
         </div>
       ) : (
-        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '14px', overflow: 'hidden' }}>
+        <div className="surface" style={{ overflow: 'hidden' }}>
           {/* Table header */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px 80px 90px 130px 130px', gap: 0, borderBottom: '1px solid rgba(255,255,255,0.07)', padding: '10px 16px', background: 'rgba(255,255,255,0.02)' }}>
             {['Employee', 'Week', 'Hours', 'Status', 'Submitted', 'Actions'].map(h => (

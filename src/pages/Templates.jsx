@@ -231,7 +231,7 @@ export default function Templates({ sessionUser }) {
               {filtered.map(t => {
                 const cat = catMeta(t.category);
                 return (
-                  <div key={t.id} style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'12px', padding:'14px 16px', display:'flex', alignItems:'flex-start', gap:'14px' }}>
+                  <div key={t.id} style={{ background:'linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.022))', border:'1px solid rgba(255,255,255,0.08)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.05), 0 6px 20px rgba(0,0,0,0.22)', borderRadius:'12px', padding:'14px 16px', display:'flex', alignItems:'flex-start', gap:'14px' }}>
                     <div style={{ width:'36px', height:'36px', borderRadius:'9px', background:`${cat.color}18`, border:`1px solid ${cat.color}30`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                       <i className='bx bx-file-blank' style={{ color:cat.color, fontSize:'17px' }} />
                     </div>

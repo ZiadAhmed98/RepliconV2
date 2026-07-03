@@ -331,7 +331,7 @@ export default function ProjectsAdmin({ sessionUser }) {
       </div>
 
       {/* Table */}
-      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', overflow: 'hidden' }}>
+      <div className="surface" style={{ overflow: 'hidden' }}>
         {loading ? (
           <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
             <i className='bx bx-loader-alt bx-spin' style={{ fontSize: '24px' }} />
