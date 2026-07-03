@@ -391,7 +391,7 @@ export default function Employees({ sessionUser }) {
           {isAdmin && <p style={{ margin: '8px 0 0', fontSize: '0.82rem' }}>Click "Add Employee" to get started</p>}
         </div>
       ) : (
-        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', overflow: 'hidden' }}>
+        <div className="surface" style={{ overflow: 'hidden' }}>
           {/* Table header */}
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 2fr 2fr 1fr 80px', gap: '0', borderBottom: '1px solid rgba(255,255,255,0.07)', padding: '11px 20px', background: 'rgba(255,255,255,0.03)' }}>
             {['Name', 'Role', 'Email', 'Supervisor', 'Skills', ''].map(h => (

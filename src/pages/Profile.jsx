@@ -110,7 +110,7 @@ export default function Profile() {
   if (loading) return <div style={{ padding: '80px', textAlign: 'center', color: 'var(--text-muted)' }}><i className='bx bx-loader-alt bx-spin' style={{ fontSize: '28px' }} /></div>;
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: '720px' }}>
+    <div className="surface fade-up" style={{ padding: '30px 34px', maxWidth: '760px', margin: '28px auto' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '18px', marginBottom: '32px' }}>
         <div style={{ width: '60px', height: '60px', borderRadius: '16px', background: 'linear-gradient(135deg,#7c3aed,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', fontWeight: 800, color: '#fff', flexShrink: 0 }}>
