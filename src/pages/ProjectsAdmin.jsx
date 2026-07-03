@@ -230,33 +230,54 @@ export default function ProjectsAdmin({ sessionUser }) {
   const [employees,  setEmployees]  = useState([]);
   const [programs,   setPrograms]   = useState([]);
   const [loading,    setLoading]    = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [total,      setTotal]      = useState(0);
   const [activeTab,  setActiveTab]  = useState('');
   const [search,     setSearch]     = useState('');
   const [filterClient, setFilterClient] = useState('');
   const [filterPm,     setFilterPm]     = useState('');
   const [modal, setModal] = useState(null); // null | { mode:'add' } | { mode:'edit', project }
 
+  const PAGE_SIZE = 50;
+  const projectParams = useCallback((offset) => {
+    const params = new URLSearchParams();
+    if (activeTab)     params.set('status',   activeTab);
+    if (filterClient)  params.set('clientId', filterClient);
+    if (filterPm)      params.set('pmId',     filterPm);
+    if (search)        params.set('search',   search);
+    params.set('limit', PAGE_SIZE);
+    params.set('offset', offset);
+    return params;
+  }, [activeTab, filterClient, filterPm, search]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (activeTab)     params.set('status',   activeTab);
-      if (filterClient)  params.set('clientId', filterClient);
-      if (filterPm)      params.set('pmId',     filterPm);
-      if (search)        params.set('search',   search);
       const [pRes, cRes, eRes, prRes] = await Promise.all([
-        fetch(`/api/v1/psa/projects?${params}`, { credentials: 'include' }),
+        fetch(`/api/v1/psa/projects?${projectParams(0)}`, { credentials: 'include' }),
         fetch('/api/v1/clients',                { credentials: 'include' }),
         fetch('/api/v1/employees?status=active', { credentials: 'include' }),
         fetch('/api/v1/programs',               { credentials: 'include' }),
       ]);
       const [pd, cd, ed, prd] = await Promise.all([pRes.json(), cRes.json(), eRes.json(), prRes.json()]);
       setProjects(pd.projects   || []);
+      setTotal(pd.total ?? (pd.projects || []).length);
       setClients(cd.clients     || []);
       setEmployees(ed.employees || []);
       setPrograms((prd.programs || []).sort((a, b) => a.name.localeCompare(b.name)));
     } finally { setLoading(false); }
-  }, [activeTab, filterClient, filterPm, search]);
+  }, [projectParams]);
+
+  const loadMore = async () => {
+    setLoadingMore(true);
+    try {
+      const r = await fetch(`/api/v1/psa/projects?${projectParams(projects.length)}`, { credentials: 'include' });
+      const d = await r.json();
+      setProjects(prev => [...prev, ...(d.projects || [])]);
+      setTotal(d.total ?? total);
+    } catch { toast.error('Failed to load more'); }
+    finally { setLoadingMore(false); }
+  };
 
   useEffect(() => { load(); }, [load]);
 
@@ -407,8 +428,16 @@ export default function ProjectsAdmin({ sessionUser }) {
       {/* Count line */}
       {!loading && projects.length > 0 && (
         <p style={{ margin: '12px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-          Showing {projects.length} project{projects.length !== 1 ? 's' : ''}
+          Showing {projects.length} of {total} project{total !== 1 ? 's' : ''}
         </p>
+      )}
+
+      {!loading && projects.length < total && (
+        <div style={{ textAlign: 'center', marginTop: '16px' }}>
+          <button onClick={loadMore} disabled={loadingMore} className="btn-ghost">
+            {loadingMore ? 'Loading…' : `Load more — showing ${projects.length} of ${total}`}
+          </button>
+        </div>
       )}
 
       {modal && (

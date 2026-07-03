@@ -290,24 +290,45 @@ export default function Employees({ sessionUser }) {
 
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading]     = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [total, setTotal]         = useState(0);
   const [search, setSearch]       = useState('');
   const [filterRole, setFilterRole]     = useState('');
   const [filterStatus, setFilterStatus] = useState('active');
   const [modal, setModal]         = useState(null); // null | 'add' | employee object
 
+  const PAGE_SIZE = 50;
+  const buildParams = useCallback((offset) => {
+    const params = new URLSearchParams();
+    if (filterStatus) params.set('status', filterStatus);
+    if (filterRole)   params.set('role', filterRole);
+    if (search)       params.set('search', search);
+    params.set('limit', PAGE_SIZE);
+    params.set('offset', offset);
+    return params;
+  }, [filterStatus, filterRole, search]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (filterStatus) params.set('status', filterStatus);
-      if (filterRole)   params.set('role', filterRole);
-      if (search)       params.set('search', search);
-      const r = await fetch(`/api/v1/employees?${params}`, { credentials: 'include' });
+      const r = await fetch(`/api/v1/employees?${buildParams(0)}`, { credentials: 'include' });
       const d = await r.json();
       setEmployees(d.employees || []);
+      setTotal(d.total ?? (d.employees || []).length);
     } catch { toast.error('Failed to load employees'); }
     finally { setLoading(false); }
-  }, [filterStatus, filterRole, search]);
+  }, [buildParams]);
+
+  const loadMore = async () => {
+    setLoadingMore(true);
+    try {
+      const r = await fetch(`/api/v1/employees?${buildParams(employees.length)}`, { credentials: 'include' });
+      const d = await r.json();
+      setEmployees(prev => [...prev, ...(d.employees || [])]);
+      setTotal(d.total ?? total);
+    } catch { toast.error('Failed to load more'); }
+    finally { setLoadingMore(false); }
+  };
 
   useEffect(() => { load(); }, [load]);
 
@@ -349,7 +370,7 @@ export default function Employees({ sessionUser }) {
             <i className='bx bx-group' style={{ color: '#a855f7', marginRight: '10px' }} />Employee Directory
           </h2>
           <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            {employees.length} {filterStatus || 'total'} employee{employees.length !== 1 ? 's' : ''}
+            {total} {filterStatus || 'total'} employee{total !== 1 ? 's' : ''}
           </p>
         </div>
         {isAdmin && (
@@ -452,6 +473,14 @@ export default function Employees({ sessionUser }) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {!loading && employees.length < total && (
+        <div style={{ textAlign: 'center', marginTop: '20px' }}>
+          <button onClick={loadMore} disabled={loadingMore} className="btn-ghost">
+            {loadingMore ? 'Loading…' : `Load more — showing ${employees.length} of ${total}`}
+          </button>
         </div>
       )}
 

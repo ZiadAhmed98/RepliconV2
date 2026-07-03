@@ -228,22 +228,43 @@ export default function Clients({ sessionUser }) {
   const [clients,        setClients]        = useState([]);
   const [accountManagers,setAccountManagers] = useState([]);
   const [loading,        setLoading]        = useState(true);
+  const [loadingMore,    setLoadingMore]    = useState(false);
+  const [total,          setTotal]          = useState(0);
   const [search,         setSearch]         = useState('');
   const [filterStatus,   setFilterStatus]   = useState('active');
   const [modal,          setModal]          = useState(null);
 
+  const PAGE_SIZE = 50;
+  const buildParams = useCallback((offset) => {
+    const params = new URLSearchParams();
+    if (filterStatus) params.set('status', filterStatus);
+    if (search)       params.set('search', search);
+    params.set('limit', PAGE_SIZE);
+    params.set('offset', offset);
+    return params;
+  }, [filterStatus, search]);
+
   const loadClients = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (filterStatus) params.set('status', filterStatus);
-      if (search)       params.set('search', search);
-      const r = await fetch(`/api/v1/clients?${params}`, { credentials: 'include' });
+      const r = await fetch(`/api/v1/clients?${buildParams(0)}`, { credentials: 'include' });
       const d = await r.json();
       setClients(d.clients || []);
+      setTotal(d.total ?? (d.clients || []).length);
     } catch { toast.error('Failed to load clients'); }
     finally { setLoading(false); }
-  }, [filterStatus, search]);
+  }, [buildParams]);
+
+  const loadMore = async () => {
+    setLoadingMore(true);
+    try {
+      const r = await fetch(`/api/v1/clients?${buildParams(clients.length)}`, { credentials: 'include' });
+      const d = await r.json();
+      setClients(prev => [...prev, ...(d.clients || [])]);
+      setTotal(d.total ?? total);
+    } catch { toast.error('Failed to load more'); }
+    finally { setLoadingMore(false); }
+  };
 
   // Load account managers for the AM dropdown (once on mount)
   useEffect(() => {
@@ -286,7 +307,7 @@ export default function Clients({ sessionUser }) {
             <i className='bx bx-briefcase' style={{ color: '#6366f1', marginRight: '10px' }} />Clients
           </h2>
           <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            {clients.length} {filterStatus || 'total'} client{clients.length !== 1 ? 's' : ''}
+            {total} {filterStatus || 'total'} client{total !== 1 ? 's' : ''}
           </p>
         </div>
         {isAdmin && (
@@ -331,6 +352,14 @@ export default function Clients({ sessionUser }) {
               onToggle={toggleStatus}
             />
           ))}
+        </div>
+      )}
+
+      {!loading && clients.length < total && (
+        <div style={{ textAlign: 'center', marginTop: '20px' }}>
+          <button onClick={loadMore} disabled={loadingMore} className="btn-ghost">
+            {loadingMore ? 'Loading…' : `Load more — showing ${clients.length} of ${total}`}
+          </button>
         </div>
       )}
 
