@@ -84,27 +84,21 @@ function Card({ title, icon, accent = '#818cf8', count, onViewAll, to, nav, chil
 }
 
 function StatChip({ label, value, color, onClick, urgent }) {
-  const active = urgent && value > 0;
   return (
     <button
       onClick={onClick}
       style={{
-        position:'relative', overflow:'hidden',
-        display:'flex', flexDirection:'column', justifyContent:'center', gap:'5px',
-        padding:'14px 18px 14px 20px', borderRadius:'14px', cursor: onClick ? 'pointer' : 'default',
-        background: active
-          ? `linear-gradient(135deg, ${color}22, ${color}08)`
-          : 'linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))',
-        border: `1px solid ${active ? `${color}45` : 'rgba(255,255,255,0.08)'}`,
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 6px 18px rgba(0,0,0,0.22)',
-        fontFamily:'inherit', transition:'transform 0.18s, border-color 0.18s', minWidth:'132px', textAlign:'left',
+        display:'flex', alignItems:'center', gap:'8px',
+        padding:'8px 14px', borderRadius:'10px', cursor: onClick ? 'pointer' : 'default',
+        background: urgent && value > 0 ? `${color}14` : 'rgba(255,255,255,0.04)',
+        border: `1px solid ${urgent && value > 0 ? `${color}35` : 'rgba(255,255,255,0.08)'}`,
+        fontFamily:'inherit', transition:'all 0.15s',
       }}
-      onMouseEnter={e => { if (onClick) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.borderColor = `${color}66`; } }}
-      onMouseLeave={e => { if (onClick) { e.currentTarget.style.transform = 'none'; e.currentTarget.style.borderColor = active ? `${color}45` : 'rgba(255,255,255,0.08)'; } }}
+      onMouseEnter={e => onClick && (e.currentTarget.style.background = `${color}1c`)}
+      onMouseLeave={e => onClick && (e.currentTarget.style.background = urgent && value > 0 ? `${color}14` : 'rgba(255,255,255,0.04)')}
     >
-      <span style={{ position:'absolute', left:0, top:0, bottom:0, width:'3px', background: value > 0 ? color : 'rgba(255,255,255,0.12)' }} />
-      <span style={{ fontSize:'1.6rem', fontWeight:800, color: value > 0 ? '#fff' : 'var(--text-faint)', lineHeight:1, letterSpacing:'-0.03em', fontVariantNumeric:'tabular-nums' }}>{value}</span>
-      <span style={{ fontSize:'0.75rem', color:'var(--text-muted)', fontWeight:500, whiteSpace:'nowrap' }}>{label}</span>
+      <span style={{ fontSize:'1.1rem', fontWeight:800, color: value > 0 ? color : 'rgba(255,255,255,0.3)' }}>{value}</span>
+      <span style={{ fontSize:'0.76rem', color:'rgba(255,255,255,0.4)', whiteSpace:'nowrap' }}>{label}</span>
     </button>
   );
 }
@@ -179,12 +173,12 @@ function ResourceHome({ summary, sessionUser, nav, onRefresh }) {
   };
 
   return (
-    <div className="fade-up" style={{ padding:'28px 32px' }}>
+    <div style={{ padding:'28px 32px' }}>
 
       {/* Header */}
       <div style={{ marginBottom:'24px' }}>
-        <h1 style={{ margin:0, fontSize:'1.95rem', fontWeight:800, color:'var(--text-main)', letterSpacing:'-0.035em' }}>
-          {greet()}, <span className="gradient-text">{name.split(' ')[0]}</span>
+        <h1 style={{ margin:0, fontSize:'1.6rem', fontWeight:800, color:'var(--text-main)', letterSpacing:'-0.03em' }}>
+          {greet()}, {name.split(' ')[0]}
         </h1>
         <p style={{ margin:'4px 0 0', fontSize:'0.83rem', color:'var(--text-muted)' }}>
           {new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}
@@ -539,15 +533,15 @@ function AdminHome({ summary, sessionUser, nav, onRefresh }) {
   };
 
   return (
-    <div className="fade-up" style={{ padding:'28px 32px' }}>
+    <div style={{ padding:'28px 32px' }}>
       <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
 
       {/* Header */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'24px' }}>
         <div>
           <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-            <h1 style={{ margin:0, fontSize:'1.9rem', fontWeight:800, color:'var(--text-main)', letterSpacing:'-0.035em' }}>
-              {greet()}, <span className="gradient-text">{name.split(' ')[0]}</span>
+            <h1 style={{ margin:0, fontSize:'1.6rem', fontWeight:800, color:'var(--text-main)', letterSpacing:'-0.03em' }}>
+              {greet()}, {name.split(' ')[0]}
             </h1>
             <span style={{ padding:'3px 10px', borderRadius:'6px', background:'rgba(139,92,246,0.12)', border:'1px solid rgba(139,92,246,0.3)', color:'#a78bfa', fontSize:'0.68rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em' }}>
               Admin
