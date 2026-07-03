@@ -3,8 +3,27 @@ import crypto     from 'crypto';
 import { requireAuth, requireAdmin } from '../lib/auth.js';
 import { auditLog }                  from '../lib/helpers.js';
 import db                            from '../lib/db.js';
+import { validate, z }               from '../lib/validate.js';
 
 const router = Router();
+
+const amCreateSchema = z.object({
+  firstName:   z.string().trim().min(1).max(80),
+  lastName:    z.string().trim().min(1).max(80),
+  displayName: z.string().trim().max(160).nullish(),
+  email:       z.string().max(160).nullish(),
+  phone:       z.string().max(40).nullish(),
+  title:       z.string().max(120).nullish(),
+});
+const amUpdateSchema = z.object({
+  firstName:   z.string().trim().max(80).nullish(),
+  lastName:    z.string().trim().max(80).nullish(),
+  displayName: z.string().trim().max(160).nullish(),
+  email:       z.string().max(160).nullish(),
+  phone:       z.string().max(40).nullish(),
+  title:       z.string().max(120).nullish(),
+  status:      z.enum(['active', 'inactive']).nullish(),
+});
 
 router.get('/api/v1/account-managers', requireAuth, (req, res) => {
   const { status, search } = req.query;
@@ -41,7 +60,7 @@ router.get('/api/v1/account-managers/:id', requireAuth, (req, res) => {
   res.json({ accountManager: { ...am, clients, projects, clientCount } });
 });
 
-router.post('/api/v1/account-managers', requireAdmin, (req, res) => {
+router.post('/api/v1/account-managers', requireAdmin, validate(amCreateSchema), (req, res) => {
   const { firstName, lastName, displayName, email, phone, title } = req.body || {};
   if (!firstName?.trim() || !lastName?.trim()) return res.status(400).json({ error: 'firstName and lastName required' });
   const id  = crypto.randomUUID();
@@ -54,7 +73,7 @@ router.post('/api/v1/account-managers', requireAdmin, (req, res) => {
   res.status(201).json({ accountManager: db.prepare('SELECT * FROM account_managers WHERE id=?').get(id) });
 });
 
-router.put('/api/v1/account-managers/:id', requireAdmin, (req, res) => {
+router.put('/api/v1/account-managers/:id', requireAdmin, validate(amUpdateSchema), (req, res) => {
   const am = db.prepare('SELECT * FROM account_managers WHERE id=?').get(req.params.id);
   if (!am) return res.status(404).json({ error: 'Account manager not found' });
   const { firstName, lastName, displayName, email, phone, title, status } = req.body || {};

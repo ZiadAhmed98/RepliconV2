@@ -4,8 +4,25 @@ import { requireAuth, requireAdmin, requirePM } from '../lib/auth.js';
 import { auditLog }                         from '../lib/helpers.js';
 import db, { buildTimesheetRows,
              buildSingleRow }               from '../lib/db.js';
+import { validate, z }                      from '../lib/validate.js';
 
 const router = Router();
+
+// ── Validation schemas ────────────────────────────────────────────────────────
+const rowCreateSchema = z.object({
+  timesheetId: z.string().min(1).max(64),
+  projectId:   z.string().max(64).nullish(),
+  taskId:      z.string().max(64).nullish(),
+  note:        z.string().max(2000).nullish(),
+});
+const rowUpdateSchema = z.object({
+  projectId: z.string().max(64).nullish(),
+  taskId:    z.string().max(64).nullish(),
+  note:      z.string().max(2000).nullish(),
+});
+const hoursSchema   = z.object({ hours: z.record(z.union([z.number(), z.string()])) });
+const dayNoteSchema = z.object({ date: z.string().min(1).max(20), note: z.string().max(2000).nullish() });
+const rejectSchema  = z.object({ reason: z.string().max(2000).nullish() });
 
 // ── Admin/PM: list timesheets ─────────────────────────────────────────────────
 // Admins see all; PMs see only timesheets that contain rows from their projects
@@ -64,7 +81,7 @@ router.post('/api/v1/admin/psa/timesheets/:id/approve', requirePM, (req, res) =>
 });
 
 // ── Admin/PM: reject a timesheet ─────────────────────────────────────────────
-router.post('/api/v1/admin/psa/timesheets/:id/reject', requirePM, (req, res) => {
+router.post('/api/v1/admin/psa/timesheets/:id/reject', requirePM, validate(rejectSchema), (req, res) => {
   const ts = db.prepare('SELECT * FROM psa_timesheets WHERE id=?').get(req.params.id);
   if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
   const { reason } = req.body || {};
@@ -93,7 +110,7 @@ router.get('/api/v1/psa/timesheets', requireAuth, (req, res) => {
   res.json({ timesheet: { ...ts, rows: buildTimesheetRows(ts.id) } });
 });
 
-router.post('/api/v1/psa/timesheet-rows', requireAuth, (req, res) => {
+router.post('/api/v1/psa/timesheet-rows', requireAuth, validate(rowCreateSchema), (req, res) => {
   const { timesheetId, note, projectId, taskId } = req.body || {};
   if (!timesheetId) return res.status(400).json({ error: 'timesheetId required' });
   const ts = db.prepare('SELECT * FROM psa_timesheets WHERE id=? AND userId=?').get(timesheetId, req.user.id);
@@ -107,7 +124,7 @@ router.post('/api/v1/psa/timesheet-rows', requireAuth, (req, res) => {
   res.status(201).json({ row: buildSingleRow(id) });
 });
 
-router.put('/api/v1/psa/timesheet-rows/:id', requireAuth, (req, res) => {
+router.put('/api/v1/psa/timesheet-rows/:id', requireAuth, validate(rowUpdateSchema), (req, res) => {
   const row = db.prepare('SELECT r.*, ts.userId, ts.status FROM psa_timesheet_rows r JOIN psa_timesheets ts ON ts.id=r.timesheetId WHERE r.id=?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Row not found' });
   if (row.userId !== req.user.id) return res.status(403).json({ error: 'Not your timesheet' });
@@ -118,7 +135,7 @@ router.put('/api/v1/psa/timesheet-rows/:id', requireAuth, (req, res) => {
   res.json({ row: buildSingleRow(req.params.id) });
 });
 
-router.put('/api/v1/psa/timesheet-rows/:id/hours', requireAuth, (req, res) => {
+router.put('/api/v1/psa/timesheet-rows/:id/hours', requireAuth, validate(hoursSchema), (req, res) => {
   const row = db.prepare('SELECT r.*, ts.userId, ts.status, ts.id AS tsId FROM psa_timesheet_rows r JOIN psa_timesheets ts ON ts.id=r.timesheetId WHERE r.id=?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Row not found' });
   if (row.userId !== req.user.id) return res.status(403).json({ error: 'Not your timesheet' });
@@ -142,7 +159,7 @@ router.put('/api/v1/psa/timesheet-rows/:id/hours', requireAuth, (req, res) => {
   });
 });
 
-router.put('/api/v1/psa/timesheet-rows/:id/day-notes', requireAuth, (req, res) => {
+router.put('/api/v1/psa/timesheet-rows/:id/day-notes', requireAuth, validate(dayNoteSchema), (req, res) => {
   const row = db.prepare('SELECT r.*, ts.userId, ts.status FROM psa_timesheet_rows r JOIN psa_timesheets ts ON ts.id=r.timesheetId WHERE r.id=?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Row not found' });
   if (row.userId !== req.user.id) return res.status(403).json({ error: 'Not your timesheet' });

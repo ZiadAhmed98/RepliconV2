@@ -4,9 +4,15 @@ import multer                        from 'multer';
 import { parse }                     from 'csv-parse/sync';
 import db                            from '../lib/db.js';
 import { requireAuth, requireAdmin } from '../lib/auth.js';
+import { validate, z }               from '../lib/validate.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+const programSchema = z.object({
+  name:        z.string().trim().min(1).max(120),
+  description: z.string().max(2000).nullish(),
+});
 
 // GET /api/v1/programs
 router.get('/api/v1/programs', requireAuth, (req, res) => {
@@ -36,7 +42,7 @@ router.get('/api/v1/programs', requireAuth, (req, res) => {
 });
 
 // POST /api/v1/programs
-router.post('/api/v1/programs', requireAdmin, (req, res) => {
+router.post('/api/v1/programs', requireAdmin, validate(programSchema), (req, res) => {
   const { name, description } = req.body || {};
   if (!name?.trim()) return res.status(400).json({ error: 'Name required' });
   const now = new Date().toISOString();
@@ -52,7 +58,7 @@ router.post('/api/v1/programs', requireAdmin, (req, res) => {
 });
 
 // PUT /api/v1/programs/:id
-router.put('/api/v1/programs/:id', requireAdmin, (req, res) => {
+router.put('/api/v1/programs/:id', requireAdmin, validate(programSchema), (req, res) => {
   const { name, description } = req.body || {};
   if (!name?.trim()) return res.status(400).json({ error: 'Name required' });
   const now = new Date().toISOString();
