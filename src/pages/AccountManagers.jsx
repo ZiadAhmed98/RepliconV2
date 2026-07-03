@@ -144,11 +144,13 @@ function AMCard({ am, isAdmin, onEdit, onToggle, onNavigate }) {
     <div
       onClick={onNavigate}
       style={{
-        background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+        background: 'linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.022))',
+        border: '1px solid rgba(255,255,255,0.08)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 26px rgba(0,0,0,0.28)',
         borderRadius: '14px', padding: '20px',
         opacity: am.status === 'inactive' ? 0.55 : 1,
         display: 'flex', flexDirection: 'column',
-        transition: 'border-color 0.2s, transform 0.15s',
+        transition: 'border-color 0.2s, transform 0.15s, box-shadow 0.2s',
         cursor: 'pointer',
       }}
       onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(52,211,153,0.35)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}

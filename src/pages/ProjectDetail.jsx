@@ -282,7 +282,7 @@ function XmlImportModal({ projectId, onImported, onClose }) {
                 <i className='bx bx-check' /> Ready to import
               </span>
             </div>
-            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', overflow: 'hidden', maxHeight: '340px', overflowY: 'auto' }}>
+            <div style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.022))', border: '1px solid rgba(255,255,255,0.08)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 26px rgba(0,0,0,0.26)', borderRadius: '12px', overflow: 'hidden', maxHeight: '340px', overflowY: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead style={{ position: 'sticky', top: 0, background: 'rgba(12,12,22,0.95)' }}>
                   <tr>
@@ -551,7 +551,7 @@ export default function ProjectDetail({ sessionUser }) {
       </button>
 
       {/* Project Header */}
-      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '16px', padding: '24px 28px', marginBottom: '24px' }}>
+      <div style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.022))', border: '1px solid rgba(255,255,255,0.08)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 26px rgba(0,0,0,0.26)', borderRadius: '16px', padding: '24px 28px', marginBottom: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '8px' }}>
@@ -656,7 +656,7 @@ export default function ProjectDetail({ sessionUser }) {
             )}
           </div>
 
-          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', overflow: 'hidden' }}>
+          <div style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.022))', border: '1px solid rgba(255,255,255,0.08)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 26px rgba(0,0,0,0.26)', borderRadius: '14px', overflow: 'hidden' }}>
             {tasks.length === 0 ? (
               <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
                 <i className='bx bx-task' style={{ fontSize: '40px', display: 'block', marginBottom: '12px', opacity: 0.4 }} />
@@ -743,7 +743,7 @@ export default function ProjectDetail({ sessionUser }) {
             )}
 
             {/* Current team */}
-            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', overflow: 'hidden', marginBottom: '20px' }}>
+            <div style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.022))', border: '1px solid rgba(255,255,255,0.08)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 26px rgba(0,0,0,0.26)', borderRadius: '12px', overflow: 'hidden', marginBottom: '20px' }}>
               <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                 Assigned Team Members ({members.length})
               </div>
@@ -778,7 +778,7 @@ export default function ProjectDetail({ sessionUser }) {
 
             {/* Add member */}
             {canManageTeam && (
-              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '16px' }}>
+              <div style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.022))', border: '1px solid rgba(255,255,255,0.08)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 26px rgba(0,0,0,0.26)', borderRadius: '12px', padding: '16px' }}>
                 <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '12px' }}>Add Team Member</div>
                 <div style={{ position: 'relative', marginBottom: '10px' }}>
                   <i className='bx bx-search' style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '15px' }} />
@@ -827,7 +827,7 @@ export default function ProjectDetail({ sessionUser }) {
 
       {/* Info Tab */}
       {activeTab === 'info' && (
-        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '24px', maxWidth: '600px' }}>
+        <div style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.022))', border: '1px solid rgba(255,255,255,0.08)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 26px rgba(0,0,0,0.26)', borderRadius: '14px', padding: '24px', maxWidth: '600px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px' }}>
             {[
               { label: 'Name',            value: project.name },
