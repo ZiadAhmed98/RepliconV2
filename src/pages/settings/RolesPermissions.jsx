@@ -1,20 +1,9 @@
 import { useState, useEffect } from 'react';
 import SettingsLayout from '../../components/settings/SettingsLayout';
 import { S }          from '../../components/settings/styles';
+import { APP_PAGES }  from '../../config/pages';
 
-const ALL_PAGES = [
-  { key: 'home',           label: 'Home' },
-  { key: 'dashboard',      label: 'Dashboard' },
-  { key: 'projects',       label: 'Projects' },
-  { key: 'clients',        label: 'Clients' },
-  { key: 'employees',      label: 'Employees' },
-  { key: 'timesheets',     label: 'Timesheets' },
-  { key: 'programs',       label: 'Programs' },
-  { key: 'templates',      label: 'Templates' },
-  { key: 'administration', label: 'Administration' },
-  { key: 'auditLog',       label: 'Audit Log' },
-  { key: 'migration',      label: 'Migration' },
-];
+// Permission-controllable pages come from the shared registry (src/config/pages.js).
 
 const AVATAR_COLORS = [
   '#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#06b6d4','#ef4444','#84cc16',
@@ -125,8 +114,8 @@ export default function RolesPermissions() {
 
               {/* Permissions grid */}
               <div style={{ padding: '14px 20px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '8px' }}>
-                {ALL_PAGES.map(({ key, label }) => {
-                  const allowed = user.permissions?.[key] !== false;
+                {APP_PAGES.map(({ key, label }) => {
+                  const allowed = user.permissions?.[key] === true;
                   return (
                     <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: isSaving ? 'wait' : 'pointer', padding: '6px 8px', borderRadius: '6px', background: allowed ? 'rgba(99,102,241,0.08)' : 'transparent', border: `1px solid ${allowed ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.05)'}`, transition: 'all 0.15s' }}>
                       <input

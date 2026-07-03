@@ -67,14 +67,8 @@ async function handleLogin(req, res) {
   }
 
   const permissions = JSON.parse(row.permissions || '{}');
-
-  // Back-fill any missing page keys
-  let permChanged = false;
-  ALL_PAGES.forEach(p => { if (permissions[p] === undefined) { permissions[p] = true; permChanged = true; } });
-  if (permChanged) {
-    db.prepare('UPDATE users SET permissions=?, updatedAt=? WHERE id=?')
-      .run(JSON.stringify(permissions), new Date().toISOString(), id);
-  }
+  // Deny by default: a page is accessible only when explicitly granted (=== true).
+  // No auto-grant back-fill — a missing key means no access (admins bypass checks).
 
   const emp = db.prepare('SELECT role, id AS employeeId FROM employees WHERE userId=?').get(id);
   const sessionUser = {

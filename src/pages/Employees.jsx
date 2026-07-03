@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '../context/ToastContext';
+import { APP_PAGES } from '../config/pages';
 
 const ROLES = [
   { value: 'resource',   label: 'Resource' },
@@ -232,8 +233,8 @@ function EmployeeModal({ employee, allEmployees, onSave, onClose }) {
                 <div>
                   <label style={labelStyle}>Page Permissions</label>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {allPageKeys.map(p => {
-                      const on = accForm.isAdmin ? true : (accForm.permissions[p] !== false);
+                    {APP_PAGES.map(({ key: p, label }) => {
+                      const on = accForm.isAdmin ? true : (accForm.permissions[p] === true);
                       return (
                         <button
                           key={p}
@@ -241,7 +242,7 @@ function EmployeeModal({ employee, allEmployees, onSave, onClose }) {
                           onClick={() => setAcc('permissions', { ...accForm.permissions, [p]: !on })}
                           style={{ padding: '3px 10px', borderRadius: '6px', border: `1px solid ${on ? 'rgba(139,92,246,0.3)' : 'rgba(255,255,255,0.08)'}`, background: on ? 'rgba(139,92,246,0.12)' : 'rgba(255,255,255,0.03)', color: on ? '#a78bfa' : 'rgba(255,255,255,0.3)', fontSize: '0.72rem', fontWeight: 600, cursor: accForm.isAdmin ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: accForm.isAdmin ? 0.5 : 1 }}
                         >
-                          {PAGE_LABELS[p]}
+                          {label}
                         </button>
                       );
                     })}

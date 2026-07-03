@@ -216,7 +216,7 @@ function AppContent() {
               <Routes>
                 <Route path="/"               element={<Navigate to="/home" replace />} />
                 <Route path="/home"           element={<Home sessionUser={sessionUser} />} />
-                <Route path="/templates"      element={<Templates sessionUser={sessionUser} />} />
+                <Route path="/templates"      element={<GuardedRoute page="templates"><Templates sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/dashboard"      element={<GuardedRoute page="dashboard"><Dashboard       dataMatrix={dataMatrix} /></GuardedRoute>} />
                 <Route path="/employee"       element={<GuardedRoute page="employees"><Employee         dataMatrix={dataMatrix} sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/projects"       element={<GuardedRoute page="projects" ><ProjectDeepDive  dataMatrix={dataMatrix} /></GuardedRoute>} />
@@ -229,9 +229,9 @@ function AppContent() {
                 <Route path="/my-timesheet"   element={<GuardedRoute page="myTimesheet"><MyTimesheet    dataMatrix={dataMatrix} sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/employees"           element={<GuardedRoute page="employees" ><Employees       sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/clients"             element={<GuardedRoute page="clients"  ><Clients         sessionUser={sessionUser} /></GuardedRoute>} />
-                <Route path="/programs"            element={<Programs />} />
-                <Route path="/account-managers"       element={<AccountManagers sessionUser={sessionUser} />} />
-                <Route path="/account-managers/:id"  element={<AccountManagerDetail />} />
+                <Route path="/programs"            element={<GuardedRoute page="programs"><Programs /></GuardedRoute>} />
+                <Route path="/account-managers"       element={<GuardedRoute page="accountManagers"><AccountManagers sessionUser={sessionUser} /></GuardedRoute>} />
+                <Route path="/account-managers/:id"  element={<GuardedRoute page="accountManagers"><AccountManagerDetail /></GuardedRoute>} />
                 <Route path="/projects-admin"      element={<GuardedRoute page="projects"       ><ProjectsAdmin   sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/projects-admin/:id"  element={<GuardedRoute page="projects"       ><ProjectDetail   sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/profile"             element={<Profile />} />
