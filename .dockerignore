@@ -1,0 +1,30 @@
+# Trims the build context sent to the Docker daemon → faster builds, cleaner images.
+#
+# IMPORTANT: .env is intentionally NOT ignored. This project's Dockerfile does
+# `COPY .env .` and the Vite build reads VITE_* vars (e.g. VITE_SENTRY_DSN) from
+# it at build time. Ignoring .env here would break the build and frontend Sentry.
+
+# Dependencies & build output — regenerated inside the image
+node_modules
+dist
+
+# Version control & CI config
+.git
+.gitignore
+.github
+
+# Editor / OS cruft
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Runtime data & local backups — must never go into an image/context
+data
+.env.bak.*
+*.log
+
+# Docs & tests — not needed in the runtime image
+*.md
+*.pdf
+tests
