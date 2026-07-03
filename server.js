@@ -34,6 +34,16 @@ import supportRouter     from './routes/support.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
 
+// Optional Sentry error tracking — only active when SENTRY_DSN is set.
+let Sentry = null;
+if (process.env.SENTRY_DSN) {
+  try {
+    Sentry = await import('@sentry/node');
+    Sentry.init({ dsn: process.env.SENTRY_DSN, environment: process.env.NODE_ENV || 'production' });
+    logger.info('Sentry error tracking enabled');
+  } catch (e) { logger.warn({ err: e }, 'Sentry init failed — continuing without it'); Sentry = null; }
+}
+
 const app = express();
 app.disable('x-powered-by');
 
@@ -157,10 +167,22 @@ app.get('*', (req, res) => {
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   logger.error({ err, path: req.path, method: req.method }, 'Unhandled error');
+  if (Sentry) { try { Sentry.captureException(err); } catch { /* ignore */ } }
   if (res.headersSent) return;
   const status = err.status || err.statusCode || 500;
   const safe   = status < 500 ? (err.message || 'Request error') : 'Internal server error';
   res.status(status).json({ error: safe });
+});
+
+// Process-level safety nets — log fatal errors; the container restart policy brings us back.
+process.on('unhandledRejection', (reason) => {
+  logger.error({ err: reason }, 'Unhandled promise rejection');
+  if (Sentry) { try { Sentry.captureException(reason); } catch { /* ignore */ } }
+});
+process.on('uncaughtException', (err) => {
+  logger.fatal({ err }, 'Uncaught exception — exiting for a clean restart');
+  if (Sentry) { try { Sentry.captureException(err); } catch { /* ignore */ } }
+  process.exit(1);
 });
 
 // Seed default users then start listening

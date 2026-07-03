@@ -32,6 +32,20 @@ router.get('/ready', (req, res) => {
   }
 });
 
+// Lightweight ops metrics for external monitors (uptime, memory, sessions).
+router.get('/metrics', (req, res) => {
+  const mem = process.memoryUsage();
+  res.json({
+    uptimeSec:      Math.round(process.uptime()),
+    node:           process.version,
+    pid:            process.pid,
+    rssMB:          +(mem.rss / 1048576).toFixed(1),
+    heapUsedMB:     +(mem.heapUsed / 1048576).toFixed(1),
+    activeSessions: sessionCount(),
+    ts:             new Date().toISOString(),
+  });
+});
+
 async function handleLogin(req, res) {
   const { username, password } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: 'Username and password required.' });

@@ -66,6 +66,12 @@ curl -s http://localhost:3001/ready                # confirm DB up
 
 ---
 
+## Monitoring & error tracking
+- **Endpoints:** `GET /health` (liveness), `GET /ready` (DB check → 503 if down), `GET /metrics` (uptime, memory, active sessions). Point UptimeRobot/Grafana at these. Ports: prod `:3000`, test `:3001`, dev `:3002`.
+- **Logs:** structured JSON (pino) via `docker logs`; every `/api` request logs method/status/latency.
+- **Crash safety:** unhandled promise rejections are logged; an uncaught exception logs fatally and exits so the container restarts cleanly.
+- **Sentry (optional, off by default):** set `SENTRY_DSN` in the server `.env` for backend error capture; build with `VITE_SENTRY_DSN` for the frontend. Both stay dormant until those vars are set (free tier at sentry.io).
+
 ## Incident switches
 
 ### A write started failing with 403 "Invalid or missing CSRF token"

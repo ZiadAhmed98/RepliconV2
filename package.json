@@ -34,7 +34,9 @@
     "@dnd-kit/sortable": "^8.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "multer": "^1.4.5-lts.1",
-    "csv-parse": "^5.5.6"
+    "csv-parse": "^5.5.6",
+    "@sentry/node": "^8.0.0",
+    "@sentry/react": "^8.0.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.0",
