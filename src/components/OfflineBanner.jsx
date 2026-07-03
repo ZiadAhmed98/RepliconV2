@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 export default function OfflineBanner() {
   const [offline, setOffline] = useState(typeof navigator !== 'undefined' && !navigator.onLine);
@@ -16,7 +17,7 @@ export default function OfflineBanner() {
 
   if (!offline) return null;
 
-  return (
+  return createPortal(
     <div style={{
       position: 'fixed', top: 0, left: 0, right: 0, zIndex: 3000,
       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
@@ -27,6 +28,7 @@ export default function OfflineBanner() {
     }}>
       <i className="bx bx-wifi-off" style={{ fontSize: '15px' }} />
       You’re offline — changes may not be saved until your connection returns.
-    </div>
+    </div>,
+    document.body
   );
 }

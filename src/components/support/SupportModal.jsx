@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useToast } from '../../context/ToastContext';
 
 const CATEGORIES = [
@@ -46,6 +47,13 @@ export default function SupportModal({ prefill, onClose }) {
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  // Lock background scroll while the modal is open
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
   const loadMine = useCallback(async () => {
     setMine(null);
     try {
@@ -79,7 +87,7 @@ export default function SupportModal({ prefill, onClose }) {
     }
   };
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal-panel" style={{ width: '100%', maxWidth: '520px' }} role="dialog" aria-modal="true" aria-label="Help and support">
 
@@ -217,6 +225,7 @@ export default function SupportModal({ prefill, onClose }) {
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
