@@ -17,3 +17,5 @@ jobs:
         run: npm ci || npm install
       - name: Build (Vite)
         run: npm run build
+      - name: Test
+        run: npm test
