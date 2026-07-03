@@ -7,6 +7,7 @@ import cookieParser  from 'cookie-parser';
 
 import { logger }            from './lib/helpers.js';
 import { ensureDefaultUsers } from './lib/rbac.js';
+import { csrfProtection }     from './lib/csrf.js';
 
 import authRouter        from './routes/auth.js';
 import adminRouter       from './routes/admin.js';
@@ -84,6 +85,7 @@ app.use(cors({
 
 app.use(cookieParser());
 app.use(express.json({ limit: '5mb' }));
+app.use(csrfProtection);
 
 // Routes
 app.use(authRouter);

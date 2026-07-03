@@ -5,6 +5,7 @@ import { createSession, requireAuth, verifyPassword,
 import { ALL_PAGES, allPermissions, appendAudit }   from '../lib/rbac.js';
 import { logger, auditLog }                          from '../lib/helpers.js';
 import db                                            from '../lib/db.js';
+import { setCsrfCookie }                             from '../lib/csrf.js';
 
 const router = Router();
 
@@ -74,6 +75,7 @@ async function handleLogin(req, res) {
   appendAudit({ user: row.displayName, action: 'LOGIN', ip: req.ip });
   auditLog(row.displayName, 'LOGIN', { ip: req.ip });
   logger.info({ user: row.displayName }, 'Login success');
+  setCsrfCookie(req, res);
   res.json({ success: true, displayName: row.displayName });
 }
 
@@ -81,6 +83,7 @@ router.post('/api/v1/login', loginLimiter, (req, res) => handleLogin(req, res));
 router.post('/api/login',    loginLimiter, (req, res) => handleLogin(req, res));
 
 router.get('/api/v1/me', requireAuth, (req, res) => {
+  setCsrfCookie(req, res);
   res.json({ user: req.user });
 });
 

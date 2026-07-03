@@ -1,9 +1,20 @@
 import axios from 'axios';
+import { getCsrfToken } from '../csrf';
 
 const api = axios.create({
   baseURL:         '',
   withCredentials: true,   // sends httpOnly cookie on every request
   headers:         { 'Content-Type': 'application/json' },
+});
+
+// Attach the CSRF token on mutating requests (double-submit cookie pattern).
+api.interceptors.request.use((config) => {
+  const m = String(config.method || 'get').toUpperCase();
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(m)) {
+    const t = getCsrfToken();
+    if (t) { config.headers = config.headers || {}; config.headers['x-csrf-token'] = t; }
+  }
+  return config;
 });
 
 // 5.5 — Auto-logout on 401, re-throw everything else.
