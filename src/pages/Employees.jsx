@@ -233,7 +233,7 @@ function EmployeeModal({ employee, allEmployees, onSave, onClose }) {
                   <label style={labelStyle}>Page Permissions</label>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                     {allPageKeys.map(p => {
-                      const on = accForm.isAdmin ? true : (accForm.permissions[p] !== false && accForm.permissions[p] !== undefined ? accForm.permissions[p] : true);
+                      const on = accForm.isAdmin ? true : (accForm.permissions[p] !== false);
                       return (
                         <button
                           key={p}
