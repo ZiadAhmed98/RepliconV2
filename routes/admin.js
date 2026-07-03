@@ -15,6 +15,7 @@ router.get('/api/v1/admin/users', requireAdmin, (req, res) => {
 router.post('/api/v1/admin/users', requireAdmin, async (req, res) => {
   const { id, displayName, password, isAdmin, permissions } = req.body || {};
   if (!id || !displayName || !password) return res.status(400).json({ error: 'id, displayName, password required.' });
+  if (String(password).length < 10) return res.status(400).json({ error: 'Password must be at least 10 characters.' });
 
   const cleanId = String(id).toLowerCase().trim().replace(/\s+/g, '_');
   if (db.prepare('SELECT id FROM users WHERE id=?').get(cleanId)) {
@@ -39,6 +40,7 @@ router.put('/api/v1/admin/users/:uid', requireAdmin, async (req, res) => {
   }
 
   const { displayName, password, isAdmin, permissions } = req.body || {};
+  if (password && String(password).length < 10) return res.status(400).json({ error: 'Password must be at least 10 characters.' });
   const now = new Date().toISOString();
   if (displayName)                  db.prepare('UPDATE users SET displayName=?,updatedAt=? WHERE id=?').run(String(displayName).trim(), now, uid);
   if (typeof isAdmin === 'boolean') db.prepare('UPDATE users SET isAdmin=?,updatedAt=? WHERE id=?').run(isAdmin ? 1 : 0, now, uid);

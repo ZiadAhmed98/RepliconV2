@@ -21,6 +21,17 @@ router.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// Readiness — verifies the DB is reachable (use for load-balancer health checks).
+router.get('/ready', (req, res) => {
+  try {
+    db.prepare('SELECT 1').get();
+    res.json({ status: 'ready', db: 'up' });
+  } catch (e) {
+    logger.error({ err: e }, 'Readiness check DB failure');
+    res.status(503).json({ status: 'degraded', db: 'down' });
+  }
+});
+
 async function handleLogin(req, res) {
   const { username, password } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: 'Username and password required.' });

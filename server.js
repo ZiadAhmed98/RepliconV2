@@ -4,6 +4,7 @@ import path          from 'path';
 import { fileURLToPath } from 'url';
 import cors          from 'cors';
 import cookieParser  from 'cookie-parser';
+import rateLimit     from 'express-rate-limit';
 
 import { logger }            from './lib/helpers.js';
 import { ensureDefaultUsers } from './lib/rbac.js';
@@ -39,6 +40,14 @@ app.disable('x-powered-by');
 // Behind nginx/Docker: trust the first proxy hop so req.ip and req.secure
 // reflect the real client — fixes rate-limiter keying and IP logging.
 app.set('trust proxy', 1);
+
+// Structured request logging for API calls (method, status, latency).
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api')) return next();
+  const start = Date.now();
+  res.on('finish', () => logger.info({ method: req.method, path: req.path, status: res.statusCode, ms: Date.now() - start }, 'api'));
+  next();
+});
 
 // Security headers
 app.use((req, res, next) => {
@@ -84,6 +93,15 @@ app.use(cors({
 }));
 
 app.use(cookieParser());
+
+// General abuse protection for the API (login has its own stricter limiter).
+app.use('/api', rateLimit({
+  windowMs:        15 * 60 * 1000,
+  max:             Number(process.env.API_RATE_MAX || 5000),
+  standardHeaders: true,
+  legacyHeaders:   false,
+  message:         { error: 'Too many requests — please slow down.' },
+}));
 app.use(express.json({ limit: '5mb' }));
 app.use(csrfProtection);
 
@@ -150,5 +168,14 @@ ensureDefaultUsers()
   .catch(e => logger.error({ err: e }, 'ensureDefaultUsers failed'))
   .finally(() => {
     const PORT = process.env.PORT || 3000;
-    app.listen(PORT, '0.0.0.0', () => logger.info({ port: PORT }, `Server running on port ${PORT}`));
+    const server = app.listen(PORT, '0.0.0.0', () => logger.info({ port: PORT }, `Server running on port ${PORT}`));
+
+    // Graceful shutdown — stop accepting connections, let in-flight finish.
+    const shutdown = (sig) => {
+      logger.info({ sig }, 'Shutting down…');
+      server.close(() => { logger.info('HTTP server closed'); process.exit(0); });
+      setTimeout(() => { logger.error('Forced exit after 10s'); process.exit(1); }, 10000).unref();
+    };
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT',  () => shutdown('SIGINT'));
   });
