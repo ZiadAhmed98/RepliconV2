@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
+import { useAppSettings } from '../context/SettingsContext';
 
 const STATUS_COLORS = {
   in_progress: { bg: 'rgba(34,197,94,0.12)',  color: '#4ade80', label: 'In Progress' },
@@ -350,6 +351,7 @@ export default function ProjectDetail({ sessionUser }) {
   const { id }    = useParams();
   const navigate  = useNavigate();
   const { toast } = useToast();
+  const { projects: projSettings } = useAppSettings();   // dynamic health thresholds
 
   const [project,        setProject]       = useState(null);
   const [tasks,          setTasks]         = useState([]);
@@ -587,14 +589,19 @@ export default function ProjectDetail({ sessionUser }) {
               <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#f87171' }}>{project.actualHours || 0}</div>
               <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>Actual Hrs</div>
             </div>
-            {project.budgetHours > 0 && (
-              <div style={{ background: 'rgba(251,191,36,0.07)', border: `1px solid ${(project.actualHours || 0) > project.budgetHours ? 'rgba(239,68,68,0.4)' : 'rgba(251,191,36,0.15)'}`, borderRadius: '10px', padding: '12px 18px', textAlign: 'center', minWidth: '80px' }}>
-                <div style={{ fontSize: '1.3rem', fontWeight: 800, color: (project.actualHours || 0) > project.budgetHours ? '#f87171' : '#fbbf24' }}>
-                  {Math.round((project.actualHours || 0) / project.budgetHours * 100)}%
+            {project.budgetHours > 0 && (() => {
+              const pct      = Math.round((project.actualHours || 0) / project.budgetHours * 100);
+              const warnAt   = Number(projSettings.budgetAlertPct)    || 80;
+              const critAt   = Number(projSettings.budgetCriticalPct) || 100;
+              const tone     = pct >= critAt ? '#f87171' : pct >= warnAt ? '#fbbf24' : '#4ade80';
+              const border   = pct >= critAt ? 'rgba(239,68,68,0.4)' : pct >= warnAt ? 'rgba(251,191,36,0.25)' : 'rgba(34,197,94,0.2)';
+              return (
+                <div style={{ background: 'rgba(251,191,36,0.07)', border: `1px solid ${border}`, borderRadius: '10px', padding: '12px 18px', textAlign: 'center', minWidth: '80px' }}>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 800, color: tone }}>{pct}%</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>Burn Rate</div>
                 </div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>Burn Rate</div>
-              </div>
-            )}
+              );
+            })()}
             <div style={{ background: 'rgba(107,114,128,0.07)', border: '1px solid rgba(107,114,128,0.15)', borderRadius: '10px', padding: '12px 18px', textAlign: 'center', minWidth: '80px' }}>
               <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#9ca3af' }}>{tasks.length}</div>
               <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>Tasks</div>

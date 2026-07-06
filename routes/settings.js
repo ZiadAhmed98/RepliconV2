@@ -45,6 +45,24 @@ router.get('/api/v1/settings/public', requireAuth, (req, res) => {
   res.json({ settings: out });
 });
 
+// Full operational configuration for any authenticated user. app_settings
+// holds only non-sensitive operational config (defaults, rules, thresholds) —
+// secrets live in their own tables (api_keys, webhooks) behind requireAdmin.
+// This is the backbone that makes settings dynamic: every page reads the group
+// it cares about and adapts its behaviour accordingly.
+router.get('/api/v1/settings/operational', requireAuth, (req, res) => {
+  const rows = db.prepare('SELECT key, value FROM app_settings').all();
+  const groups = {};
+  rows.forEach(r => {
+    const dot   = r.key.indexOf('.');
+    const group = dot < 0 ? '_root' : r.key.slice(0, dot);
+    const k     = dot < 0 ? r.key   : r.key.slice(dot + 1);
+    let val; try { val = JSON.parse(r.value); } catch { val = r.value; }
+    (groups[group] ||= {})[k] = val;
+  });
+  res.json({ settings: groups });
+});
+
 router.put('/api/v1/admin/settings', requireAdmin, (req, res) => {
   const { group, updates } = req.body || {};
   if (!updates || typeof updates !== 'object') return res.status(400).json({ error: 'updates object required' });

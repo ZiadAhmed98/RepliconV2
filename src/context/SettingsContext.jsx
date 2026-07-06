@@ -67,10 +67,11 @@ export function SettingsProvider({ children }) {
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch('/api/v1/settings/public', { credentials: 'include' });
+      const r = await fetch('/api/v1/settings/operational', { credentials: 'include' });
       if (!r.ok) return; // not logged in yet, or endpoint unavailable — keep defaults
       const { settings: s } = await r.json();
       setSettings({
+        ...s,   // every group (projects, tasks, timesheets, …) is available
         branding:     { ...DEFAULTS.branding,     ...(s.branding     || {}) },
         localization: { ...DEFAULTS.localization, ...(s.localization || {}) },
         general:      { ...DEFAULTS.general,      ...(s.general      || {}) },
@@ -112,6 +113,9 @@ export function SettingsProvider({ children }) {
     branding:     settings.branding,
     localization: settings.localization,
     general:      settings.general,
+    projects:     settings.projects || {},
+    // Generic accessor for any settings group, e.g. group('timesheets').
+    group:        (name) => settings[name] || {},
     accent:       settings.branding.primaryColor || '#8b5cf6',
     companyName:  settings.branding.companyName || settings.general.appName || 'Liveroute Replicon',
     formatDate,

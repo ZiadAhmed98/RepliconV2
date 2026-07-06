@@ -7,6 +7,35 @@ import db               from '../lib/db.js';
 
 const router = Router();
 
+// ── Project Settings (admin-configured, dynamic) ────────────────────────────
+// Read the operational 'projects' settings group. These drive create-time
+// behaviour: default values, which fields are mandatory, and how project codes
+// are auto-generated. Everything is opt-in (falsy = old behaviour), so enabling
+// a rule changes the app without any code change.
+function projectSettings() {
+  const ps = {};
+  db.prepare("SELECT key, value FROM app_settings WHERE key LIKE 'projects.%'").all().forEach(r => {
+    const k = r.key.slice('projects.'.length);
+    try { ps[k] = JSON.parse(r.value); } catch { ps[k] = r.value; }
+  });
+  return ps;
+}
+
+// Server-authoritative sequential project code, e.g. PRJ-2026-0007.
+function nextProjectCode(ps) {
+  const prefix = String(ps.codePrefix || 'PRJ').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const pad    = Math.min(Math.max(Number(ps.codePadding) || 4, 1), 8);
+  const base   = ps.codeScheme === 'prefix_seq'
+    ? `${prefix}-`
+    : `${prefix}-${new Date().getFullYear()}-`;
+  let max = 0;
+  db.prepare('SELECT code FROM projects WHERE code LIKE ?').all(`${base}%`).forEach(r => {
+    const m = r.code && r.code.slice(base.length).match(/^(\d+)/);
+    if (m) { const n = parseInt(m[1], 10); if (n > max) max = n; }
+  });
+  return base + String(max + 1).padStart(pad, '0');
+}
+
 const psaProjectSchema = z.object({
   clientId:          z.string().nullable().optional(),
   programId:         z.string().nullable().optional(),
@@ -85,9 +114,20 @@ router.post('/api/v1/psa/projects', requireAuth, (req, res) => {
   const parsed = psaProjectSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
   const d    = parsed.data;
+
+  // Enforce admin-configured required fields (defence in depth — the UI also
+  // validates, but the rule is authoritative here).
+  const ps = projectSettings();
+  if (ps.requireClient          && !d.clientId)         return res.status(422).json({ error: 'A client is required by project settings' });
+  if (ps.requireProjectManager  && !d.projectManagerId) return res.status(422).json({ error: 'A project manager is required by project settings' });
+  if (ps.requireDates           && (!d.startDate || !d.endDate)) return res.status(422).json({ error: 'Start and end dates are required by project settings' });
+  if (ps.requireBudget          && !(d.budgetHours > 0 || d.quotedHours > 0)) return res.status(422).json({ error: 'A budget (hours) is required by project settings' });
+
   const id   = crypto.randomUUID();
   const now  = new Date().toISOString();
-  const code = d.code ? d.code.toUpperCase() : null;
+  // Auto-generate a sequential code when enabled and none was supplied.
+  const code = d.code ? d.code.toUpperCase()
+             : (ps.autoGenerateCode ? nextProjectCode(ps) : null);
   try {
     db.prepare(`
       INSERT INTO projects (id,clientId,programId,name,code,status,projectManagerId,startDate,endDate,budgetHours,billingType,quotedHours,ticketAllocation,monthlyAllocation,notes,createdAt,updatedAt)
@@ -99,6 +139,11 @@ router.post('/api/v1/psa/projects', requireAuth, (req, res) => {
   } catch (e) {
     if (e.message?.includes('UNIQUE')) return res.status(409).json({ error: 'Project code already exists' });
     throw e;
+  }
+  // Optionally seed the team with the project manager.
+  if (ps.autoAssignPmToTeam && d.projectManagerId) {
+    try { db.prepare('INSERT INTO project_resources (projectId,employeeId,assignedAt) VALUES (?,?,?)').run(id, d.projectManagerId, now); }
+    catch { /* PM already a resource — ignore */ }
   }
   auditLog(req.user.id, 'PROJECT_CREATE', { id, name: d.name });
   const row = db.prepare('SELECT * FROM projects WHERE id=?').get(id);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
+import { useAppSettings } from '../context/SettingsContext';
 
 const STATUS_TABS = [
   { key: '',           label: 'All'       },
@@ -43,17 +44,19 @@ function StatusBadge({ status }) {
 
 function ProjectModal({ project, clients, employees, programs, onSave, onClose }) {
   const isEdit = !!project;
+  const { projects: ps } = useAppSettings();   // dynamic project settings
   const [form, setForm] = useState({
     clientId:          project?.clientId          || '',
     programId:         project?.programId         || '',
     name:              project?.name              || '',
     code:              project?.code              || '',
-    status:            project?.status            || 'in_progress',
+    // New projects inherit the admin-configured defaults; edits keep their values.
+    status:            project?.status            || ps.defaultStatus      || 'in_progress',
     projectManagerId:  project?.projectManagerId  || '',
     startDate:         project?.startDate         || '',
     endDate:           project?.endDate           || '',
-    budgetHours:       project?.budgetHours       ?? 0,
-    billingType:       project?.billingType       || 'time_material',
+    budgetHours:       project?.budgetHours       ?? (isEdit ? 0 : (ps.defaultBudgetHours ?? 0)),
+    billingType:       project?.billingType       || ps.defaultBillingType || 'time_material',
     quotedHours:       project?.quotedHours       ?? 0,
     ticketAllocation:  project?.ticketAllocation  ?? 0,
     monthlyAllocation: project?.monthlyAllocation ?? 0,
@@ -64,8 +67,15 @@ function ProjectModal({ project, clients, employees, programs, onSave, onClose }
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
+  const autoCode = !isEdit && !!ps.autoGenerateCode;
+
   const handleSave = async () => {
     if (!form.name.trim()) { setError('Project name is required'); return; }
+    // Enforce admin-configured required fields before hitting the server.
+    if (ps.requireClient          && !form.clientId)         { setError('A client is required'); return; }
+    if (ps.requireProjectManager  && !form.projectManagerId) { setError('A project manager is required'); return; }
+    if (ps.requireDates           && (!form.startDate || !form.endDate)) { setError('Start and end dates are required'); return; }
+    if (ps.requireBudget          && !(Number(form.budgetHours) > 0 || Number(form.quotedHours) > 0)) { setError('A budget (hours) is required'); return; }
     setSaving(true); setError('');
     const payload = {
       ...form,
@@ -117,8 +127,8 @@ function ProjectModal({ project, clients, employees, programs, onSave, onClose }
               <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Azure Migration" style={inputStyle} />
             </div>
             <div>
-              <label style={labelStyle}>Project Code</label>
-              <input value={form.code} onChange={e => set('code', e.target.value.toUpperCase())} placeholder="e.g. DP-ADNEC-AI" style={inputStyle} />
+              <label style={labelStyle}>Project Code{autoCode && <span style={{ color: '#818cf8', marginLeft: '6px', fontSize: '0.7rem' }}>auto-generated if blank</span>}</label>
+              <input value={form.code} onChange={e => set('code', e.target.value.toUpperCase())} placeholder={autoCode ? 'Leave blank to auto-number' : 'e.g. DP-ADNEC-AI'} style={inputStyle} />
             </div>
             <div>
               <label style={labelStyle}>Status</label>
