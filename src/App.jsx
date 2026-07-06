@@ -58,6 +58,7 @@ import TaskCategories       from './pages/settings/TaskCategories';
 import PriorityLevels       from './pages/settings/PriorityLevels';
 import WorkflowRules        from './pages/settings/WorkflowRules';
 import TimesheetPeriods     from './pages/settings/TimesheetPeriods';
+import TimesheetValidationRules from './pages/settings/TimesheetValidationRules';
 import ApprovalWorkflow     from './pages/settings/ApprovalWorkflow';
 import OvertimeRules        from './pages/settings/OvertimeRules';
 import HolidayCalendar      from './pages/settings/HolidayCalendar';
@@ -266,6 +267,7 @@ function AppContent() {
                 <Route path="/settings/priorities"             element={<GuardedRoute page="administration"><PriorityLevels /></GuardedRoute>} />
                 <Route path="/settings/workflows"              element={<GuardedRoute page="administration"><WorkflowRules /></GuardedRoute>} />
                 <Route path="/settings/timesheet-periods"      element={<GuardedRoute page="administration"><TimesheetPeriods /></GuardedRoute>} />
+                <Route path="/settings/validation-rules"       element={<GuardedRoute page="administration"><TimesheetValidationRules /></GuardedRoute>} />
                 <Route path="/settings/approval-workflow"      element={<GuardedRoute page="administration"><ApprovalWorkflow /></GuardedRoute>} />
                 <Route path="/settings/overtime"               element={<GuardedRoute page="administration"><OvertimeRules /></GuardedRoute>} />
                 <Route path="/settings/holidays"               element={<GuardedRoute page="administration"><HolidayCalendar /></GuardedRoute>} />

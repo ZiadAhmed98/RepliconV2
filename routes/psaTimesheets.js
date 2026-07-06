@@ -67,6 +67,45 @@ function conditionalNeedsApproval(cfg, tsId) {
     (c.when === 'hasOvertime' && hasOvertime));
 }
 
+// ── Timesheet Validation Rules (Replicon-style) ─────────────────────────────
+// A library of enable-able, optionally-parameterised rules checked on submit.
+// Config lives in settings group 'validation' as { rules: { key: { enabled,
+// value } } }. Nothing is enforced unless a rule is enabled, so it's additive.
+function validationRules() {
+  const v = settingsGroup('validation');
+  return v.rules && typeof v.rules === 'object' ? v.rules : {};
+}
+function validateTimesheet(tsId, userRole) {
+  const cfg  = validationRules();
+  const on   = (k) => cfg[k]?.enabled;
+  const num  = (k, d) => Number(cfg[k]?.value ?? d);
+  const rows = buildTimesheetRows(tsId);
+  const sum  = (h) => Object.values(h || {}).reduce((a, x) => a + x, 0);
+  const total = rows.reduce((s, r) => s + sum(r.hours), 0);
+  const today = new Date().toISOString().slice(0, 10);
+  const byDay = {};
+  rows.forEach(r => Object.entries(r.hours || {}).forEach(([d, h]) => { byDay[d] = (byDay[d] || 0) + h; }));
+
+  const out = [];
+  if (on('activityProjectRequired') && rows.some(r => !r.projectId))
+    out.push('Every timesheet row must have a project selected.');
+  if (on('noEmptyRows') && rows.some(r => sum(r.hours) === 0))
+    out.push('Remove rows that have no hours before submitting.');
+  if (on('minWeeklyHours') && total < num('minWeeklyHours', 40))
+    out.push(`Weekly hours (${total}) are below the required minimum of ${num('minWeeklyHours', 40)}.`);
+  if (on('maxWeeklyHours') && total > num('maxWeeklyHours', 60))
+    out.push(`Weekly hours (${total}) exceed the maximum of ${num('maxWeeklyHours', 60)}.`);
+  if (on('maxDailyHours')) {
+    const bad = Object.entries(byDay).find(([, h]) => h > num('maxDailyHours', 12));
+    if (bad) out.push(`${bad[0]}: ${bad[1]}h exceeds the daily maximum of ${num('maxDailyHours', 12)}.`);
+  }
+  if (on('noFutureDates') && Object.keys(byDay).some(d => d > today))
+    out.push('Time cannot be logged on future dates.');
+  if (on('billingRateRequired') && userRole && !db.prepare('SELECT 1 FROM billing_rates WHERE role=? LIMIT 1').get(userRole))
+    out.push('No billing rate is configured for your role — contact an administrator.');
+  return out;
+}
+
 // Admins can approve any step; role-typed steps require the matching role.
 function canApproveStep(user, step) {
   if (user.isAdmin) return true;
@@ -284,6 +323,10 @@ router.post('/api/v1/psa/timesheets/:id/submit', requireAuth, (req, res) => {
   const ts = db.prepare('SELECT * FROM psa_timesheets WHERE id=? AND userId=?').get(req.params.id, req.user.id);
   if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
   if (ts.status === 'approved') return res.status(409).json({ error: 'Already approved' });
+  // Enforce enabled Timesheet Validation Rules before accepting the submission.
+  const userRole   = db.prepare('SELECT role FROM employees WHERE userId=?').get(req.user.id)?.role;
+  const violations = validateTimesheet(req.params.id, userRole);
+  if (violations.length) return res.status(422).json({ error: violations[0], violations });
   // Decide the post-submit status from the Approval Workflow configuration.
   const cfg = approvalConfig();
   let newStatus = 'submitted';                 // single / sequential → needs approval

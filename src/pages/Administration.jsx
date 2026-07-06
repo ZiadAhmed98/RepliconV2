@@ -50,6 +50,7 @@ const SECTIONS = [
     accent: '#60a5fa',
     items: [
       { label: 'Timesheet Periods',   icon: 'bx-calendar',        desc: 'Fiscal weeks, cut-offs and lock rules',    live: true, to: '/settings/timesheet-periods' },
+      { label: 'Validation Rules',    icon: 'bx-check-shield',    desc: 'Rules enforced when timesheets are submitted', live: true, to: '/settings/validation-rules' },
       { label: 'Approval Workflow',   icon: 'bx-check-shield',    desc: 'Multi-step approval chains and escalation', live: true, to: '/settings/approval-workflow' },
       { label: 'Overtime Rules',      icon: 'bx-timer',           desc: 'Thresholds, caps and OT pay settings',     live: true, to: '/settings/overtime' },
       { label: 'Holiday Calendar',    icon: 'bx-calendar-star',   desc: 'Public and company-wide holidays',         live: true, to: '/settings/holidays' },
