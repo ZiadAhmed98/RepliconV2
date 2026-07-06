@@ -8,6 +8,27 @@ import { validate, z }                      from '../lib/validate.js';
 
 const router = Router();
 
+// ── Dynamic settings ────────────────────────────────────────────────────────
+// Read an operational settings group (e.g. 'timesheet', 'overtime', 'approval').
+// Every rule below is opt-in: when a setting is unset the behaviour is exactly
+// what it was before, so enabling a rule is the only thing that changes anything.
+function settingsGroup(group) {
+  const out = {};
+  db.prepare('SELECT key, value FROM app_settings WHERE key LIKE ?').all(`${group}.%`).forEach(r => {
+    const k = r.key.slice(group.length + 1);
+    try { out[k] = JSON.parse(r.value); } catch { out[k] = r.value; }
+  });
+  return out;
+}
+
+// Split a week's total into regular vs overtime given a weekly threshold
+// (0 = overtime tracking disabled → everything is regular).
+function splitOvertime(totalHours, weeklyThreshold) {
+  const overtimeHours = weeklyThreshold > 0 ? Math.max(0, totalHours - weeklyThreshold) : 0;
+  return { regularHours: Math.round((totalHours - overtimeHours) * 100) / 100,
+           overtimeHours: Math.round(overtimeHours * 100) / 100 };
+}
+
 // ── Validation schemas ────────────────────────────────────────────────────────
 const rowCreateSchema = z.object({
   timesheetId: z.string().min(1).max(64),
@@ -61,10 +82,11 @@ router.get('/api/v1/admin/psa/timesheets', requirePM, (req, res) => {
 
   q += ' ORDER BY ts.weekStart DESC, employeeName ASC';
   const rows = db.prepare(q).all(...params);
+  const weeklyThreshold = Number(settingsGroup('overtime').weeklyThreshold) || 0;
   const timesheets = rows.map(ts => {
     const rows2 = buildTimesheetRows(ts.id);
-    const totalHours = rows2.reduce((sum, r) => sum + Object.values(r.hours || {}).reduce((s, h) => s + h, 0), 0);
-    return { ...ts, rows: rows2, totalHours: Math.round(totalHours * 4) / 4 };
+    const totalHours = Math.round(rows2.reduce((sum, r) => sum + Object.values(r.hours || {}).reduce((s, h) => s + h, 0), 0) * 4) / 4;
+    return { ...ts, rows: rows2, totalHours, ...splitOvertime(totalHours, weeklyThreshold) };
   });
   res.json({ timesheets });
 });
@@ -142,6 +164,14 @@ router.put('/api/v1/psa/timesheet-rows/:id/hours', requireAuth, validate(hoursSc
   if (row.status === 'submitted' || row.status === 'approved') return res.status(409).json({ error: 'Timesheet already submitted' });
   const { hours } = req.body || {};
   if (!hours || typeof hours !== 'object') return res.status(400).json({ error: 'hours object required' });
+  // Enforce the configured max daily hours, if set (Timesheet Periods setting).
+  const maxDaily = Number(settingsGroup('timesheet').maxDailyHours) || 0;
+  if (maxDaily > 0) {
+    for (const [date, h] of Object.entries(hours)) {
+      const n = parseFloat(h);
+      if (!isNaN(n) && n > maxDaily) return res.status(422).json({ error: `Maximum ${maxDaily}h per day (exceeded on ${date})` });
+    }
+  }
   const upsert = db.prepare('INSERT INTO psa_timesheet_hours (rowId,date,hours,note) VALUES (?,?,?,NULL) ON CONFLICT(rowId,date) DO UPDATE SET hours=excluded.hours');
   const del    = db.prepare('DELETE FROM psa_timesheet_hours WHERE rowId=? AND date=?');
   db.transaction(() => {
@@ -183,9 +213,13 @@ router.post('/api/v1/psa/timesheets/:id/submit', requireAuth, (req, res) => {
   const ts = db.prepare('SELECT * FROM psa_timesheets WHERE id=? AND userId=?').get(req.params.id, req.user.id);
   if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
   if (ts.status === 'approved') return res.status(409).json({ error: 'Already approved' });
-  db.prepare('UPDATE psa_timesheets SET status=?,updatedAt=? WHERE id=?').run('submitted', new Date().toISOString(), req.params.id);
+  // Approval Workflow setting: auto-approve on submit when mode is 'auto'.
+  const autoApprove = settingsGroup('approval').mode === 'auto';
+  const newStatus   = autoApprove ? 'approved' : 'submitted';
+  db.prepare('UPDATE psa_timesheets SET status=?,updatedAt=? WHERE id=?').run(newStatus, new Date().toISOString(), req.params.id);
   auditLog(req.user.id, 'TIMESHEET_SUBMIT', { timesheetId: req.params.id, weekStart: ts.weekStart });
-  res.json({ ok: true, status: 'submitted' });
+  if (autoApprove) auditLog(req.user.id, 'TIMESHEET_APPROVED', { timesheetId: req.params.id, weekStart: ts.weekStart, auto: true });
+  res.json({ ok: true, status: newStatus });
 });
 
 // Copy rows from previous week into current timesheet (no hours copied, just project/task structure)

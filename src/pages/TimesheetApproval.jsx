@@ -404,9 +404,14 @@ export default function TimesheetApproval() {
                   {/* Week */}
                   <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center' }}>{fmtWeek(ts.weekStart)}</div>
 
-                  {/* Hours */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {/* Hours (with overtime split when the Overtime Rules setting flags OT) */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1.2 }}>
                     <span style={{ fontSize: '15px', fontWeight: 700, color: '#c4b5fd' }}>{ts.totalHours}</span>
+                    {ts.overtimeHours > 0 && (
+                      <span style={{ fontSize: '10px', fontWeight: 600, color: '#fbbf24', marginTop: '2px' }} title="Overtime beyond the weekly threshold">
+                        +{ts.overtimeHours} OT
+                      </span>
+                    )}
                   </div>
 
                   {/* Status */}
