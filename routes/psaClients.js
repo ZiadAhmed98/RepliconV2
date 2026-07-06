@@ -7,6 +7,25 @@ import db                            from '../lib/db.js';
 
 const router = Router();
 
+// Dynamic client settings (Client Settings page). Opt-in — unset = old behaviour.
+function clientSettings() {
+  const out = {};
+  db.prepare("SELECT key, value FROM app_settings WHERE key LIKE 'clients.%'").all().forEach(r => {
+    const k = r.key.slice('clients.'.length);
+    try { out[k] = JSON.parse(r.value); } catch { out[k] = r.value; }
+  });
+  return out;
+}
+function nextClientCode(cs) {
+  const prefix = String(cs.codePrefix || 'CLT-').toUpperCase();
+  let max = 0;
+  db.prepare('SELECT code FROM clients WHERE code LIKE ?').all(`${prefix}%`).forEach(r => {
+    const m = r.code && r.code.slice(prefix.length).match(/^(\d+)/);
+    if (m) { const n = parseInt(m[1], 10); if (n > max) max = n; }
+  });
+  return prefix + String(max + 1).padStart(4, '0');
+}
+
 const clientSchema = z.object({
   name:             z.string().min(1),
   code:             z.string().max(20).optional(),
@@ -61,14 +80,18 @@ router.post('/api/v1/clients', requireAuth, (req, res) => {
   const parsed = clientSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
   const d   = parsed.data;
+  const cs  = clientSettings();
+  if (cs.requireContact && !(d.contactName || d.contactEmail))
+    return res.status(422).json({ error: 'Contact name or email is required by client settings' });
   const now = new Date().toISOString();
   const id  = crypto.randomUUID();
   const managerId = d.managerId || null;
+  const code = d.code ? d.code : (cs.autoGenerateCode ? nextClientCode(cs) : null);
   try {
     db.prepare(`
       INSERT INTO clients (id, name, code, industry, contactName, contactEmail, contactPhone, website, managerId, status, notes, createdAt, updatedAt)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, d.name, d.code || null, d.industry || null, d.contactName || null,
+    `).run(id, d.name, code, d.industry || null, d.contactName || null,
            d.contactEmail || null, d.contactPhone || null, d.website || null,
            managerId, d.status, d.notes || null, now, now);
     auditLog(req.user.id, 'CLIENT_CREATE', { id, name: d.name });

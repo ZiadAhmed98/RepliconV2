@@ -16,7 +16,6 @@ export default function ClientSettings() {
             <label style={S.label}>Default Status</label>
             <select style={S.select} value={settings.defaultStatus ?? 'active'} onChange={e => update('defaultStatus', e.target.value)}>
               <option value="active">Active</option>
-              <option value="prospect">Prospect</option>
               <option value="inactive">Inactive</option>
             </select>
           </div>

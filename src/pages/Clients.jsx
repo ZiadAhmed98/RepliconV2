@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useToast } from '../context/ToastContext';
+import { useAppSettings } from '../context/SettingsContext';
 
 const INDUSTRIES = [
   'Telecommunications', 'Banking & Finance', 'Government', 'Healthcare',
@@ -29,6 +30,8 @@ function Row({ icon, label, value, color }) {
 
 function ClientModal({ client, accountManagers, onSave, onClose }) {
   const isEdit = !!client;
+  const { group } = useAppSettings();
+  const cs = group('clients');   // dynamic client settings
   const [form, setForm] = useState({
     name:        client?.name        || '',
     code:        client?.code        || '',
@@ -38,16 +41,18 @@ function ClientModal({ client, accountManagers, onSave, onClose }) {
     contactPhone:client?.contactPhone|| '',
     website:     client?.website     || '',
     managerId:   client?.managerId   || '',
-    status:      client?.status      || 'active',
+    status:      client?.status      || cs.defaultStatus || 'active',
     notes:       client?.notes       || '',
   });
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
+  const autoCode = !isEdit && !!cs.autoGenerateCode;
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSave = async () => {
     if (!form.name.trim()) { toast.error('Client name is required'); return; }
+    if (cs.requireContact && !(form.contactName.trim() || form.contactEmail.trim())) { toast.error('Contact name or email is required'); return; }
     setSaving(true);
     try {
       const payload = { ...form, managerId: form.managerId || null, code: form.code || undefined };
@@ -83,8 +88,8 @@ function ClientModal({ client, accountManagers, onSave, onClose }) {
             <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Zain Telecom" style={inp} />
           </div>
           <div>
-            <label style={lbl}>Code <span style={{ fontWeight: 400 }}>(short ID)</span></label>
-            <input value={form.code} onChange={e => set('code', e.target.value.toUpperCase())} placeholder="e.g. ZAIN" maxLength={20} style={inp} />
+            <label style={lbl}>Code <span style={{ fontWeight: 400 }}>{autoCode ? '(auto-generated if blank)' : '(short ID)'}</span></label>
+            <input value={form.code} onChange={e => set('code', e.target.value.toUpperCase())} placeholder={autoCode ? 'Leave blank to auto-number' : 'e.g. ZAIN'} maxLength={20} style={inp} />
           </div>
         </div>
 
