@@ -31,12 +31,14 @@ function StatusBadge({ status, map }) {
 // ── Task Modal ────────────────────────────────────────────────────────────────
 function TaskModal({ task, tasks, projectId, onSave, onClose }) {
   const isEdit = !!task;
+  const { group } = useAppSettings();
+  const ts = group('tasks');   // dynamic task settings
   const [form, setForm] = useState({
     name:           task?.name           || '',
     code:           task?.code           || '',
     parentTaskId:   task?.parentTaskId   || '',
-    status:         task?.status         || 'open',
-    estimatedHours: task?.estimatedHours ?? 0,
+    status:         task?.status         || ts.defaultStatus || 'open',
+    estimatedHours: task?.estimatedHours ?? (isEdit ? 0 : (ts.defaultEstimatedHours ?? 0)),
     startDate:      task?.startDate      || '',
     endDate:        task?.endDate        || '',
     description:    task?.description    || '',
@@ -49,6 +51,7 @@ function TaskModal({ task, tasks, projectId, onSave, onClose }) {
 
   const handleSave = async () => {
     if (!form.name.trim()) { setError('Task name is required'); return; }
+    if (ts.requireEstimate && !(Number(form.estimatedHours) > 0)) { setError('An estimate (hours) is required'); return; }
     setSaving(true); setError('');
     const payload = {
       ...form,

@@ -17,7 +17,8 @@ export default function TaskSettings() {
             <select style={S.select} value={settings.defaultStatus ?? 'open'} onChange={e => update('defaultStatus', e.target.value)}>
               <option value="open">Open</option>
               <option value="in_progress">In Progress</option>
-              <option value="pending">Pending</option>
+              <option value="completed">Completed</option>
+              <option value="closed">Closed</option>
             </select>
           </div>
           <div>
@@ -33,6 +34,10 @@ export default function TaskSettings() {
           <div style={S.checkRow}>
             <input type="checkbox" id="reqAssign" checked={!!settings.requireAssignee} onChange={e => update('requireAssignee', e.target.checked)} style={{ width:'15px',height:'15px',cursor:'pointer',accentColor:'#6366f1' }} />
             <label htmlFor="reqAssign" style={{ fontSize:'13px',color:'rgba(255,255,255,0.6)',cursor:'pointer' }}>Require assignee before activating</label>
+          </div>
+          <div style={S.checkRow}>
+            <input type="checkbox" id="reqEst" checked={!!settings.requireEstimate} onChange={e => update('requireEstimate', e.target.checked)} style={{ width:'15px',height:'15px',cursor:'pointer',accentColor:'#6366f1' }} />
+            <label htmlFor="reqEst" style={{ fontSize:'13px',color:'rgba(255,255,255,0.6)',cursor:'pointer' }}>Require an estimate (hours) on every task</label>
           </div>
         </div>
       </div>
