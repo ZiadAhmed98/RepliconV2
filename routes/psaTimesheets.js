@@ -37,10 +37,35 @@ function splitOvertime(totalHours, weeklyThreshold) {
 // (single / auto) keeps the original one-shot behaviour.
 function approvalConfig() {
   const a = settingsGroup('approval');
-  const steps = Array.isArray(a.steps) ? a.steps.filter(s => s && s.type) : [];
-  return { mode: a.mode || 'single', steps };
+  const steps      = Array.isArray(a.steps)      ? a.steps.filter(s => s && s.type)      : [];
+  const conditions = Array.isArray(a.conditions) ? a.conditions.filter(c => c && c.when) : [];
+  return { mode: a.mode || 'single', steps, conditions };
 }
 function isSequential(cfg) { return cfg.mode === 'sequential' && cfg.steps.length > 0; }
+
+// Total logged hours on a timesheet (used by conditional approver rules).
+function weekTotalHours(tsId) {
+  const r = db.prepare(`
+    SELECT COALESCE(SUM(h.hours), 0) AS t
+    FROM psa_timesheet_hours h
+    JOIN psa_timesheet_rows  r ON r.id = h.rowId
+    WHERE r.timesheetId = ?
+  `).get(tsId);
+  return Math.round((r?.t || 0) * 100) / 100;
+}
+
+// Conditional mode: a submitted timesheet needs approval only if one of the
+// configured conditions matches; otherwise it is auto-approved. Mirrors
+// Replicon rules like "Supervisor approves if above 40 hours; else auto".
+function conditionalNeedsApproval(cfg, tsId) {
+  const total = weekTotalHours(tsId);
+  const weeklyThreshold = Number(settingsGroup('overtime').weeklyThreshold) || 0;
+  const hasOvertime = weeklyThreshold > 0 && total > weeklyThreshold;
+  return cfg.conditions.some(c =>
+    c.when === 'always' ||
+    (c.when === 'hoursOver'  && total >= Number(c.value || 0)) ||
+    (c.when === 'hasOvertime' && hasOvertime));
+}
 
 // Admins can approve any step; role-typed steps require the matching role.
 function canApproveStep(user, step) {
@@ -259,13 +284,15 @@ router.post('/api/v1/psa/timesheets/:id/submit', requireAuth, (req, res) => {
   const ts = db.prepare('SELECT * FROM psa_timesheets WHERE id=? AND userId=?').get(req.params.id, req.user.id);
   if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
   if (ts.status === 'approved') return res.status(409).json({ error: 'Already approved' });
-  // Approval Workflow setting: auto-approve on submit when mode is 'auto'.
-  const autoApprove = settingsGroup('approval').mode === 'auto';
-  const newStatus   = autoApprove ? 'approved' : 'submitted';
+  // Decide the post-submit status from the Approval Workflow configuration.
+  const cfg = approvalConfig();
+  let newStatus = 'submitted';                 // single / sequential → needs approval
+  if (cfg.mode === 'auto') newStatus = 'approved';
+  else if (cfg.mode === 'conditional') newStatus = conditionalNeedsApproval(cfg, req.params.id) ? 'submitted' : 'approved';
   // Entering the chain always starts at the first step.
   db.prepare('UPDATE psa_timesheets SET status=?,approvalStep=0,updatedAt=? WHERE id=?').run(newStatus, new Date().toISOString(), req.params.id);
   auditLog(req.user.id, 'TIMESHEET_SUBMIT', { timesheetId: req.params.id, weekStart: ts.weekStart });
-  if (autoApprove) auditLog(req.user.id, 'TIMESHEET_APPROVED', { timesheetId: req.params.id, weekStart: ts.weekStart, auto: true });
+  if (newStatus === 'approved') auditLog(req.user.id, 'TIMESHEET_APPROVED', { timesheetId: req.params.id, weekStart: ts.weekStart, auto: true });
   res.json({ ok: true, status: newStatus });
 });
 
