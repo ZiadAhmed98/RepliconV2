@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '../context/ToastContext';
+import { useAppSettings } from '../context/SettingsContext';
+import { applyNameFormula, DEFAULT_LOGIN_FORMULA, DEFAULT_EMAIL_FORMULA } from '../utils/formula';
 import { APP_PAGES } from '../config/pages';
 
 const ROLES = [
@@ -56,9 +58,22 @@ function EmployeeModal({ employee, allEmployees, roles = ROLES, onSave, onClose 
   const [accForm, setAccForm]   = useState({ userId: '', isAdmin: false, permissions: {}, password: '', confirmPwd: '' });
   const [accTab,  setAccTab]    = useState(false); // show system access section
   const { toast } = useToast();
+  const { group } = useAppSettings();
 
   const set    = (k, v) => setForm(f  => ({ ...f,  [k]: v }));
   const setAcc = (k, v) => setAccForm(f => ({ ...f, [k]: v }));
+
+  // Auto-generate login username + email from the User Settings formulas when
+  // creating a new employee. Only fills empty fields, so manual edits stick.
+  useEffect(() => {
+    if (isEdit) return;
+    const u = group('user');
+    const fn = form.firstName.trim(), ln = form.lastName.trim();
+    if (!fn || !ln) return;
+    if (!accForm.userId) setAccForm(f => ({ ...f, userId: applyNameFormula(u.loginFormula || DEFAULT_LOGIN_FORMULA, fn, ln) }));
+    if (!form.email)     setForm(f => ({ ...f, email: applyNameFormula(u.emailFormula || DEFAULT_EMAIL_FORMULA, fn, ln) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.firstName, form.lastName]);
 
   // Load account info when opening an existing employee
   useEffect(() => {
