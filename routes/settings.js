@@ -124,6 +124,8 @@ crudRoutes('holidays',           'holiday',      ['name', 'date', 'recurring']);
 crudRoutes('sla_tiers',          'tier',         ['name', 'priority', 'responseHours', 'resolutionHours', 'color']);
 crudRoutes('workflow_rules',     'rule',         ['name', 'entity', 'fromStatus', 'toStatus', 'condition', 'action', 'active']);
 crudRoutes('alert_rules',        'rule',         ['name', 'trigger', 'threshold', 'channels', 'active']);
+crudRoutes('departments',        'department',   ['name', 'code', 'description']);
+crudRoutes('locations',          'location',     ['name', 'code', 'description']);
 
 // ── Email templates ───────────────────────────────────────────────────────────
 router.get('/api/v1/admin/email-templates', requireAdmin, (req, res) => {

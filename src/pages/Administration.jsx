@@ -76,6 +76,8 @@ const SECTIONS = [
     items: [
       { label: 'Employees & Access',   icon: 'bx-group',           desc: 'Employee records, roles, login accounts and permissions', live: true, to: '/employees' },
       { label: 'User Settings',        icon: 'bx-user-circle',     desc: 'New-user login/email formulas and defaults',  live: true, to: '/settings/user-settings' },
+      { label: 'Departments',         icon: 'bx-sitemap',         desc: 'Organisational departments',                  live: true, to: '/settings/departments' },
+      { label: 'Locations',           icon: 'bx-map',             desc: 'Office locations',                            live: true, to: '/settings/locations' },
       { label: 'Audit Log',           icon: 'bx-history',         desc: 'Full trail of every system action',           live: true, to: ADMIN_PATH.auditLog  },
       { label: 'Job Roles',           icon: 'bx-id-card',         desc: 'Create custom job titles like Sr Solutions Architect', live: true, to: '/settings/job-roles' },
       { label: 'Permission Sets',     icon: 'bx-lock-alt',        desc: 'Reusable access templates + per-user page access', live: true, to: '/settings/roles' },

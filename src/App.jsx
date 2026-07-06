@@ -61,6 +61,8 @@ import TimesheetPeriods     from './pages/settings/TimesheetPeriods';
 import TimesheetValidationRules from './pages/settings/TimesheetValidationRules';
 import UserSettings          from './pages/settings/UserSettings';
 import SecuritySettings      from './pages/settings/SecuritySettings';
+import Departments           from './pages/settings/Departments';
+import Locations             from './pages/settings/Locations';
 import ApprovalWorkflow     from './pages/settings/ApprovalWorkflow';
 import OvertimeRules        from './pages/settings/OvertimeRules';
 import HolidayCalendar      from './pages/settings/HolidayCalendar';
@@ -272,6 +274,8 @@ function AppContent() {
                 <Route path="/settings/validation-rules"       element={<GuardedRoute page="administration"><TimesheetValidationRules /></GuardedRoute>} />
                 <Route path="/settings/user-settings"          element={<GuardedRoute page="administration"><UserSettings /></GuardedRoute>} />
                 <Route path="/settings/security"               element={<GuardedRoute page="administration"><SecuritySettings /></GuardedRoute>} />
+                <Route path="/settings/departments"            element={<GuardedRoute page="administration"><Departments /></GuardedRoute>} />
+                <Route path="/settings/locations"              element={<GuardedRoute page="administration"><Locations /></GuardedRoute>} />
                 <Route path="/settings/approval-workflow"      element={<GuardedRoute page="administration"><ApprovalWorkflow /></GuardedRoute>} />
                 <Route path="/settings/overtime"               element={<GuardedRoute page="administration"><OvertimeRules /></GuardedRoute>} />
                 <Route path="/settings/holidays"               element={<GuardedRoute page="administration"><HolidayCalendar /></GuardedRoute>} />
