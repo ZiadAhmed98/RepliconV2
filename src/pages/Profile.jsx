@@ -147,10 +147,17 @@ export default function Profile() {
       <p style={sectionLabel}>Role & Dates</p>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px', marginBottom: '14px' }}>
         <div>
-          <label style={labelStyle}>Role</label>
-          <select value={form.role} onChange={e => set('role', e.target.value)} style={inputStyle}>
-            {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-          </select>
+          <label style={labelStyle}>Role {!authUser?.isAdmin && <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>(set by admin)</span>}</label>
+          {authUser?.isAdmin ? (
+            <select value={form.role} onChange={e => set('role', e.target.value)} style={inputStyle}>
+              {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
+          ) : (
+            <div style={{ ...inputStyle, display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.75 }}>
+              <i className='bx bx-lock-alt' style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)' }} />
+              {(ROLES.find(r => r.value === form.role)?.label) || form.role}
+            </div>
+          )}
         </div>
         <div><label style={labelStyle}>Start Date</label><input type="date" value={form.startDate} onChange={e => set('startDate', e.target.value)} style={inputStyle} /></div>
         <div><label style={labelStyle}>End Date</label><input type="date" value={form.endDate || ''} onChange={e => set('endDate', e.target.value)} style={inputStyle} /></div>

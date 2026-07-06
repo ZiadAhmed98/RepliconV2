@@ -182,7 +182,12 @@ router.put('/api/v1/profile', requireAuth, (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
   const d        = parsed.data;
   const now      = new Date().toISOString();
-  const existing = db.prepare('SELECT id FROM employees WHERE userId = ?').get(req.user.id);
+  const existing = db.prepare('SELECT id, role FROM employees WHERE userId = ?').get(req.user.id);
+
+  // Security: a non-admin may edit their own personal details, but must NOT be
+  // able to change their own role (self privilege-escalation). Admins can set
+  // any role; everyone else keeps their current role (or 'resource' on setup).
+  const roleToSave = req.user.isAdmin ? d.role : (existing?.role || 'resource');
 
   if (existing) {
     db.prepare(`
@@ -190,7 +195,7 @@ router.put('/api/v1/profile', requireAuth, (req, res) => {
         role=?, skills=?, supervisorId=?, startDate=?, endDate=?, status='active', updatedAt=?
       WHERE userId=?
     `).run(d.firstName, d.lastName, d.displayName || `${d.firstName} ${d.lastName}`,
-           d.email || null, d.employeeId || null, d.role, JSON.stringify(d.skills),
+           d.email || null, d.employeeId || null, roleToSave, JSON.stringify(d.skills),
            d.supervisorId || null, d.startDate || null, d.endDate || null, now, req.user.id);
   } else {
     const id = crypto.randomUUID();
@@ -199,7 +204,7 @@ router.put('/api/v1/profile', requireAuth, (req, res) => {
         INSERT INTO employees (id, userId, firstName, lastName, displayName, email, employeeId, role, skills, supervisorId, startDate, endDate, status, createdAt, updatedAt)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
       `).run(id, req.user.id, d.firstName, d.lastName, d.displayName || `${d.firstName} ${d.lastName}`,
-             d.email || null, d.employeeId || null, d.role, JSON.stringify(d.skills),
+             d.email || null, d.employeeId || null, roleToSave, JSON.stringify(d.skills),
              d.supervisorId || null, d.startDate || null, d.endDate || null, now, now);
     } catch (err) {
       if (err.message.includes('UNIQUE')) return res.status(409).json({ error: 'Email or Employee ID already used by another employee' });

@@ -95,7 +95,7 @@ export default function SupportModal({ prefill, onClose }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ width: '38px', height: '38px', borderRadius: '11px', background: 'linear-gradient(135deg, rgba(124,58,237,0.3), rgba(37,99,235,0.2))', border: '1px solid rgba(139,92,246,0.32)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 20px rgba(124,58,237,0.25)' }}>
-              <i className="bx bx-lifebuoy" style={{ fontSize: '20px', color: '#c4b5fd' }} />
+              <i className="bx bx-help-circle" style={{ fontSize: '20px', color: '#c4b5fd' }} />
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)' }}>Help &amp; Support</h3>

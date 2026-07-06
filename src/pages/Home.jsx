@@ -45,13 +45,13 @@ function greet() {
 
 // ── Shared UI pieces ─────────────────────────────────────────────────────────
 
-function Card({ title, icon, accent = '#818cf8', count, onViewAll, to, nav, children, style = {} }) {
+function Card({ title, icon, accent = '#818cf8', count, onViewAll, to, nav, children, style = {}, bodyMaxHeight = 360 }) {
   return (
     <div style={{
       background: 'linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.022))',
       border: '1px solid rgba(255,255,255,0.08)',
       boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 30px rgba(0,0,0,0.3)',
-      borderRadius: '16px', overflow: 'hidden', display: 'flex', flexDirection: 'column', ...style,
+      borderRadius: '16px', overflow: 'hidden', display: 'flex', flexDirection: 'column', minWidth: 0, ...style,
     }}>
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -77,7 +77,7 @@ function Card({ title, icon, accent = '#818cf8', count, onViewAll, to, nav, chil
           </button>
         )}
       </div>
-      <div style={{ flex:1 }}>
+      <div style={{ flex:1, minHeight:0, overflowY:'auto', maxHeight: bodyMaxHeight ? `${bodyMaxHeight}px` : undefined }}>
         {children}
       </div>
     </div>
@@ -629,7 +629,7 @@ function AdminHome({ summary, sessionUser, nav, onRefresh }) {
         </Card>
 
         {/* Quick Actions */}
-        <Card title="Quick Actions" icon="bx-zap" accent="#a78bfa">
+        <Card title="Quick Actions" icon="bx-bolt-circle" accent="#a78bfa">
           <div style={{ padding:'12px 14px', display:'flex', flexDirection:'column', gap:'8px' }}>
             {[
               { label:'Create Project',    icon:'bx-folder-plus',  color:'#818cf8', to:'/projects-admin'   },
