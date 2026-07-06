@@ -497,6 +497,7 @@ export default function ChatBot({ dataMatrix }) {
   return (
     <>
       <button
+        data-tour="assistant"
         className={`${styles.fab} ${open ? styles.fabOpen : ''}`}
         onClick={() => setOpen(o => !o)}
         title="Ask MDS AI"

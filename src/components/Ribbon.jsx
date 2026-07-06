@@ -106,7 +106,7 @@ export default function Ribbon({ sessionUser, onLogout, onSync, onSearchOpen, la
             {backLabel}
           </button>
         )}
-        <button onClick={onSearchOpen} style={{
+        <button data-tour="search" onClick={onSearchOpen} style={{
           display: 'flex', alignItems: 'center', gap: '10px',
           background: 'rgba(255,255,255,0.04)',
           border: '1px solid rgba(255,255,255,0.07)',
@@ -176,6 +176,9 @@ export default function Ribbon({ sessionUser, onLogout, onSync, onSearchOpen, la
           </>
         )}
 
+        {/* Take a tour */}
+        {iconBtn(() => window.dispatchEvent(new Event('mds:start-tour')), 'bx-compass', 'Take a tour')}
+
         {/* Help & support */}
         {iconBtn(() => openTicket(), 'bx-help-circle', 'Help & support')}
 
@@ -183,7 +186,7 @@ export default function Ribbon({ sessionUser, onLogout, onSync, onSearchOpen, la
         {iconBtn(toggleTheme, theme === 'dark' ? 'bx-sun' : 'bx-moon', `Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`)}
 
         {/* Notifications */}
-        <div ref={notifRef} style={{ position: 'relative' }}>
+        <div ref={notifRef} data-tour="notifications" style={{ position: 'relative' }}>
           <button onClick={() => setNotifOpen(o => !o)} title="Notifications" style={{
             width: '34px', height: '34px', borderRadius: '9px',
             background: notifOpen ? 'rgba(139,92,246,0.12)' : 'rgba(255,255,255,0.045)',

@@ -10,6 +10,7 @@ import ToastStack         from './components/Toast';
 import GlobalSearch       from './components/GlobalSearch';
 import KeyboardShortcuts  from './components/KeyboardShortcuts';
 import ChatBot            from './components/ChatBot';
+import Tour               from './components/Tour';
 import ErrorBoundary      from './components/ErrorBoundary';
 import OfflineBanner      from './components/OfflineBanner';
 
@@ -291,6 +292,7 @@ function AppContent() {
         <KeyboardShortcuts isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
         <ToastStack />
         <ChatBot dataMatrix={dataMatrix} />
+        <Tour enabled={!!sessionUser} />
       </div>
     </PermissionProvider>
   );

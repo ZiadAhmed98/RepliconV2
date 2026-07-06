@@ -172,7 +172,7 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
   const isAdminRouteActive = location.pathname === ADMIN_PATH.administration;
 
   return (
-    <aside style={S.sidebar(sidebarW)}>
+    <aside data-tour="sidebar" style={S.sidebar(sidebarW)}>
 
       {/* ── Logo ──────────────────────────────────────────────────────── */}
       <div style={S.logoWrap(collapsed)}>

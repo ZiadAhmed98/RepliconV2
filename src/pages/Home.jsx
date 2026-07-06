@@ -386,7 +386,7 @@ function ResourceHome({ summary, sessionUser, nav, onRefresh }) {
       </div>
 
       {/* ── My Work ─────────────────────────────────────────────────────────── */}
-      <div style={{ marginTop: '28px' }}>
+      <div data-tour="mywork" style={{ marginTop: '28px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)' }}>
