@@ -163,9 +163,30 @@ router.patch('/api/v1/psa/tasks/:id/status', requireAuth, (req, res) => {
   }
   if (!allowed) return res.status(403).json({ error: 'You can only change the status of tasks assigned to you.' });
 
-  const now = new Date().toISOString();
-  db.prepare('UPDATE tasks SET status=?, updatedAt=? WHERE id=?').run(parsed.data.status, now, req.params.id);
-  auditLog(req.user.id, 'TASK_STATUS_UPDATE', { id: req.params.id, status: parsed.data.status });
+  const now      = new Date().toISOString();
+  const status   = parsed.data.status;
+  const existing = db.prepare('SELECT startedAt, completedAt FROM tasks WHERE id=?').get(req.params.id);
+
+  // Lifecycle timestamps:
+  //  • entering In Progress → stamp startedAt (once), clear completedAt
+  //  • entering Done         → ensure startedAt, stamp completedAt
+  //  • back to To Do         → reset both
+  let startedAt   = existing?.startedAt   || null;
+  let completedAt = existing?.completedAt || null;
+  if (status === 'in_progress') {
+    startedAt   = startedAt || now;
+    completedAt = null;
+  } else if (status === 'completed' || status === 'closed') {
+    startedAt   = startedAt || now;
+    completedAt = now;
+  } else if (status === 'open') {
+    startedAt   = null;
+    completedAt = null;
+  }
+
+  db.prepare('UPDATE tasks SET status=?, startedAt=?, completedAt=?, updatedAt=? WHERE id=?')
+    .run(status, startedAt, completedAt, now, req.params.id);
+  auditLog(req.user.id, 'TASK_STATUS_UPDATE', { id: req.params.id, status, startedAt, completedAt });
   res.json({ task: db.prepare('SELECT * FROM tasks WHERE id=?').get(req.params.id) });
 });
 

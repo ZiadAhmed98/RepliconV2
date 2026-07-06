@@ -1,124 +1,13 @@
-import React, { useState, useMemo, useRef } from 'react';
-import {
-  DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
-  useDraggable, useDroppable, closestCorners,
-} from '@dnd-kit/core';
+import React, { useState, useMemo } from 'react';
 import { useToast } from '../context/ToastContext';
+import ProjectTaskBoard, { COLS, statusToCol } from './ProjectTaskBoard';
 
-// ── Column model ──────────────────────────────────────────────────────────────
-const COLS = [
-  { key: 'open',        label: 'To Do',       color: '#60a5fa', bg: 'rgba(96,165,250,0.08)',  border: 'rgba(96,165,250,0.22)' },
-  { key: 'in_progress', label: 'In Progress', color: '#a78bfa', bg: 'rgba(167,139,250,0.08)', border: 'rgba(167,139,250,0.22)' },
-  { key: 'done',        label: 'Done',        color: '#34d399', bg: 'rgba(52,211,153,0.08)',  border: 'rgba(52,211,153,0.22)' },
-];
-// Column → persisted DB status, and DB status → column bucket.
-const COL_TO_STATUS = { open: 'open', in_progress: 'in_progress', done: 'completed' };
-const statusToCol   = (s) => (s === 'completed' || s === 'closed') ? 'done' : (s === 'in_progress' ? 'in_progress' : 'open');
-
-// ── One draggable task card ─────────────────────────────────────────────────────
-function TaskCard({ task, col, onAdd, adding, dragging }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: task.id, data: { task },
-  });
-  const style = {
-    background: col.bg,
-    border: `1px solid ${col.border}`,
-    borderRadius: '9px',
-    padding: '8px 10px',
-    display: 'flex', alignItems: 'center', gap: '8px',
-    cursor: 'grab',
-    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-    opacity: isDragging ? 0.35 : 1,
-    boxShadow: isDragging ? '0 12px 30px rgba(0,0,0,0.5)' : 'none',
-    transition: dragging ? 'none' : 'box-shadow 0.15s, transform 0.18s cubic-bezier(0.2,0.8,0.2,1)',
-    touchAction: 'none',
-  };
-  return (
-    <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
-      <i className='bx bx-grid-vertical' style={{ color: 'rgba(255,255,255,0.2)', fontSize: '14px', flexShrink: 0, marginLeft: '-2px' }} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {task.name}
-        </div>
-        {task.estimatedHours > 0 && (
-          <div style={{ fontSize: '0.64rem', color: 'rgba(255,255,255,0.3)', marginTop: '2px' }}>{task.estimatedHours}h est.</div>
-        )}
-      </div>
-      <button
-        onPointerDown={e => e.stopPropagation()}
-        onClick={() => onAdd(task)}
-        disabled={adding}
-        title="Add to this week's timesheet"
-        style={{
-          flexShrink: 0, width: '24px', height: '24px', borderRadius: '6px',
-          background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.3)',
-          color: '#a78bfa', cursor: adding ? 'default' : 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px',
-          transition: 'all 0.15s', opacity: adding ? 0.5 : 1,
-        }}
-        onMouseEnter={e => { if (!adding) { e.currentTarget.style.background = 'rgba(167,139,250,0.3)'; e.currentTarget.style.transform = 'scale(1.1)'; } }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(167,139,250,0.15)'; e.currentTarget.style.transform = 'none'; }}
-      >
-        <i className={`bx ${adding ? 'bx-loader-alt bx-spin' : 'bx-plus'}`} style={{ fontSize: '12px' }} />
-      </button>
-    </div>
-  );
-}
-
-// ── One droppable column ────────────────────────────────────────────────────────
-function Column({ col, tasks, onAdd, addingKeys, projId, dragging }) {
-  const { setNodeRef, isOver } = useDroppable({ id: col.key });
-  return (
-    <div style={{ padding: '12px 12px', borderRight: col.key !== 'done' ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
-        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: col.color, boxShadow: `0 0 8px ${col.color}` }} />
-        <span style={{ fontSize: '0.67rem', fontWeight: 700, color: col.color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{col.label}</span>
-        {tasks.length > 0 && (
-          <span style={{ fontSize: '0.65rem', fontWeight: 700, background: col.bg, color: col.color, border: `1px solid ${col.border}`, borderRadius: '10px', padding: '0 6px', lineHeight: '16px' }}>
-            {tasks.length}
-          </span>
-        )}
-      </div>
-      <div
-        ref={setNodeRef}
-        style={{
-          display: 'flex', flexDirection: 'column', gap: '6px',
-          minHeight: '60px', borderRadius: '10px', padding: '4px',
-          background: isOver ? `${col.bg}` : 'transparent',
-          outline: isOver ? `1px dashed ${col.border}` : '1px dashed transparent',
-          transition: 'background 0.15s, outline 0.15s',
-        }}
-      >
-        {tasks.length === 0 ? (
-          <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.15)', fontStyle: 'italic', padding: '8px 4px', textAlign: 'center' }}>
-            {isOver ? 'Drop here' : '—'}
-          </div>
-        ) : (
-          tasks.map(task => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              col={col}
-              dragging={dragging}
-              adding={!!addingKeys[`${projId}-${task.id}`]}
-              onAdd={onAdd}
-            />
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Main board ──────────────────────────────────────────────────────────────────
+// Home "My Work": a project selector (kills infinite scroll) + the shared
+// drag-and-drop board for the selected project.
 export default function MyWorkBoard({ tasks, setTasks, onAddToTimesheet, addingKeys, nav }) {
   const { toast } = useToast();
-  const [activeTask, setActiveTask] = useState(null);
   const [search, setSearch]         = useState('');
   const [selectedId, setSelectedId] = useState(null);
-  const revertRef = useRef(null);
-
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   // Group tasks by project
   const projects = useMemo(() => {
@@ -131,7 +20,6 @@ export default function MyWorkBoard({ tasks, setTasks, onAddToTimesheet, addingK
     return Object.values(map).sort((a, b) => a.name.localeCompare(b.name));
   }, [tasks]);
 
-  // Keep a valid selection
   const effectiveId = (selectedId && projects.some(p => p.id === selectedId)) ? selectedId : projects[0]?.id;
 
   const filteredProjects = useMemo(() => {
@@ -142,33 +30,19 @@ export default function MyWorkBoard({ tasks, setTasks, onAddToTimesheet, addingK
 
   const selectedProject = projects.find(p => p.id === effectiveId);
   const projTasks = useMemo(() => tasks.filter(t => t.projectId === effectiveId), [tasks, effectiveId]);
-  const byCol = useMemo(() => ({
-    open:        projTasks.filter(t => statusToCol(t.status) === 'open'),
-    in_progress: projTasks.filter(t => statusToCol(t.status) === 'in_progress'),
-    done:        projTasks.filter(t => statusToCol(t.status) === 'done'),
-  }), [projTasks]);
 
-  const handleDragStart = (e) => {
-    const t = tasks.find(x => x.id === e.active.id);
-    setActiveTask(t || null);
-  };
+  // Home tracks "adding to timesheet" state keyed by `${projId}-${taskId}`;
+  // the board keys by task id, so remap for the selected project.
+  const addingForProject = useMemo(() => {
+    const m = {};
+    projTasks.forEach(t => { if (addingKeys[`${effectiveId}-${t.id}`]) m[t.id] = true; });
+    return m;
+  }, [projTasks, addingKeys, effectiveId]);
 
-  const handleDragEnd = (e) => {
-    setActiveTask(null);
-    const { active, over } = e;
-    if (!over) return;
-    const task = tasks.find(t => t.id === active.id);
-    if (!task) return;
-    const destCol = over.id;                       // droppable id === column key
-    if (!COL_TO_STATUS[destCol]) return;
-    if (statusToCol(task.status) === destCol) return;   // no-op within same column
-
-    const newStatus = COL_TO_STATUS[destCol];
+  // Persist a status move with optimistic update + revert.
+  const handleMove = (task, newStatus) => {
     const prevStatus = task.status;
-
-    // Optimistic update
     setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t));
-
     fetch(`/api/v1/psa/tasks/${task.id}/status`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -176,11 +50,13 @@ export default function MyWorkBoard({ tasks, setTasks, onAddToTimesheet, addingK
     })
       .then(async r => {
         if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Update failed'); }
-        const label = COLS.find(c => c.key === destCol)?.label;
-        toast.success(`"${task.name}" moved to ${label}`);
+        const { task: updated } = await r.json();
+        // Merge server timestamps (startedAt / completedAt) back in
+        setTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...updated } : t));
+        const label = COLS.find(c => c.key === statusToCol(newStatus))?.label;
+        toast.success(`"${task.name}" moved to ${label || 'a new column'}`);
       })
       .catch(err => {
-        // Revert on failure
         setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: prevStatus } : t));
         toast.error(err.message || 'Could not move task');
       });
@@ -197,7 +73,7 @@ export default function MyWorkBoard({ tasks, setTasks, onAddToTimesheet, addingK
 
   return (
     <div>
-      {/* Project selector — pills (+ search when many) kill the infinite scroll */}
+      {/* Project selector */}
       <div style={{ marginBottom: '14px' }}>
         {projects.length > 6 && (
           <div style={{ position: 'relative', marginBottom: '10px', maxWidth: '320px' }}>
@@ -209,7 +85,7 @@ export default function MyWorkBoard({ tasks, setTasks, onAddToTimesheet, addingK
               style={{
                 width: '100%', padding: '8px 12px 8px 34px', borderRadius: '10px',
                 background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-                color: 'var(--text-main)', fontSize: '0.8rem', outline: 'none', fontFamily: 'inherit',
+                color: 'var(--text-main)', fontSize: '0.8rem', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
               }}
             />
           </div>
@@ -242,7 +118,7 @@ export default function MyWorkBoard({ tasks, setTasks, onAddToTimesheet, addingK
         </div>
       </div>
 
-      {/* Selected project's board */}
+      {/* Selected project board */}
       {selectedProject && (
         <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '14px', overflow: 'hidden' }}>
           <div
@@ -260,41 +136,12 @@ export default function MyWorkBoard({ tasks, setTasks, onAddToTimesheet, addingK
             <i className='bx bx-right-arrow-alt' style={{ color: 'rgba(255,255,255,0.2)', fontSize: '14px' }} />
           </div>
 
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCorners}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-            onDragCancel={() => setActiveTask(null)}
-          >
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
-              {COLS.map(col => (
-                <Column
-                  key={col.key}
-                  col={col}
-                  tasks={byCol[col.key]}
-                  projId={selectedProject.id}
-                  addingKeys={addingKeys}
-                  dragging={!!activeTask}
-                  onAdd={(task) => onAddToTimesheet(selectedProject.id, task.id, task.name)}
-                />
-              ))}
-            </div>
-
-            <DragOverlay dropAnimation={{ duration: 220, easing: 'cubic-bezier(0.2,0.8,0.2,1)' }}>
-              {activeTask ? (
-                <div style={{
-                  background: 'rgba(20,20,28,0.98)', border: '1px solid rgba(139,92,246,0.4)',
-                  borderRadius: '9px', padding: '8px 10px', minWidth: '160px',
-                  boxShadow: '0 20px 50px rgba(0,0,0,0.6), 0 0 20px rgba(139,92,246,0.25)',
-                  display: 'flex', alignItems: 'center', gap: '8px', cursor: 'grabbing',
-                }}>
-                  <i className='bx bx-grid-vertical' style={{ color: 'rgba(255,255,255,0.35)', fontSize: '14px' }} />
-                  <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#fff' }}>{activeTask.name}</span>
-                </div>
-              ) : null}
-            </DragOverlay>
-          </DndContext>
+          <ProjectTaskBoard
+            tasks={projTasks}
+            onMove={handleMove}
+            addingKeys={addingForProject}
+            onAddToTimesheet={(task) => onAddToTimesheet(selectedProject.id, task.id, task.name)}
+          />
         </div>
       )}
     </div>

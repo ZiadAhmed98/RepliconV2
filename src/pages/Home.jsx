@@ -187,7 +187,7 @@ function ResourceHome({ summary, sessionUser, nav, onRefresh }) {
       </div>
 
       {/* Row 1: Timesheet | Projects | Schedule */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'14px', marginBottom:'14px' }}>
+      <div style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)', gap:'14px', marginBottom:'14px' }}>
 
         {/* My Timesheet */}
         <Card title="My Timesheet" icon="bx-time-five" accent="#60a5fa"
@@ -302,7 +302,7 @@ function ResourceHome({ summary, sessionUser, nav, onRefresh }) {
       </div>
 
       {/* Row 2: Templates | Access Requests */}
-      <div style={{ display:'grid', gridTemplateColumns:'1.6fr 1fr', gap:'14px' }}>
+      <div style={{ display:'grid', gridTemplateColumns:'minmax(0,1.6fr) minmax(0,1fr)', gap:'14px' }}>
 
         {/* Templates */}
         <Card title="Templates" icon="bx-file-blank" accent="#34d399" to="/templates" nav={nav}>

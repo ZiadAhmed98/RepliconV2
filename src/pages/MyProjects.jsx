@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useToast } from '../context/ToastContext';
+import ProjectTaskBoard, { COLS, statusToCol } from '../components/ProjectTaskBoard';
 
 // Read-only view of the projects a user is assigned to. Always accessible — no
 // permission required — so people without the admin "Projects" grant can still
@@ -13,13 +15,6 @@ const STATUS_META = {
   archived:    { label: 'Archived',    color: '#6b7280' },
   cancelled:   { label: 'Cancelled',   color: '#ef4444' },
 };
-
-const TASK_COLS = [
-  { key: 'open',        label: 'To Do',       color: '#60a5fa', bg: 'rgba(96,165,250,0.08)',  border: 'rgba(96,165,250,0.22)' },
-  { key: 'in_progress', label: 'In Progress', color: '#a78bfa', bg: 'rgba(167,139,250,0.08)', border: 'rgba(167,139,250,0.22)' },
-  { key: 'done',        label: 'Done',        color: '#34d399', bg: 'rgba(52,211,153,0.08)',  border: 'rgba(52,211,153,0.22)' },
-];
-const taskCol = (s) => (s === 'completed' || s === 'closed') ? 'done' : (s === 'in_progress' ? 'in_progress' : 'open');
 
 function StatusPill({ status }) {
   const m = STATUS_META[status] || { label: status || 'Unknown', color: '#9ca3af' };
@@ -42,6 +37,7 @@ function Stat({ label, value, color }) {
 export default function MyProjects() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [projects,  setProjects]  = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [search,    setSearch]    = useState('');
@@ -83,11 +79,28 @@ export default function MyProjects() {
 
   const selectProject = (id) => { setSelectedId(id); setParams(id ? { p: id } : {}, { replace: true }); };
 
-  const byCol = useMemo(() => ({
-    open:        tasks.filter(t => taskCol(t.status) === 'open'),
-    in_progress: tasks.filter(t => taskCol(t.status) === 'in_progress'),
-    done:        tasks.filter(t => taskCol(t.status) === 'done'),
-  }), [tasks]);
+  // Move a task across the board — optimistic, reverts on failure. The server
+  // only permits it for assigned resources (or admins) and stamps started/done.
+  const handleMove = (task, newStatus) => {
+    const prevStatus = task.status;
+    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t));
+    fetch(`/api/v1/psa/tasks/${task.id}/status`, {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus }),
+    })
+      .then(async r => {
+        if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Update failed'); }
+        const { task: updated } = await r.json();
+        setTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...updated } : t));
+        const label = COLS.find(c => c.key === statusToCol(newStatus))?.label;
+        toast.success(`"${task.name}" moved to ${label || 'a new column'}`);
+      })
+      .catch(err => {
+        setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: prevStatus } : t));
+        toast.error(err.message || 'Could not move task');
+      });
+  };
 
   const burn = detail && detail.budgetHours > 0 ? Math.round((detail.actualHours / detail.budgetHours) * 100) : null;
 
@@ -187,45 +200,19 @@ export default function MyProjects() {
                   </div>
                 </div>
 
-                {/* Read-only task board */}
+                {/* Interactive task board — drag to update status + timestamps */}
                 <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '14px', overflow: 'hidden' }}>
                   <div style={{ padding: '13px 18px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <i className='bx bx-list-check' style={{ color: '#a78bfa', fontSize: '16px' }} />
                     <span style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-main)' }}>Tasks</span>
+                    <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <i className='bx bx-move' style={{ fontSize: '13px' }} /> drag to update status
+                    </span>
                   </div>
                   {tasks.length === 0 ? (
                     <div style={{ padding: '28px', textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: '0.82rem' }}>No tasks on this project yet.</div>
                   ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
-                      {TASK_COLS.map((col, ci) => (
-                        <div key={col.key} style={{ padding: '12px 14px', borderRight: ci < 2 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
-                            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: col.color, boxShadow: `0 0 8px ${col.color}` }} />
-                            <span style={{ fontSize: '0.67rem', fontWeight: 700, color: col.color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{col.label}</span>
-                            {byCol[col.key].length > 0 && (
-                              <span style={{ fontSize: '0.65rem', fontWeight: 700, background: col.bg, color: col.color, border: `1px solid ${col.border}`, borderRadius: '10px', padding: '0 6px', lineHeight: '16px' }}>{byCol[col.key].length}</span>
-                            )}
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            {byCol[col.key].length === 0 ? (
-                              <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.13)', fontStyle: 'italic' }}>—</div>
-                            ) : byCol[col.key].map(t => (
-                              <div key={t.id} style={{ background: col.bg, border: `1px solid ${col.border}`, borderRadius: '8px', padding: '8px 10px' }}>
-                                <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '3px' }}>
-                                  {t.estimatedHours > 0 && <span style={{ fontSize: '0.64rem', color: 'rgba(255,255,255,0.3)' }}>{t.estimatedHours}h est.</span>}
-                                  {(t.resources || []).length > 0 && (
-                                    <span style={{ fontSize: '0.64rem', color: 'rgba(255,255,255,0.3)' }}>
-                                      <i className='bx bx-user' style={{ fontSize: '11px', verticalAlign: 'middle' }} /> {t.resources.length}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <ProjectTaskBoard tasks={tasks} onMove={handleMove} />
                   )}
                 </div>
               </div>
