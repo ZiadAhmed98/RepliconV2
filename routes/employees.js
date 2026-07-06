@@ -14,7 +14,7 @@ const employeeSchema = z.object({
   displayName:  z.string().optional(),
   email:        z.string().email().optional().or(z.literal('')),
   employeeId:   z.string().optional(),
-  role:         z.enum(['admin', 'pm', 'supervisor', 'resource']).default('resource'),
+  role:         z.string().min(1).max(64).default('resource'),   // references roles.id (dynamic)
   skills:       z.array(z.string()).default([]),
   supervisorId: z.string().nullable().optional(),
   startDate:    z.string().optional(),

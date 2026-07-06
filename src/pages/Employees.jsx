@@ -35,7 +35,7 @@ const PAGE_LABELS = {
 
 // ── Employee Form Modal ────────────────────────────────────────────────────────
 
-function EmployeeModal({ employee, allEmployees, onSave, onClose }) {
+function EmployeeModal({ employee, allEmployees, roles = ROLES, onSave, onClose }) {
   const isEdit = !!employee;
   const [form, setForm] = useState({
     firstName:    employee?.firstName   || '',
@@ -157,7 +157,7 @@ function EmployeeModal({ employee, allEmployees, onSave, onClose }) {
           <div>
             <label style={labelStyle}>Role *</label>
             <select value={form.role} onChange={e => set('role', e.target.value)} style={inputStyle}>
-              {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              {roles.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
           </div>
           <div><label style={labelStyle}>Start Date</label><input type="date" value={form.startDate} onChange={e => set('startDate', e.target.value)} style={inputStyle} /></div>
@@ -290,6 +290,7 @@ export default function Employees({ sessionUser }) {
   const isAdmin = sessionUser?.isAdmin;
 
   const [employees, setEmployees] = useState([]);
+  const [roles, setRoles]         = useState([]);
   const [loading, setLoading]     = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [total, setTotal]         = useState(0);
@@ -297,6 +298,17 @@ export default function Employees({ sessionUser }) {
   const [filterRole, setFilterRole]     = useState('');
   const [filterStatus, setFilterStatus] = useState('active');
   const [modal, setModal]         = useState(null); // null | 'add' | employee object
+
+  // Dynamic roles (custom + built-in); fall back to the built-ins if unavailable
+  useEffect(() => {
+    fetch('/api/v1/roles', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : { roles: [] })
+      .then(d => setRoles(d.roles || []))
+      .catch(() => {});
+  }, []);
+  const roleOptions = roles.length ? roles.map(r => ({ value: r.id, label: r.name })) : ROLES;
+  const roleLabel   = (id) => roles.find(r => r.id === id)?.name || ROLE_LABEL[id] || id;
+  const roleColor   = (id) => ROLE_COLOR[id] || '#64748b';
 
   const PAGE_SIZE = 50;
   const buildParams = useCallback((offset) => {
@@ -391,7 +403,7 @@ export default function Employees({ sessionUser }) {
         <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
           style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '9px', padding: '9px 14px', color: 'var(--text-muted)', fontSize: '0.88rem', fontFamily: 'inherit' }}>
           <option value="">All Roles</option>
-          {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+          {roleOptions.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
         </select>
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
           style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '9px', padding: '9px 14px', color: 'var(--text-muted)', fontSize: '0.88rem', fontFamily: 'inherit' }}>
@@ -429,7 +441,7 @@ export default function Employees({ sessionUser }) {
               {/* Name */}
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: `${ROLE_COLOR[emp.role]}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 700, color: ROLE_COLOR[emp.role], flexShrink: 0 }}>
+                  <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: `${roleColor(emp.role)}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 700, color: roleColor(emp.role), flexShrink: 0 }}>
                     {emp.firstName[0]}{emp.lastName[0]}
                   </div>
                   <div>
@@ -441,8 +453,8 @@ export default function Employees({ sessionUser }) {
 
               {/* Role */}
               <div>
-                <span style={{ fontSize: '0.75rem', background: `${ROLE_COLOR[emp.role]}20`, color: ROLE_COLOR[emp.role], borderRadius: '6px', padding: '2px 8px', fontWeight: 600 }}>
-                  {ROLE_LABEL[emp.role] || emp.role}
+                <span style={{ fontSize: '0.75rem', background: `${roleColor(emp.role)}20`, color: roleColor(emp.role), borderRadius: '6px', padding: '2px 8px', fontWeight: 600 }}>
+                  {roleLabel(emp.role)}
                 </span>
               </div>
 
@@ -489,6 +501,7 @@ export default function Employees({ sessionUser }) {
         <EmployeeModal
           employee={modal === 'add' ? null : modal}
           allEmployees={employees}
+          roles={roleOptions}
           onSave={handleSaved}
           onClose={() => setModal(null)}
         />

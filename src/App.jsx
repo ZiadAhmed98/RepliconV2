@@ -65,6 +65,7 @@ import CurrencySettings     from './pages/settings/CurrencySettings';
 import InvoiceTemplates     from './pages/settings/InvoiceTemplates';
 import CostCenters          from './pages/settings/CostCenters';
 import RolesPermissions     from './pages/settings/RolesPermissions';
+import JobRoles              from './pages/settings/JobRoles';
 import TeamHierarchy        from './pages/settings/TeamHierarchy';
 import EmailTemplates       from './pages/settings/EmailTemplates';
 import AlertRules           from './pages/settings/AlertRules';
@@ -268,6 +269,7 @@ function AppContent() {
                 <Route path="/settings/invoice-templates"      element={<GuardedRoute page="administration"><InvoiceTemplates /></GuardedRoute>} />
                 <Route path="/settings/cost-centers"           element={<GuardedRoute page="administration"><CostCenters /></GuardedRoute>} />
                 <Route path="/settings/roles"                  element={<GuardedRoute page="administration"><RolesPermissions /></GuardedRoute>} />
+                <Route path="/settings/job-roles"              element={<GuardedRoute page="administration"><JobRoles /></GuardedRoute>} />
                 <Route path="/settings/team-hierarchy"         element={<GuardedRoute page="administration"><TeamHierarchy /></GuardedRoute>} />
                 <Route path="/settings/email-templates"        element={<GuardedRoute page="administration"><EmailTemplates /></GuardedRoute>} />
                 <Route path="/settings/alert-rules"            element={<GuardedRoute page="administration"><AlertRules /></GuardedRoute>} />

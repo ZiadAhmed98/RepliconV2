@@ -1,12 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../context/ToastContext';
 
-const ROLES = [
-  { value: 'resource', label: 'Resource' },
-  { value: 'pm',       label: 'Project Manager' },
-  { value: 'admin',    label: 'Admin' },
-];
-
 const SKILL_SUGGESTIONS = [
   'Project Management', 'Business Analysis', 'Software Development', 'DevOps',
   'Cloud Architecture', 'Data Analysis', 'UI/UX Design', 'QA Testing',
@@ -28,6 +22,7 @@ export default function Profile() {
   const [authUser,     setAuthUser]     = useState(null);
   const [employee,     setEmployee]     = useState(null);
   const [allEmployees, setAllEmployees] = useState([]);
+  const [roles,        setRoles]        = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [saving,       setSaving]       = useState(false);
   const [skillInput,   setSkillInput]   = useState('');
@@ -42,9 +37,11 @@ export default function Profile() {
     Promise.all([
       fetch('/api/v1/profile',          { credentials: 'include' }).then(r => r.json()),
       fetch('/api/v1/employees?status=active', { credentials: 'include' }).then(r => r.json()),
-    ]).then(([profile, emps]) => {
+      fetch('/api/v1/roles',            { credentials: 'include' }).then(r => r.ok ? r.json() : { roles: [] }),
+    ]).then(([profile, emps, rolesRes]) => {
       setAuthUser(profile.user);
       setAllEmployees(emps.employees || []);
+      setRoles(rolesRes.roles || []);
       if (profile.employee) {
         setEmployee(profile.employee);
         const e = profile.employee;
@@ -150,12 +147,12 @@ export default function Profile() {
           <label style={labelStyle}>Role {!authUser?.isAdmin && <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>(set by admin)</span>}</label>
           {authUser?.isAdmin ? (
             <select value={form.role} onChange={e => set('role', e.target.value)} style={inputStyle}>
-              {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
           ) : (
             <div style={{ ...inputStyle, display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.75 }}>
               <i className='bx bx-lock-alt' style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)' }} />
-              {(ROLES.find(r => r.value === form.role)?.label) || form.role}
+              {(roles.find(r => r.id === form.role)?.name) || form.role}
             </div>
           )}
         </div>
