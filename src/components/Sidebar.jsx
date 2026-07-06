@@ -40,7 +40,7 @@ const NAV = [
 // ── Style helpers ──────────────────────────────────────────────────────────
 const S = {
   sidebar: (w) => ({
-    width: w, minHeight: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 1100,
+    width: w, height: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 1100,
     display: 'flex', flexDirection: 'column',
     background: 'linear-gradient(180deg, rgba(8,8,15,0.97) 0%, rgba(6,6,12,0.99) 100%)',
     backdropFilter: 'blur(40px) saturate(140%)',
@@ -323,11 +323,11 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
           {!collapsed && <span style={{ fontSize: '12px', fontWeight: 500, fontFamily: 'inherit' }}>Collapse</span>}
         </button>
 
-        {/* User avatar + logout */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: collapsed ? '10px 12px' : '6px 8px' }}>
+        {/* User avatar + logout — row when expanded, stacked when collapsed */}
+        <div style={{ display: 'flex', flexDirection: collapsed ? 'column' : 'row', alignItems: 'center', gap: collapsed ? '6px' : '6px', padding: collapsed ? '8px 6px' : '6px 8px' }}>
           <Link
             to="/profile"
-            style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 8px', borderRadius: '10px', textDecoration: 'none', transition: 'background 0.15s', minWidth: 0 }}
+            style={{ flex: collapsed ? 'none' : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '6px 8px', borderRadius: '10px', textDecoration: 'none', transition: 'background 0.15s', minWidth: 0 }}
             title={collapsed ? `${userName} — My Profile` : undefined}
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(168,85,247,0.1)'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
@@ -343,7 +343,7 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
           <button
             onClick={onLogout}
             title="Logout"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px 8px', borderRadius: '8px', color: 'rgba(239,68,68,0.5)', fontSize: '15px', flexShrink: 0, transition: 'all 0.15s' }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px 8px', borderRadius: '8px', color: 'rgba(239,68,68,0.5)', fontSize: '15px', flexShrink: 0, transition: 'all 0.15s', width: collapsed ? '100%' : 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; e.currentTarget.style.color = '#ef4444'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'rgba(239,68,68,0.5)'; }}
           >

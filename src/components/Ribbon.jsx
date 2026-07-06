@@ -177,7 +177,7 @@ export default function Ribbon({ sessionUser, onLogout, onSync, onSearchOpen, la
         )}
 
         {/* Help & support */}
-        {iconBtn(() => openTicket(), 'bx-lifebuoy', 'Help & support')}
+        {iconBtn(() => openTicket(), 'bx-help-circle', 'Help & support')}
 
         {/* Theme */}
         {iconBtn(toggleTheme, theme === 'dark' ? 'bx-sun' : 'bx-moon', `Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`)}
