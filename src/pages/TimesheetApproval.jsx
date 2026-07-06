@@ -192,6 +192,7 @@ export default function TimesheetApproval() {
   const { toast } = useToast();
 
   const [timesheets,  setTimesheets]  = useState([]);
+  const [chain,       setChain]       = useState([]);   // configured sequential approval steps
   const [loading,     setLoading]     = useState(true);
   const [activeTab,   setActiveTab]   = useState('submitted');
   const [empFilter,   setEmpFilter]   = useState('ALL');
@@ -204,8 +205,9 @@ export default function TimesheetApproval() {
     try {
       const r = await fetch('/api/v1/admin/psa/timesheets?status=all', { credentials: 'include' });
       if (!r.ok) throw new Error('Failed to load timesheets');
-      const { timesheets: data } = await r.json();
+      const { timesheets: data, approvalChain } = await r.json();
       setTimesheets(data || []);
+      setChain(Array.isArray(approvalChain) ? approvalChain : []);
     } catch (e) {
       toast('error', e.message || 'Failed to load timesheets');
     } finally {
@@ -242,9 +244,13 @@ export default function TimesheetApproval() {
     setBusy(b => ({ ...b, [id]: true }));
     try {
       const r = await fetch(`/api/v1/admin/psa/timesheets/${id}/approve`, { method: 'POST', credentials: 'include' });
-      if (!r.ok) throw new Error((await r.json()).error || 'Failed');
-      setTimesheets(prev => prev.map(ts => ts.id === id ? { ...ts, status: 'approved', rejectedReason: null, updatedAt: new Date().toISOString() } : ts));
-      toast('success', 'Timesheet approved');
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Failed');
+      // In a sequential chain an approve may only advance a step, not finalise.
+      setTimesheets(prev => prev.map(ts => ts.id === id
+        ? { ...ts, status: d.status || 'approved', approvalStep: d.approvalStep ?? ts.approvalStep, rejectedReason: null, updatedAt: new Date().toISOString() }
+        : ts));
+      toast('success', d.status === 'approved' ? 'Timesheet approved' : `Step approved — moved to step ${(d.approvalStep ?? 0) + 1}`);
     } catch (e) {
       toast('error', e.message);
     } finally {
@@ -414,9 +420,15 @@ export default function TimesheetApproval() {
                     )}
                   </div>
 
-                  {/* Status */}
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                  {/* Status (+ sequential chain progress when applicable) */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-start', justifyContent: 'center' }}>
                     <span style={{ background: cfg.bg, color: cfg.color, borderRadius: '6px', padding: '3px 9px', fontSize: '11px', fontWeight: 600 }}>{cfg.label}</span>
+                    {chain.length > 0 && ts.status === 'submitted' && (
+                      <span style={{ fontSize: '10px', color: '#60a5fa', fontWeight: 600 }} title="Sequential approval progress">
+                        Step {Math.min((ts.approvalStep || 0) + 1, chain.length)}/{chain.length}
+                        {chain[Math.min(ts.approvalStep || 0, chain.length - 1)]?.label ? ` · ${chain[Math.min(ts.approvalStep || 0, chain.length - 1)].label}` : ''}
+                      </span>
+                    )}
                   </div>
 
                   {/* Submitted date */}

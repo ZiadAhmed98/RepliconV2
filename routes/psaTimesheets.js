@@ -29,6 +29,29 @@ function splitOvertime(totalHours, weeklyThreshold) {
            overtimeHours: Math.round(overtimeHours * 100) / 100 };
 }
 
+// ── Approval Workflow (sequential multi-level chains) ───────────────────────
+// steps = [{ type: 'pm' | 'supervisor' | 'admin', label }]. When mode is
+// 'sequential' and at least one step exists, a submitted timesheet advances
+// step-by-step; each step must be approved by a matching approver before it
+// moves on, and only the final step marks it fully approved. Any other mode
+// (single / auto) keeps the original one-shot behaviour.
+function approvalConfig() {
+  const a = settingsGroup('approval');
+  const steps = Array.isArray(a.steps) ? a.steps.filter(s => s && s.type) : [];
+  return { mode: a.mode || 'single', steps };
+}
+function isSequential(cfg) { return cfg.mode === 'sequential' && cfg.steps.length > 0; }
+
+// Admins can approve any step; role-typed steps require the matching role.
+function canApproveStep(user, step) {
+  if (user.isAdmin) return true;
+  const type = (step && step.type) || '';
+  if (type === 'admin')      return false;
+  if (type === 'supervisor') return user.role === 'supervisor';
+  if (type === 'pm')         return user.role === 'pm';
+  return user.role === 'pm' || user.role === 'supervisor';
+}
+
 // ── Validation schemas ────────────────────────────────────────────────────────
 const rowCreateSchema = z.object({
   timesheetId: z.string().min(1).max(64),
@@ -88,7 +111,8 @@ router.get('/api/v1/admin/psa/timesheets', requirePM, (req, res) => {
     const totalHours = Math.round(rows2.reduce((sum, r) => sum + Object.values(r.hours || {}).reduce((s, h) => s + h, 0), 0) * 4) / 4;
     return { ...ts, rows: rows2, totalHours, ...splitOvertime(totalHours, weeklyThreshold) };
   });
-  res.json({ timesheets });
+  // Include the configured approval chain so the UI can show step progress.
+  res.json({ timesheets, approvalChain: approvalConfig().steps });
 });
 
 // ── Admin/PM: approve a timesheet ────────────────────────────────────────────
@@ -96,8 +120,29 @@ router.post('/api/v1/admin/psa/timesheets/:id/approve', requirePM, (req, res) =>
   const ts = db.prepare('SELECT * FROM psa_timesheets WHERE id=?').get(req.params.id);
   if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
   if (ts.status === 'approved') return res.status(409).json({ error: 'Already approved' });
+  const now = new Date().toISOString();
+  const cfg = approvalConfig();
+
+  // Sequential chain: verify the acting user owns the current step, then advance.
+  if (isSequential(cfg)) {
+    if (ts.status !== 'submitted') return res.status(409).json({ error: 'Timesheet is not awaiting approval' });
+    const idx  = Math.min(ts.approvalStep || 0, cfg.steps.length - 1);
+    const step = cfg.steps[idx];
+    if (!canApproveStep(req.user, step)) {
+      return res.status(403).json({ error: `Step ${idx + 1} must be approved by: ${step.label || step.type}` });
+    }
+    const nextIdx  = idx + 1;
+    const finished = nextIdx >= cfg.steps.length;
+    db.prepare('UPDATE psa_timesheets SET status=?,approvalStep=?,rejectedReason=NULL,updatedAt=? WHERE id=?')
+      .run(finished ? 'approved' : 'submitted', nextIdx, now, req.params.id);
+    auditLog(req.user.id, finished ? 'TIMESHEET_APPROVED' : 'TIMESHEET_STEP_APPROVED',
+      { timesheetId: req.params.id, userId: ts.userId, weekStart: ts.weekStart, step: idx + 1, of: cfg.steps.length });
+    return res.json({ ok: true, status: finished ? 'approved' : 'submitted', approvalStep: nextIdx, steps: cfg.steps.length });
+  }
+
+  // Single-level (default) — one-shot approval, unchanged.
   db.prepare('UPDATE psa_timesheets SET status=?,rejectedReason=NULL,updatedAt=? WHERE id=?')
-    .run('approved', new Date().toISOString(), req.params.id);
+    .run('approved', now, req.params.id);
   auditLog(req.user.id, 'TIMESHEET_APPROVED', { timesheetId: req.params.id, userId: ts.userId, weekStart: ts.weekStart });
   res.json({ ok: true, status: 'approved' });
 });
@@ -107,7 +152,8 @@ router.post('/api/v1/admin/psa/timesheets/:id/reject', requirePM, validate(rejec
   const ts = db.prepare('SELECT * FROM psa_timesheets WHERE id=?').get(req.params.id);
   if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
   const { reason } = req.body || {};
-  db.prepare('UPDATE psa_timesheets SET status=?,rejectedReason=?,updatedAt=? WHERE id=?')
+  // Reset the chain to the first step so a re-submitted timesheet starts over.
+  db.prepare('UPDATE psa_timesheets SET status=?,rejectedReason=?,approvalStep=0,updatedAt=? WHERE id=?')
     .run('rejected', reason || null, new Date().toISOString(), req.params.id);
   auditLog(req.user.id, 'TIMESHEET_REJECTED', { timesheetId: req.params.id, userId: ts.userId, weekStart: ts.weekStart, reason });
   res.json({ ok: true, status: 'rejected' });
@@ -216,7 +262,8 @@ router.post('/api/v1/psa/timesheets/:id/submit', requireAuth, (req, res) => {
   // Approval Workflow setting: auto-approve on submit when mode is 'auto'.
   const autoApprove = settingsGroup('approval').mode === 'auto';
   const newStatus   = autoApprove ? 'approved' : 'submitted';
-  db.prepare('UPDATE psa_timesheets SET status=?,updatedAt=? WHERE id=?').run(newStatus, new Date().toISOString(), req.params.id);
+  // Entering the chain always starts at the first step.
+  db.prepare('UPDATE psa_timesheets SET status=?,approvalStep=0,updatedAt=? WHERE id=?').run(newStatus, new Date().toISOString(), req.params.id);
   auditLog(req.user.id, 'TIMESHEET_SUBMIT', { timesheetId: req.params.id, weekStart: ts.weekStart });
   if (autoApprove) auditLog(req.user.id, 'TIMESHEET_APPROVED', { timesheetId: req.params.id, weekStart: ts.weekStart, auto: true });
   res.json({ ok: true, status: newStatus });
