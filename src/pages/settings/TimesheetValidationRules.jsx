@@ -13,6 +13,7 @@ const RULES = [
   { key: 'maxDailyHours',           label: 'Maximum daily hours',             desc: 'No single day may exceed this number of hours.',     param: true, unit: 'h', def: 12 },
   { key: 'noFutureDates',           label: 'No future-dated time',            desc: 'Time cannot be logged on dates in the future.' },
   { key: 'billingRateRequired',     label: 'Billing rate required',           desc: "The submitter's role must have a billing rate configured." },
+  { key: 'noHolidayTime',           label: 'No time on company holidays',     desc: 'Block time logged on dates in the Holiday Calendar.' },
 ];
 
 function Toggle({ on, onChange }) {

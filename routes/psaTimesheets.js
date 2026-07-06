@@ -103,6 +103,17 @@ function validateTimesheet(tsId, userRole) {
     out.push('Time cannot be logged on future dates.');
   if (on('billingRateRequired') && userRole && !db.prepare('SELECT 1 FROM billing_rates WHERE role=? LIMIT 1').get(userRole))
     out.push('No billing rate is configured for your role — contact an administrator.');
+  if (on('noHolidayTime')) {
+    const dates = Object.keys(byDay);
+    if (dates.length) {
+      const exact = new Set(), recurring = new Set();
+      db.prepare('SELECT date, recurring FROM holidays').all().forEach(h => {
+        if (h.recurring) recurring.add(String(h.date).slice(5)); else exact.add(h.date);
+      });
+      const bad = dates.find(d => exact.has(d) || recurring.has(d.slice(5)));
+      if (bad) out.push(`Time cannot be logged on a company holiday (${bad}).`);
+    }
+  }
   return out;
 }
 
