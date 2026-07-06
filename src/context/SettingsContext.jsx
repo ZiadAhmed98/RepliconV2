@@ -99,13 +99,24 @@ export function SettingsProvider({ children }) {
 
   const formatDate = makeFormatDate(settings.general.dateFormat, settings.general.timezone);
 
+  const curCfg = settings.currency || {};
   const formatCurrency = (amount, currency) => {
-    const cur = currency || settings.localization.currency || 'USD';
-    const n = Number(amount || 0);
-    const sym = CURRENCY_SYMBOL[cur] ?? `${cur} `;
+    const cur = currency || curCfg.baseCurrency || settings.localization.currency || 'USD';
+    const n   = Number(amount || 0);
+    const sym = (CURRENCY_SYMBOL[cur] ?? cur).trim();
+    const gap = sym.length > 1 ? ' ' : '';               // "AED 100" but "$100"
     const useEu = settings.localization.numberFormat === '1.234,56';
-    const str = n.toLocaleString(useEu ? 'de-DE' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    return `${sym}${str}`;
+    const dp  = Number.isFinite(Number(curCfg.decimalPlaces)) ? Number(curCfg.decimalPlaces) : 2;
+    const str = n.toLocaleString(useEu ? 'de-DE' : 'en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+    return curCfg.symbolPosition === 'after' ? `${str}${gap}${sym}` : `${sym}${gap}${str}`;
+  };
+
+  // Convert between currencies using the configured rates (1 base = rate units).
+  const convert = (amount, from, to) => {
+    const rates = curCfg.rates || {};
+    const base  = curCfg.baseCurrency || 'USD';
+    const rateOf = (c) => (c === base ? 1 : Number(rates[c]) || 1);
+    return Number(amount || 0) / rateOf(from) * rateOf(to);
   };
 
   const value = {
@@ -120,6 +131,7 @@ export function SettingsProvider({ children }) {
     companyName:  settings.branding.companyName || settings.general.appName || 'Liveroute Replicon',
     formatDate,
     formatCurrency,
+    convert,
     refresh: load,
   };
 

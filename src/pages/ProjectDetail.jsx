@@ -354,7 +354,7 @@ export default function ProjectDetail({ sessionUser }) {
   const { id }    = useParams();
   const navigate  = useNavigate();
   const { toast } = useToast();
-  const { projects: projSettings } = useAppSettings();   // dynamic health thresholds
+  const { projects: projSettings, formatCurrency } = useAppSettings();   // dynamic health thresholds + money format
 
   const [project,        setProject]       = useState(null);
   const [tasks,          setTasks]         = useState([]);
@@ -595,7 +595,7 @@ export default function ProjectDetail({ sessionUser }) {
             {project.billableValue > 0 && (
               <div style={{ background: 'rgba(244,114,182,0.07)', border: '1px solid rgba(244,114,182,0.18)', borderRadius: '10px', padding: '12px 18px', textAlign: 'center', minWidth: '80px' }}>
                 <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#f472b6' }}>
-                  {project.billableCurrency} {project.billableValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  {formatCurrency(project.billableValue, project.billableCurrency)}
                 </div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>Billable Value</div>
               </div>

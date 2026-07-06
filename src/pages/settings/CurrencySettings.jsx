@@ -43,6 +43,21 @@ export default function CurrencySettings() {
         </div>
       </div>
 
+      <div style={S.card}>
+        <p style={S.cardTitle}>Exchange Rates · 1 {settings.baseCurrency ?? 'USD'} equals</p>
+        <div style={S.grid2}>
+          {CURRENCIES.filter(c => c !== (settings.baseCurrency ?? 'USD')).map(c => (
+            <div key={c}>
+              <label style={S.label}>{c}</label>
+              <input style={S.input} type="number" min={0} step="0.0001"
+                value={(settings.rates && settings.rates[c]) ?? ''} placeholder="e.g. 3.6725"
+                onChange={e => update('rates', { ...(settings.rates || {}), [c]: e.target.value === '' ? undefined : Number(e.target.value) })} />
+            </div>
+          ))}
+        </div>
+        <p style={{ ...S.muted, marginTop: '10px' }}>Used to convert amounts between currencies across the app.</p>
+      </div>
+
       <div style={S.saveRow}>
         <button onClick={save} disabled={!dirty||saving} style={{ ...S.saveBtn, opacity:(!dirty||saving)?0.5:1 }}>
           {saving?'Saving…':'Save Changes'}
