@@ -106,6 +106,32 @@ router.get('/api/v1/psa/projects/:id', requireAuth, (req, res) => {
   `).get(req.params.id);
   row.actualHours = Math.round((actualRow?.actualHours || 0) * 100) / 100;
 
+  // Billable value: logged hours per employee role × that role's current
+  // effective billing rate (Billing Rates setting). Dynamic — changes as
+  // admins add/adjust rate cards.
+  const byRole = db.prepare(`
+    SELECT emp.role AS role, COALESCE(SUM(h.hours), 0) AS hrs
+    FROM psa_timesheet_hours h
+    JOIN psa_timesheet_rows r  ON r.id  = h.rowId
+    JOIN psa_timesheets     ts ON ts.id = r.timesheetId
+    JOIN employees          emp ON emp.userId = ts.userId
+    WHERE r.projectId = ? AND ts.status IN ('submitted', 'approved')
+    GROUP BY emp.role
+  `).all(req.params.id);
+  const today = new Date().toISOString().slice(0, 10);
+  const rateFor = db.prepare(`
+    SELECT rate, currency FROM billing_rates
+    WHERE role = ? AND (effectiveDate IS NULL OR effectiveDate <= ?)
+    ORDER BY effectiveDate DESC LIMIT 1
+  `);
+  let billableValue = 0, currency = null;
+  byRole.forEach(g => {
+    const rc = rateFor.get(g.role, today);
+    if (rc) { billableValue += g.hrs * rc.rate; currency = currency || rc.currency; }
+  });
+  row.billableValue    = Math.round(billableValue * 100) / 100;
+  row.billableCurrency = currency || 'USD';
+
   res.json({ project: row });
 });
 

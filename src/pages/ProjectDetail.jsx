@@ -589,6 +589,14 @@ export default function ProjectDetail({ sessionUser }) {
               <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#f87171' }}>{project.actualHours || 0}</div>
               <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>Actual Hrs</div>
             </div>
+            {project.billableValue > 0 && (
+              <div style={{ background: 'rgba(244,114,182,0.07)', border: '1px solid rgba(244,114,182,0.18)', borderRadius: '10px', padding: '12px 18px', textAlign: 'center', minWidth: '80px' }}>
+                <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#f472b6' }}>
+                  {project.billableCurrency} {project.billableValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>Billable Value</div>
+              </div>
+            )}
             {project.budgetHours > 0 && (() => {
               const pct      = Math.round((project.actualHours || 0) / project.budgetHours * 100);
               const warnAt   = Number(projSettings.budgetAlertPct)    || 80;
