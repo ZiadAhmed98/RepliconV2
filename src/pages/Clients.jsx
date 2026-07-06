@@ -42,17 +42,22 @@ function ClientModal({ client, accountManagers, onSave, onClose }) {
     website:     client?.website     || '',
     managerId:   client?.managerId   || '',
     tierId:      client?.tierId      || '',
+    slaId:       client?.slaId       || '',
     status:      client?.status      || cs.defaultStatus || 'active',
     notes:       client?.notes       || '',
   });
   const [saving, setSaving] = useState(false);
   const [tiers, setTiers]   = useState([]);
+  const [slas,  setSlas]    = useState([]);
   const { toast } = useToast();
 
   useEffect(() => {
     fetch('/api/v1/admin/client-tiers', { credentials: 'include' })
       .then(r => r.ok ? r.json() : { client_tiers: [] })
       .then(d => setTiers(d.client_tiers || [])).catch(() => {});
+    fetch('/api/v1/admin/sla-tiers', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : { sla_tiers: [] })
+      .then(d => setSlas(d.sla_tiers || [])).catch(() => {});
   }, []);
 
   const autoCode = !isEdit && !!cs.autoGenerateCode;
@@ -128,6 +133,13 @@ function ClientModal({ client, accountManagers, onSave, onClose }) {
             <select value={form.tierId} onChange={e => set('tierId', e.target.value)} style={inp}>
               <option value="">— None —</option>
               {tiers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={lbl}>SLA</label>
+            <select value={form.slaId} onChange={e => set('slaId', e.target.value)} style={inp}>
+              <option value="">— None —</option>
+              {slas.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
         </div>
@@ -220,6 +232,10 @@ function ClientCard({ client, isAdmin, onEdit, onToggle }) {
         <Row icon="bx-id-card"      label="Contact"  value={client.contactName} />
         <Row icon="bx-at"           label="Email"    value={client.contactEmail} />
         <Row icon="bx-mobile"       label="Phone"    value={client.contactPhone} />
+        {client.slaName && (
+          <Row icon="bx-time-five" label="SLA" color="#60a5fa"
+            value={`${client.slaName}${client.slaResponseHours ? ` · ${client.slaResponseHours}h resp` : ''}${client.slaResolutionHours ? ` / ${client.slaResolutionHours}h res` : ''}`} />
+        )}
       </div>
 
       {/* Notes preview */}
