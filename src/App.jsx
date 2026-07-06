@@ -197,7 +197,7 @@ function AppContent() {
           onToggle={toggleSidebar}
         />
 
-        <div style={{ flex: 1, marginLeft: `${sidebarWidth}px`, transition: 'margin-left 0.25s cubic-bezier(0.2,0.8,0.2,1)', display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+        <div style={{ flex: 1, minWidth: 0, marginLeft: `${sidebarWidth}px`, transition: 'margin-left 0.25s cubic-bezier(0.2,0.8,0.2,1)', display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
           <SessionManager onLogout={handleLogout} />
           <LoadingScreen isVisible={loading} statusText={statusText} />
 

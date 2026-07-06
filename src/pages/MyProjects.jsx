@@ -130,7 +130,7 @@ export default function MyProjects() {
           You're not assigned to any projects yet.
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '18px', alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '300px minmax(0,1fr)', gap: '18px', alignItems: 'start' }}>
 
           {/* Left: project list */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '14px', overflow: 'hidden' }}>

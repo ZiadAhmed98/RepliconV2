@@ -72,9 +72,9 @@ export default function MyWorkBoard({ tasks, setTasks, onAddToTimesheet, addingK
   }
 
   return (
-    <div>
+    <div style={{ minWidth: 0, width: '100%' }}>
       {/* Project selector */}
-      <div style={{ marginBottom: '14px' }}>
+      <div style={{ marginBottom: '14px', minWidth: 0 }}>
         {projects.length > 6 && (
           <div style={{ position: 'relative', marginBottom: '10px', maxWidth: '320px' }}>
             <i className='bx bx-search' style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.3)', fontSize: '15px' }} />
@@ -90,24 +90,25 @@ export default function MyWorkBoard({ tasks, setTasks, onAddToTimesheet, addingK
             />
           </div>
         )}
-        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px', minWidth: 0, maxWidth: '100%' }}>
           {filteredProjects.map(p => {
             const active = p.id === effectiveId;
             return (
               <button
                 key={p.id}
                 onClick={() => setSelectedId(p.id)}
+                title={p.name}
                 style={{
                   flexShrink: 0, display: 'flex', alignItems: 'center', gap: '7px',
                   padding: '7px 13px', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit',
                   background: active ? 'linear-gradient(135deg, rgba(124,58,237,0.25), rgba(37,99,235,0.15))' : 'rgba(255,255,255,0.03)',
                   border: `1px solid ${active ? 'rgba(139,92,246,0.4)' : 'rgba(255,255,255,0.07)'}`,
                   color: active ? '#fff' : 'rgba(255,255,255,0.55)',
-                  transition: 'all 0.15s', whiteSpace: 'nowrap', maxWidth: '220px',
+                  transition: 'all 0.15s', whiteSpace: 'nowrap', maxWidth: '200px', overflow: 'hidden',
                 }}
               >
                 <i className='bx bx-folder' style={{ fontSize: '14px', color: active ? '#a78bfa' : 'rgba(255,255,255,0.35)', flexShrink: 0 }} />
-                <span style={{ fontSize: '0.78rem', fontWeight: active ? 600 : 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
+                <span style={{ fontSize: '0.78rem', fontWeight: active ? 600 : 500, overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{p.name}</span>
                 <span style={{ fontSize: '0.64rem', fontWeight: 700, background: active ? 'rgba(167,139,250,0.25)' : 'rgba(255,255,255,0.06)', color: active ? '#c4b5fd' : 'rgba(255,255,255,0.4)', borderRadius: '9px', padding: '1px 6px', flexShrink: 0 }}>{p.count}</span>
               </button>
             );
