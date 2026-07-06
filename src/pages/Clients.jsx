@@ -41,11 +41,19 @@ function ClientModal({ client, accountManagers, onSave, onClose }) {
     contactPhone:client?.contactPhone|| '',
     website:     client?.website     || '',
     managerId:   client?.managerId   || '',
+    tierId:      client?.tierId      || '',
     status:      client?.status      || cs.defaultStatus || 'active',
     notes:       client?.notes       || '',
   });
   const [saving, setSaving] = useState(false);
+  const [tiers, setTiers]   = useState([]);
   const { toast } = useToast();
+
+  useEffect(() => {
+    fetch('/api/v1/admin/client-tiers', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : { client_tiers: [] })
+      .then(d => setTiers(d.client_tiers || [])).catch(() => {});
+  }, []);
 
   const autoCode = !isEdit && !!cs.autoGenerateCode;
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -113,6 +121,13 @@ function ClientModal({ client, accountManagers, onSave, onClose }) {
                     </option>
                   ))
               }
+            </select>
+          </div>
+          <div>
+            <label style={lbl}>Client Tier</label>
+            <select value={form.tierId} onChange={e => set('tierId', e.target.value)} style={inp}>
+              <option value="">— None —</option>
+              {tiers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
         </div>
@@ -184,6 +199,11 @@ function ClientCard({ client, isAdmin, onEdit, onToggle }) {
             <span style={{ fontSize: '0.7rem', background: 'rgba(99,102,241,0.12)', color: '#818cf8', borderRadius: '4px', padding: '1px 6px', marginTop: '3px', display: 'inline-block' }}>
               {client.code || '—'}
             </span>
+            {client.tierName && (
+              <span style={{ fontSize: '0.7rem', background: `${client.tierColor || '#f59e0b'}22`, color: client.tierColor || '#f59e0b', border: `1px solid ${client.tierColor || '#f59e0b'}44`, borderRadius: '4px', padding: '1px 6px', marginTop: '3px', marginLeft: '5px', display: 'inline-block' }}>
+                {client.tierName}
+              </span>
+            )}
           </div>
         </div>
         <span style={{ fontSize: '0.72rem', fontWeight: 600, background: st.bg, color: st.color, border: `1px solid ${st.border}`, borderRadius: '6px', padding: '2px 8px', flexShrink: 0, marginLeft: '8px' }}>

@@ -36,6 +36,7 @@ const clientSchema = z.object({
   website:          z.string().optional(),
   managerId:        z.string().nullable().optional(),   // account_managers.id
   accountManagerId: z.string().nullable().optional(),   // legacy — accepted but not used
+  tierId:           z.string().nullable().optional(),   // client_tiers.id
   status:           z.enum(['active', 'inactive']).default('active'),
   notes:            z.string().optional(),
 });
@@ -46,9 +47,12 @@ const CLIENT_SELECT = `
          am.displayName AS accountManagerName,
          am.email       AS amEmail,
          am.phone       AS amPhone,
-         am.title       AS amTitle
+         am.title       AS amTitle,
+         ct.name        AS tierName,
+         ct.color       AS tierColor
   FROM clients c
   LEFT JOIN account_managers am ON am.id = c.managerId
+  LEFT JOIN client_tiers     ct ON ct.id = c.tierId
 `;
 
 router.get('/api/v1/clients', requireAuth, (req, res) => {
@@ -89,11 +93,11 @@ router.post('/api/v1/clients', requireAuth, (req, res) => {
   const code = d.code ? d.code : (cs.autoGenerateCode ? nextClientCode(cs) : null);
   try {
     db.prepare(`
-      INSERT INTO clients (id, name, code, industry, contactName, contactEmail, contactPhone, website, managerId, status, notes, createdAt, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO clients (id, name, code, industry, contactName, contactEmail, contactPhone, website, managerId, tierId, status, notes, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(id, d.name, code, d.industry || null, d.contactName || null,
            d.contactEmail || null, d.contactPhone || null, d.website || null,
-           managerId, d.status, d.notes || null, now, now);
+           managerId, d.tierId || null, d.status, d.notes || null, now, now);
     auditLog(req.user.id, 'CLIENT_CREATE', { id, name: d.name });
     const row = db.prepare(CLIENT_SELECT + ' WHERE c.id = ?').get(id);
     res.status(201).json({ client: row });
@@ -115,11 +119,11 @@ router.put('/api/v1/clients/:id', requireAuth, (req, res) => {
   try {
     db.prepare(`
       UPDATE clients SET name=?, code=?, industry=?, contactName=?, contactEmail=?,
-        contactPhone=?, website=?, managerId=?, status=?, notes=?, updatedAt=?
+        contactPhone=?, website=?, managerId=?, tierId=?, status=?, notes=?, updatedAt=?
       WHERE id=?
     `).run(d.name, d.code || null, d.industry || null, d.contactName || null,
            d.contactEmail || null, d.contactPhone || null, d.website || null,
-           managerId, d.status, d.notes || null, now, req.params.id);
+           managerId, d.tierId || null, d.status, d.notes || null, now, req.params.id);
     auditLog(req.user.id, 'CLIENT_UPDATE', { id: req.params.id });
     const row = db.prepare(CLIENT_SELECT + ' WHERE c.id = ?').get(req.params.id);
     res.json({ client: row });
