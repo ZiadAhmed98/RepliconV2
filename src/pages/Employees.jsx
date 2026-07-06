@@ -48,10 +48,18 @@ function EmployeeModal({ employee, allEmployees, roles = ROLES, onSave, onClose 
     role:         employee?.role        || 'resource',
     skills:       employee?.skills      || [],
     supervisorId: employee?.supervisorId || '',
+    department:     employee?.department     || '',
+    officeLocation: employee?.officeLocation || '',
     startDate:    employee?.startDate   || '',
     endDate:      employee?.endDate     || '',
     status:       employee?.status      || 'active',
   });
+  const [departments, setDepartments] = useState([]);
+  const [locations,   setLocations]   = useState([]);
+  useEffect(() => {
+    fetch('/api/v1/admin/departments', { credentials: 'include' }).then(r => r.ok ? r.json() : { departments: [] }).then(d => setDepartments(d.departments || [])).catch(() => {});
+    fetch('/api/v1/admin/locations',   { credentials: 'include' }).then(r => r.ok ? r.json() : { locations: [] }).then(d => setLocations(d.locations || [])).catch(() => {});
+  }, []);
   const [skillInput, setSkillInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [account, setAccount]   = useState(null); // loaded from API
@@ -164,6 +172,20 @@ function EmployeeModal({ employee, allEmployees, roles = ROLES, onSave, onClose 
           <div><label style={labelStyle}>Display Name</label><input value={form.displayName} onChange={e => set('displayName', e.target.value)} placeholder={`${form.firstName} ${form.lastName}`.trim() || 'Auto-filled'} style={inputStyle} /></div>
           <div><label style={labelStyle}>Employee ID</label><input value={form.employeeId} onChange={e => set('employeeId', e.target.value)} placeholder="e.g. EMP-001" style={inputStyle} /></div>
           <div style={{ gridColumn: '1 / -1' }}><label style={labelStyle}>Email</label><input type="email" value={form.email} onChange={e => set('email', e.target.value)} style={inputStyle} /></div>
+          <div>
+            <label style={labelStyle}>Department</label>
+            <select value={form.department} onChange={e => set('department', e.target.value)} style={inputStyle}>
+              <option value="">— None —</option>
+              {departments.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Location</label>
+            <select value={form.officeLocation} onChange={e => set('officeLocation', e.target.value)} style={inputStyle}>
+              <option value="">— None —</option>
+              {locations.map(l => <option key={l.id} value={l.name}>{l.name}</option>)}
+            </select>
+          </div>
         </div>
 
         {/* Role & Dates */}
