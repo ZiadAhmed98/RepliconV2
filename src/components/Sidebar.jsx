@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, useLocation, Link } from 'react-router-dom';
 import { usePermissions } from '../context/PermissionContext';
+import { useAppSettings } from '../context/SettingsContext';
 import { canAccessPage } from '../config/pages';
 import { ADMIN_PATH } from '../config/adminRoutes';
 
@@ -138,6 +139,7 @@ const S = {
 export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, collapsed, onToggle }) {
   const location  = useLocation();
   const { permissions, isAdmin } = usePermissions();
+  const { companyName, branding } = useAppSettings();
   const sidebarW  = collapsed ? 'var(--sidebar-wc, 72px)' : 'var(--sidebar-w, 240px)';
   const userName  = sessionUser?.name || 'User';
 
@@ -177,11 +179,11 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
       {/* ── Logo ──────────────────────────────────────────────────────── */}
       <div style={S.logoWrap(collapsed)}>
         <div style={S.logoIcon}>
-          <img src="/logo.png" alt="Logo" style={{ width: '36px', height: '36px', borderRadius: '10px', objectFit: 'contain', display: 'block' }} />
+          <img src={branding.logoUrl || '/logo.png'} alt="Logo" style={{ width: '36px', height: '36px', borderRadius: '10px', objectFit: 'contain', display: 'block' }} />
         </div>
         {!collapsed && (
           <div style={{ overflow: 'hidden' }}>
-            <div style={{ fontWeight: 800, fontSize: '14px', color: '#fafafa', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>Liveroute Replicon</div>
+            <div style={{ fontWeight: 800, fontSize: '14px', color: '#fafafa', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>{companyName}</div>
             <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', letterSpacing: '0.05em', textTransform: 'uppercase', marginTop: '1px' }}>Analytics V2</div>
           </div>
         )}

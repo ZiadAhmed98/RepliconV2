@@ -83,6 +83,7 @@ import { ThemeProvider }      from './context/ThemeContext';
 import { ToastProvider }      from './context/ToastContext';
 import { PermissionProvider, useCan } from './context/PermissionContext';
 import { SupportProvider }    from './context/SupportContext';
+import { SettingsProvider }   from './context/SettingsContext';
 
 const SIDEBAR_COLLAPSED_KEY = 'mds_sidebar_collapsed';
 
@@ -107,6 +108,7 @@ function AppContent() {
       try {
         const { user } = await repliconApi.me();
         setSessionUser(user);
+        window.dispatchEvent(new Event('mds:auth-changed'));
       } catch {
         // Not authenticated. Auth relies solely on the httpOnly cookie via
         // /api/v1/me — the legacy localStorage session path was removed as it
@@ -123,6 +125,7 @@ function AppContent() {
     try { await repliconApi.logout(); } catch { /* ignore */ }
     localStorage.removeItem('mds_dashboard_session');
     setSessionUser(null);
+    window.dispatchEvent(new Event('mds:auth-changed'));
     navigate('/', { replace: true });
   }, [navigate]);
 
@@ -182,6 +185,7 @@ function AppContent() {
         try {
           const { user } = await repliconApi.me();
           setSessionUser(user);
+          window.dispatchEvent(new Event('mds:auth-changed'));
           navigate('/home');   // always land on home after login — clears any prior admin URL
         } catch { /* ignore */ }
       }} />
@@ -302,10 +306,12 @@ export default function App() {
   return (
     <ThemeProvider>
       <ToastProvider>
-        <SupportProvider>
-          <OfflineBanner />
-          <AppContent />
-        </SupportProvider>
+        <SettingsProvider>
+          <SupportProvider>
+            <OfflineBanner />
+            <AppContent />
+          </SupportProvider>
+        </SettingsProvider>
       </ToastProvider>
     </ThemeProvider>
   );

@@ -44,6 +44,8 @@ export function useSettings(group) {
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       setDirty(false);
+      // Let the app-wide SettingsContext re-apply branding/localization live.
+      window.dispatchEvent(new Event('mds:settings-updated'));
     } catch (e) {
       setError(e.message);
     } finally {

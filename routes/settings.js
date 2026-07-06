@@ -2,7 +2,7 @@ import { Router } from 'express';
 import crypto      from 'crypto';
 import path        from 'path';
 import fs          from 'fs';
-import { requireAdmin } from '../lib/auth.js';
+import { requireAdmin, requireAuth } from '../lib/auth.js';
 import db              from '../lib/db.js';
 import { DATA_DIR }    from '../lib/helpers.js';
 
@@ -22,6 +22,27 @@ router.get('/api/v1/admin/settings', requireAdmin, (req, res) => {
     try { settings[k] = JSON.parse(r.value); } catch { settings[k] = r.value; }
   });
   res.json({ settings });
+});
+
+// Public (any authenticated user) read of display-affecting settings only.
+// Branding + localization + a small general subset drive the app shell for
+// every user, so they must be readable without the admin grant. Nothing
+// sensitive (api keys, webhooks, workflow internals) is exposed here.
+const PUBLIC_GROUPS = ['branding', 'localization'];
+const PUBLIC_GENERAL_KEYS = ['appName', 'dateFormat', 'timezone'];
+router.get('/api/v1/settings/public', requireAuth, (req, res) => {
+  const rows = db.prepare('SELECT key, value FROM app_settings').all();
+  const out = { branding: {}, localization: {}, general: {} };
+  rows.forEach(r => {
+    const dot = r.key.indexOf('.');
+    if (dot < 0) return;
+    const group = r.key.slice(0, dot);
+    const k     = r.key.slice(dot + 1);
+    let val; try { val = JSON.parse(r.value); } catch { val = r.value; }
+    if (PUBLIC_GROUPS.includes(group)) out[group][k] = val;
+    else if (group === 'general' && PUBLIC_GENERAL_KEYS.includes(k)) out.general[k] = val;
+  });
+  res.json({ settings: out });
 });
 
 router.put('/api/v1/admin/settings', requireAdmin, (req, res) => {
