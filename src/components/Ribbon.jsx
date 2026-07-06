@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme }         from '../context/ThemeContext';
 import { useSupport }       from '../context/SupportContext';
+import { useNotifications } from '../hooks/useNotifications';
 import NotificationsCenter  from './NotificationsCenter';
 
 function relativeTime(ts) {
@@ -44,10 +45,14 @@ export default function Ribbon({ sessionUser, onLogout, onSync, onSearchOpen, la
     try { await onSync(); } finally { setSyncing(false); }
   };
 
+  // Replicon data sync is an admin-only concern — end users never see it.
+  const isAdmin = !!sessionUser?.isAdmin;
+
   const stale = lastSynced && (Date.now() - lastSynced) > 2 * 60 * 60 * 1000;
-  const notifCount = (dataMatrix?.timesheets || []).filter(t => (t.status || '').toLowerCase().includes('waiting')).length
-    + (dataMatrix?.compliance?.dailyDeficits ? 1 : 0)
-    + (dataMatrix?.compliance?.weeklyDeficits ? 1 : 0);
+
+  // Permission-aware, role-aware notification feed (shared with the panel).
+  const notifications = useNotifications(dataMatrix);
+  const notifCount = notifications.length;
 
   const iconBtn = (onClick, icon, title, extra = {}) => (
     <button onClick={onClick} title={title} style={{
@@ -130,8 +135,8 @@ export default function Ribbon({ sessionUser, onLogout, onSync, onSearchOpen, la
       {/* Right: controls */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
 
-        {/* Freshness badge */}
-        {syncLabel && (
+        {/* Freshness badge + Sync — admin only (Replicon data sync) */}
+        {isAdmin && syncLabel && (
           <div style={{
             display: 'flex', alignItems: 'center', gap: '6px',
             padding: '4px 10px', borderRadius: '20px',
@@ -149,24 +154,27 @@ export default function Ribbon({ sessionUser, onLogout, onSync, onSearchOpen, la
           </div>
         )}
 
-        {/* Sync */}
-        <button onClick={handleSync} title="Sync data (Ctrl+R)" style={{
-          display: 'flex', alignItems: 'center', gap: '6px',
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid rgba(255,255,255,0.07)',
-          borderRadius: '9px', padding: '6px 12px',
-          color: 'rgba(255,255,255,0.55)', cursor: 'pointer',
-          fontSize: '12px', fontFamily: 'inherit', fontWeight: 500,
-          transition: 'all 0.15s',
-        }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(139,92,246,0.12)'; e.currentTarget.style.borderColor = 'rgba(139,92,246,0.3)'; e.currentTarget.style.color = '#a78bfa'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'; e.currentTarget.style.color = 'rgba(255,255,255,0.55)'; }}
-        >
-          <i className={`bx bx-refresh${syncing ? ' bx-spin' : ''}`} style={{ fontSize: '14px' }} />
-          Sync
-        </button>
+        {isAdmin && (
+          <>
+            <button onClick={handleSync} title="Sync data (Ctrl+R)" style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.07)',
+              borderRadius: '9px', padding: '6px 12px',
+              color: 'rgba(255,255,255,0.55)', cursor: 'pointer',
+              fontSize: '12px', fontFamily: 'inherit', fontWeight: 500,
+              transition: 'all 0.15s',
+            }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(139,92,246,0.12)'; e.currentTarget.style.borderColor = 'rgba(139,92,246,0.3)'; e.currentTarget.style.color = '#a78bfa'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'; e.currentTarget.style.color = 'rgba(255,255,255,0.55)'; }}
+            >
+              <i className={`bx bx-refresh${syncing ? ' bx-spin' : ''}`} style={{ fontSize: '14px' }} />
+              Sync
+            </button>
 
-        <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.07)' }} />
+            <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.07)' }} />
+          </>
+        )}
 
         {/* Help & support */}
         {iconBtn(() => openTicket(), 'bx-lifebuoy', 'Help & support')}
@@ -194,7 +202,7 @@ export default function Ribbon({ sessionUser, onLogout, onSync, onSearchOpen, la
               }} />
             )}
           </button>
-          <NotificationsCenter dataMatrix={dataMatrix} isOpen={notifOpen} onClose={() => setNotifOpen(false)} />
+          <NotificationsCenter notifications={notifications} isOpen={notifOpen} onClose={() => setNotifOpen(false)} onNavigate={(to) => navigate(to)} />
         </div>
 
         <style>{`@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }`}</style>

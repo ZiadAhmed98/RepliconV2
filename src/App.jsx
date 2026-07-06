@@ -28,6 +28,7 @@ import Clients         from './pages/Clients';
 import Profile         from './pages/Profile';
 import ProjectsAdmin      from './pages/ProjectsAdmin';
 import ProjectDetail      from './pages/ProjectDetail';
+import MyProjects         from './pages/MyProjects';
 import TimesheetApproval  from './pages/TimesheetApproval';
 import Administration    from './pages/Administration';
 import AuditLog         from './pages/AuditLog';
@@ -154,7 +155,7 @@ function AppContent() {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); setSearchOpen(true); }
       if (e.key === '?' && !isInput) setShortcutsOpen(true);
       if (e.key === 'Escape') { setSearchOpen(false); setShortcutsOpen(false); }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'r' && !isInput) { e.preventDefault(); syncMatrixData(true); }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'r' && !isInput && sessionUser?.isAdmin) { e.preventDefault(); syncMatrixData(true); }
       if (!isInput && !e.ctrlKey && !e.metaKey) {
         if (e.key === '1') navigate('/dashboard');
         if (e.key === '2') navigate('/employee');
@@ -219,14 +220,15 @@ function AppContent() {
                 <Route path="/templates"      element={<GuardedRoute page="templates"><Templates sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/dashboard"      element={<GuardedRoute page="dashboard"><Dashboard       dataMatrix={dataMatrix} /></GuardedRoute>} />
                 <Route path="/employee"       element={<GuardedRoute page="employees"><Employee         dataMatrix={dataMatrix} sessionUser={sessionUser} /></GuardedRoute>} />
-                <Route path="/projects"       element={<GuardedRoute page="projects" ><ProjectDeepDive  dataMatrix={dataMatrix} /></GuardedRoute>} />
+                <Route path="/projects"       element={<GuardedRoute page="projectsAnalytics"><ProjectDeepDive  dataMatrix={dataMatrix} /></GuardedRoute>} />
                 <Route path="/timesheets"     element={<GuardedRoute page="timesheets"><TimesheetOps    dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} /></GuardedRoute>} />
-                <Route path="/new-project"    element={<GuardedRoute page="projects" ><SmartInitiator   dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} /></GuardedRoute>} />
-                <Route path="/projects/edit"  element={<GuardedRoute page="projects" ><ProjectEdit      dataMatrix={dataMatrix} /></GuardedRoute>} />
+                <Route path="/new-project"    element={<GuardedRoute page="addProject" ><SmartInitiator   dataMatrix={dataMatrix} syncMatrixData={syncMatrixData} /></GuardedRoute>} />
+                <Route path="/projects/edit"  element={<GuardedRoute page="editProjects"><ProjectEdit      dataMatrix={dataMatrix} /></GuardedRoute>} />
                 <Route path="/clients/create" element={<GuardedRoute page="clients"  ><ClientCreate     dataMatrix={dataMatrix} /></GuardedRoute>} />
                 <Route path="/clients/edit"   element={<GuardedRoute page="clients"  ><ClientEdit       dataMatrix={dataMatrix} /></GuardedRoute>} />
                 <Route path="/ai-insights"    element={<GuardedRoute page="aiInsights"><AIInsights      dataMatrix={dataMatrix} /></GuardedRoute>} />
                 <Route path="/my-timesheet"   element={<GuardedRoute page="myTimesheet"><MyTimesheet    dataMatrix={dataMatrix} sessionUser={sessionUser} /></GuardedRoute>} />
+                <Route path="/my-projects"    element={<MyProjects sessionUser={sessionUser} />} />
                 <Route path="/employees"           element={<GuardedRoute page="employees" ><Employees       sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/clients"             element={<GuardedRoute page="clients"  ><Clients         sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/programs"            element={<GuardedRoute page="programs"><Programs /></GuardedRoute>} />

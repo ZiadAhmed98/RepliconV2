@@ -266,7 +266,6 @@ function Message({ msg, isStreaming, feedback, onFeedback, onNavigate, onAction 
 export default function ChatBot({ dataMatrix }) {
   const canChat = useCan('chatbot');
   const navigate = useNavigate();
-  if (!canChat) return null;
 
   const [open,        setOpen]        = useState(false);
   const [input,       setInput]       = useState('');
@@ -490,6 +489,9 @@ export default function ChatBot({ dataMatrix }) {
   };
 
   const clearChat = () => { setHistory([]); setError(null); setFeedbackMap({}); };
+
+  // Permission gate — placed AFTER all hooks to satisfy the Rules of Hooks
+  if (!canChat) return null;
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (

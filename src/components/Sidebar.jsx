@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, useLocation, Link } from 'react-router-dom';
 import { usePermissions } from '../context/PermissionContext';
+import { canAccessPage } from '../config/pages';
 import { ADMIN_PATH } from '../config/adminRoutes';
 
 // ── Navigation structure ───────────────────────────────────────────────────
@@ -9,6 +10,8 @@ import { ADMIN_PATH } from '../config/adminRoutes';
 const NAV = [
   { to: '/home',                icon: 'bx-home-smile',     label: 'Home'      },
   { to: '/my-timesheet',        icon: 'bx-calendar-check', label: 'My Time',  perm: 'myTimesheet'       },
+  // Read-only project view — shown only to users WITHOUT the projects (management) grant.
+  { to: '/my-projects',         icon: 'bx-folder',         label: 'My Projects', onlyIfNo: 'projects'   },
   { to: '/timesheets-approval', icon: 'bx-check-double',   label: 'Approvals',perm: 'timesheetApproval' },
   { to: '/projects-admin',      icon: 'bx-folder-open',    label: 'Projects', perm: 'projects'           },
   { to: '/clients',             icon: 'bx-briefcase',      label: 'Clients',       perm: 'clients' },
@@ -18,16 +21,16 @@ const NAV = [
   {
     label: 'Analytics', icon: 'bx-line-chart', group: true,
     children: [
-      { to: '/dashboard',  icon: 'bx-grid-alt',       label: 'Dashboard', perm: 'dashboard' },
-      { to: '/employee',   icon: 'bx-group',           label: 'Employees', perm: 'employees' },
-      { to: '/projects',   icon: 'bx-bar-chart-alt-2', label: 'Projects',  perm: 'projects'  },
+      { to: '/dashboard',  icon: 'bx-grid-alt',       label: 'Dashboard', perm: 'dashboard'         },
+      { to: '/employee',   icon: 'bx-group',           label: 'Employees', perm: 'employees'         },
+      { to: '/projects',   icon: 'bx-bar-chart-alt-2', label: 'Projects',  perm: 'projectsAnalytics' },
     ],
   },
   {
     label: 'Replicon', icon: 'bx-sync', group: true,
     children: [
-      { to: '/new-project',   icon: 'bx-plus-circle', label: 'Add Project',   perm: 'projects'   },
-      { to: '/projects/edit', icon: 'bx-edit',         label: 'Edit Projects', perm: 'projects'   },
+      { to: '/new-project',   icon: 'bx-plus-circle', label: 'Add Project',   perm: 'addProject'   },
+      { to: '/projects/edit', icon: 'bx-edit',         label: 'Edit Projects', perm: 'editProjects' },
       { to: '/timesheets',    icon: 'bx-time-five',    label: 'Timesheets',    perm: 'timesheets', badge: true },
     ],
   },
@@ -138,20 +141,17 @@ export default function Sidebar({ sessionUser, onLogout, pendingCount = 0, colla
   const sidebarW  = collapsed ? 'var(--sidebar-wc, 72px)' : 'var(--sidebar-w, 240px)';
   const userName  = sessionUser?.name || 'User';
 
-  // ── Permission helper ──────────────────────────────────────────────────
-  const canSee = (perm) => {
-    if (!perm) return true;
-    if (isAdmin) return true;
-    return permissions[perm] === true;
-  };
+  // ── Permission helper (shared canonical check) ─────────────────────────
+  const canSee = (perm) => canAccessPage(permissions, isAdmin, perm);
 
   // ── Visible children per group ─────────────────────────────────────────
   const visibleKids = (group) => group.children.filter(c => canSee(c.perm));
 
   // ── Filter top-level NAV ───────────────────────────────────────────────
-  const visibleNav = NAV.filter(item =>
-    item.group ? visibleKids(item).length > 0 : canSee(item.perm)
-  );
+  const visibleNav = NAV.filter(item => {
+    if (item.onlyIfNo) return !canSee(item.onlyIfNo);   // e.g. My Projects only when no management grant
+    return item.group ? visibleKids(item).length > 0 : canSee(item.perm);
+  });
 
   // ── Open-group state — auto-open if current route is inside ───────────
   const [openGroups, setOpenGroups] = useState(() => {

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate }   from 'react-router-dom';
 import { useToast }      from '../context/ToastContext';
 import { ADMIN_PATH }    from '../config/adminRoutes';
+import MyWorkBoard       from '../components/MyWorkBoard';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -111,12 +112,6 @@ function EmptyRow({ text }) {
 
 // ── Resource view ─────────────────────────────────────────────────────────────
 
-const TASK_STATUS_COLS = [
-  { key: 'open',        label: 'To Do',       color: '#60a5fa', bg: 'rgba(96,165,250,0.08)',  border: 'rgba(96,165,250,0.2)'  },
-  { key: 'in_progress', label: 'In Progress',  color: '#a78bfa', bg: 'rgba(167,139,250,0.08)', border: 'rgba(167,139,250,0.2)' },
-  { key: 'done',        label: 'Done',         color: '#34d399', bg: 'rgba(52,211,153,0.08)',  border: 'rgba(52,211,153,0.2)'  },
-];
-
 function getWeekMonday() {
   const d = new Date();
   const dow = d.getDay();
@@ -139,14 +134,6 @@ function ResourceHome({ summary, sessionUser, nav, onRefresh }) {
       .catch(() => {})
       .finally(() => setTaskLoading(false));
   }, []);
-
-  const myTaskProjects = React.useMemo(() =>
-    Object.values(myTasks.reduce((acc, t) => {
-      if (t.projectId && !acc[t.projectId])
-        acc[t.projectId] = { id: t.projectId, name: t.projectName || 'Unknown Project', clientName: t.clientName };
-      return acc;
-    }, {})),
-  [myTasks]);
 
   const addToTimesheet = async (projectId, taskId, taskName) => {
     const key = `${projectId}-${taskId}`;
@@ -192,9 +179,9 @@ function ResourceHome({ summary, sessionUser, nav, onRefresh }) {
         <StatChip label="Pending Approval" value={timesheet.pendingCount} color="#60a5fa"
           onClick={() => nav('/my-timesheet')} />
         <StatChip label="My Projects" value={projects.length} color="#818cf8"
-          onClick={() => nav('/projects-admin')} />
+          onClick={() => nav('/my-projects')} />
         <StatChip label="Access Requests" value={accessRequests.filter(r=>r.status==='pending').length} color="#fbbf24"
-          onClick={() => nav('/projects-admin')} />
+          onClick={() => nav('/my-projects')} />
         <StatChip label="My Templates" value={templates.mine.length} color="#34d399"
           onClick={() => nav('/templates')} />
       </div>
@@ -259,11 +246,11 @@ function ResourceHome({ summary, sessionUser, nav, onRefresh }) {
 
         {/* My Projects */}
         <Card title="My Projects" icon="bx-folder-open" accent="#818cf8"
-          count={projects.length} to="/projects-admin" nav={nav}>
+          count={projects.length} to="/my-projects" nav={nav}>
           <div style={{ padding:'8px 6px' }}>
             {projects.length === 0 && <EmptyRow text="Not assigned to any projects yet" />}
             {projects.slice(0,5).map(p => (
-              <div key={p.id} onClick={() => nav(`/projects-admin/${p.id}`)}
+              <div key={p.id} onClick={() => nav(`/my-projects?p=${p.id}`)}
                 style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 12px', borderRadius:'8px', cursor:'pointer', margin:'2px 0', transition:'background 0.12s' }}
                 onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.04)'}
                 onMouseLeave={e => e.currentTarget.style.background='transparent'}
@@ -406,7 +393,7 @@ function ResourceHome({ summary, sessionUser, nav, onRefresh }) {
               <i className='bx bx-task' style={{ color: '#a78bfa', marginRight: '8px' }} />My Work
             </h2>
             <p style={{ margin: '3px 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-              Your assigned tasks — click + to add directly to this week's timesheet
+              Pick a project, drag tasks across the board to update status, or click + to add to this week's timesheet
             </p>
           </div>
           <button onClick={() => nav('/my-timesheet')}
@@ -419,96 +406,14 @@ function ResourceHome({ summary, sessionUser, nav, onRefresh }) {
           <div style={{ textAlign: 'center', padding: '40px', color: 'rgba(255,255,255,0.25)' }}>
             <i className='bx bx-loader-alt bx-spin' style={{ fontSize: '24px' }} />
           </div>
-        ) : myTasks.length === 0 ? (
-          <div style={{ padding: '32px', textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: '0.85rem', background: 'rgba(255,255,255,0.02)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.05)' }}>
-            <i className='bx bx-task' style={{ fontSize: '28px', display: 'block', marginBottom: '8px', opacity: 0.3 }} />
-            No tasks assigned to you yet.
-          </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {myTaskProjects.map(proj => {
-              const projTasks = myTasks.filter(t => t.projectId === proj.id);
-              const byStatus  = {
-                open:        projTasks.filter(t => t.status === 'open'),
-                in_progress: projTasks.filter(t => t.status === 'in_progress'),
-                done:        projTasks.filter(t => t.status === 'completed' || t.status === 'closed'),
-              };
-              return (
-                <div key={proj.id} style={{ background: 'var(--bg-card)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '14px', overflow: 'hidden' }}>
-                  {/* Project header row */}
-                  <div
-                    style={{ padding: '13px 18px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer' }}
-                    onClick={() => nav(`/projects-admin/${proj.id}`)}
-                  >
-                    <i className='bx bx-folder' style={{ color: '#60a5fa', fontSize: '16px', flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-main)' }}>{proj.name}</span>
-                      {proj.clientName && <span style={{ fontSize: '0.74rem', color: 'rgba(255,255,255,0.35)', marginLeft: '8px' }}>{proj.clientName}</span>}
-                    </div>
-                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)' }}>{projTasks.length} task{projTasks.length !== 1 ? 's' : ''}</span>
-                    <i className='bx bx-right-arrow-alt' style={{ color: 'rgba(255,255,255,0.2)', fontSize: '14px' }} />
-                  </div>
-
-                  {/* Kanban columns */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
-                    {TASK_STATUS_COLS.map((col, ci) => {
-                      const colTasks = byStatus[col.key] || [];
-                      return (
-                        <div key={col.key} style={{ padding: '12px 14px', borderRight: ci < 2 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                            <span style={{ fontSize: '0.67rem', fontWeight: 700, color: col.color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{col.label}</span>
-                            {colTasks.length > 0 && (
-                              <span style={{ fontSize: '0.65rem', fontWeight: 700, background: col.bg, color: col.color, border: `1px solid ${col.border}`, borderRadius: '10px', padding: '0 6px', lineHeight: '16px' }}>
-                                {colTasks.length}
-                              </span>
-                            )}
-                          </div>
-                          {colTasks.length === 0 ? (
-                            <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.13)', fontStyle: 'italic' }}>—</div>
-                          ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                              {colTasks.map(task => {
-                                const addKey   = `${proj.id}-${task.id}`;
-                                const isAdding = !!adding[addKey];
-                                return (
-                                  <div key={task.id} style={{ background: col.bg, border: `1px solid ${col.border}`, borderRadius: '8px', padding: '7px 10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                      <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {task.name}
-                                      </div>
-                                      {task.estimatedHours > 0 && (
-                                        <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.28)', marginTop: '2px' }}>{task.estimatedHours}h est.</div>
-                                      )}
-                                    </div>
-                                    <button
-                                      onClick={() => addToTimesheet(proj.id, task.id, task.name)}
-                                      disabled={isAdding}
-                                      title="Add to this week's timesheet"
-                                      style={{ flexShrink: 0, width: '24px', height: '24px', borderRadius: '6px', background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.3)', color: '#a78bfa', cursor: isAdding ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', transition: 'all 0.15s', opacity: isAdding ? 0.5 : 1 }}
-                                      onMouseEnter={e => { if (!isAdding) { e.currentTarget.style.background = 'rgba(167,139,250,0.3)'; e.currentTarget.style.transform = 'scale(1.1)'; } }}
-                                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(167,139,250,0.15)'; e.currentTarget.style.transform = 'none'; }}
-                                    >
-                                      <i className={`bx ${isAdding ? 'bx-loader-alt bx-spin' : 'bx-plus'}`} style={{ fontSize: '12px' }} />
-                                    </button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {projTasks.length === 0 && (
-                    <div style={{ padding: '6px 18px 14px', fontSize: '0.74rem', color: 'rgba(255,255,255,0.18)' }}>
-                      No tasks assigned to you in this project yet.
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <MyWorkBoard
+            tasks={myTasks}
+            setTasks={setMyTasks}
+            onAddToTimesheet={addToTimesheet}
+            addingKeys={adding}
+            nav={nav}
+          />
         )}
       </div>
 

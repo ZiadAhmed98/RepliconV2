@@ -1,4 +1,5 @@
 import React, { createContext, useContext } from 'react';
+import { canAccessPage } from '../config/pages';
 
 const PermissionContext = createContext({ permissions: {}, isAdmin: false, ready: false });
 
@@ -18,12 +19,9 @@ export function usePermissions() {
   return useContext(PermissionContext);
 }
 
+// Route/component guard — delegates to the canonical check in config/pages.js
+// so the Sidebar and route guards can never drift apart.
 export function useCan(page) {
   const { permissions, isAdmin } = useContext(PermissionContext);
-  // Pages that require the hard isAdmin flag — no permission override
-  if (['settings', 'administration'].includes(page)) return isAdmin;
-  // Always accessible to any authenticated user
-  if (!page || page === 'myTimesheet') return true;
-  // Strict check: admin OR explicit permission grant
-  return isAdmin || permissions[page] === true;
+  return canAccessPage(permissions, isAdmin, page);
 }

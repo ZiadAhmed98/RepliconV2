@@ -142,6 +142,33 @@ router.put('/api/v1/psa/tasks/:id', requireAuth, (req, res) => {
   res.json({ task: row });
 });
 
+// Status-only update — allowed for admins AND for the resource assigned to the
+// task (so people can move their own work across the board). Does not touch any
+// other field, unlike the admin-only full PUT above.
+const statusOnlySchema = z.object({ status: z.enum(['open','in_progress','completed','closed']) });
+
+router.patch('/api/v1/psa/tasks/:id/status', requireAuth, (req, res) => {
+  const parsed = statusOnlySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'status must be one of open, in_progress, completed, closed' });
+  const task = db.prepare('SELECT id FROM tasks WHERE id=?').get(req.params.id);
+  if (!task) return res.status(404).json({ error: 'Task not found' });
+
+  let allowed = !!req.user.isAdmin;
+  if (!allowed) {
+    const emp = db.prepare('SELECT id FROM employees WHERE userId=?').get(req.user.id);
+    if (emp) {
+      const assigned = db.prepare('SELECT 1 FROM task_resources WHERE taskId=? AND employeeId=?').get(req.params.id, emp.id);
+      allowed = !!assigned;
+    }
+  }
+  if (!allowed) return res.status(403).json({ error: 'You can only change the status of tasks assigned to you.' });
+
+  const now = new Date().toISOString();
+  db.prepare('UPDATE tasks SET status=?, updatedAt=? WHERE id=?').run(parsed.data.status, now, req.params.id);
+  auditLog(req.user.id, 'TASK_STATUS_UPDATE', { id: req.params.id, status: parsed.data.status });
+  res.json({ task: db.prepare('SELECT * FROM tasks WHERE id=?').get(req.params.id) });
+});
+
 router.delete('/api/v1/psa/tasks/:id', requireAuth, (req, res) => {
   if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin only' });
   const existing = db.prepare('SELECT id FROM tasks WHERE id=?').get(req.params.id);
