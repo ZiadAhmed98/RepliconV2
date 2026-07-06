@@ -76,7 +76,7 @@ const SECTIONS = [
       { label: 'Employees & Access',   icon: 'bx-group',           desc: 'Employee records, roles, login accounts and permissions', live: true, to: '/employees' },
       { label: 'Audit Log',           icon: 'bx-history',         desc: 'Full trail of every system action',           live: true, to: ADMIN_PATH.auditLog  },
       { label: 'Job Roles',           icon: 'bx-id-card',         desc: 'Create custom job titles like Sr Solutions Architect', live: true, to: '/settings/job-roles' },
-      { label: 'Roles & Permissions', icon: 'bx-lock-alt',        desc: 'Define page access per user',                 live: true, to: '/settings/roles' },
+      { label: 'Permission Sets',     icon: 'bx-lock-alt',        desc: 'Reusable access templates + per-user page access', live: true, to: '/settings/roles' },
       { label: 'Team Hierarchy',      icon: 'bx-sitemap',         desc: 'Org chart, supervisors and reporting lines',  live: true, to: '/settings/team-hierarchy' },
     ],
   },
