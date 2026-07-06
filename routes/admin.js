@@ -6,6 +6,25 @@ import { validate, z }                             from '../lib/validate.js';
 
 const router = Router();
 
+// ── Dynamic password policy (Security Settings) ─────────────────────────────
+function securitySettings() {
+  const out = {};
+  db.prepare("SELECT key, value FROM app_settings WHERE key LIKE 'security.%'").all().forEach(r => {
+    const k = r.key.slice('security.'.length);
+    try { out[k] = JSON.parse(r.value); } catch { out[k] = r.value; }
+  });
+  return out;
+}
+function passwordPolicyError(pw) {
+  const s = securitySettings();
+  const min = Number(s.minPasswordLength) || 0;
+  if (min && String(pw).length < min)             return `Password must be at least ${min} characters.`;
+  if (s.requireUppercase && !/[A-Z]/.test(pw))     return 'Password must contain an uppercase letter.';
+  if (s.requireNumber    && !/[0-9]/.test(pw))     return 'Password must contain a number.';
+  if (s.requireSymbol    && !/[^A-Za-z0-9]/.test(pw)) return 'Password must contain a symbol.';
+  return null;
+}
+
 // ── Validation schemas ────────────────────────────────────────────────────────
 const createUserSchema = z.object({
   id:          z.string().trim().min(1).max(64),
@@ -30,6 +49,8 @@ router.get('/api/v1/admin/users', requireAdmin, (req, res) => {
 
 router.post('/api/v1/admin/users', requireAdmin, validate(createUserSchema), async (req, res) => {
   const { id, displayName, password, isAdmin, permissions } = req.body;
+  const pErr = passwordPolicyError(password);
+  if (pErr) return res.status(422).json({ error: pErr });
 
   const cleanId = String(id).toLowerCase().trim().replace(/\s+/g, '_');
   if (db.prepare('SELECT id FROM users WHERE id=?').get(cleanId)) {
@@ -54,6 +75,7 @@ router.put('/api/v1/admin/users/:uid', requireAdmin, validate(updateUserSchema),
   }
 
   const { displayName, password, isAdmin, permissions } = req.body;
+  if (password) { const pErr = passwordPolicyError(password); if (pErr) return res.status(422).json({ error: pErr }); }
   const now = new Date().toISOString();
   if (displayName)                  db.prepare('UPDATE users SET displayName=?,updatedAt=? WHERE id=?').run(String(displayName).trim(), now, uid);
   if (typeof isAdmin === 'boolean') db.prepare('UPDATE users SET isAdmin=?,updatedAt=? WHERE id=?').run(isAdmin ? 1 : 0, now, uid);

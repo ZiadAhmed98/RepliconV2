@@ -121,6 +121,7 @@ const SECTIONS = [
     accent: '#94a3b8',
     items: [
       { label: 'General Settings',    icon: 'bx-wrench',          desc: 'Platform-wide preferences and defaults',   live: true, to: '/settings/general' },
+      { label: 'Security Settings',   icon: 'bx-shield-quarter',  desc: 'Password policy and session controls',     live: true, to: '/settings/security' },
       { label: 'Branding',            icon: 'bx-palette',         desc: 'Logo, accent colours and display name',    live: true, to: '/settings/branding' },
       { label: 'Localization',        icon: 'bx-globe',           desc: 'Language, timezone and date formats',      live: true, to: '/settings/localization' },
       { label: 'Backup & Restore',    icon: 'bx-cloud-upload',    desc: 'Export data and restore from backup',      live: true, to: '/settings/backup' },

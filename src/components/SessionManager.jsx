@@ -1,12 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useAppSettings } from '../context/SettingsContext';
 
 export default function SessionManager({ onLogout }) {
+  const { group } = useAppSettings();
   const [showWarning, setShowWarning] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(900); // 15 minutes in seconds for the warning countdown
+  const [timeLeft, setTimeLeft] = useState(120);
 
-  // 15 mins (900,000ms) until warning, 30 mins (1,800,000ms) total until force logout
-  const IDLE_TIMEOUT = 900000; 
-  const WARNING_DURATION = 900000; 
+  // Total idle allowance comes from Security Settings (default 60 min); the
+  // last 2 minutes are the warning countdown.
+  const sessionMin = Number(group('security').sessionTimeoutMinutes) || 60;
+  const WARNING_DURATION = 120000; // 2-minute warning
+  const TOTAL_IDLE = Math.max(sessionMin * 60000, WARNING_DURATION + 60000);
+  const IDLE_TIMEOUT = TOTAL_IDLE - WARNING_DURATION;
 
   const resetTimer = useCallback(() => {
     if (!showWarning) {
@@ -41,7 +46,7 @@ export default function SessionManager({ onLogout }) {
       events.forEach(e => window.removeEventListener(e, resetTimer));
       clearInterval(interval);
     };
-  }, [showWarning, resetTimer, onLogout]);
+  }, [showWarning, resetTimer, onLogout, IDLE_TIMEOUT, WARNING_DURATION]);
 
   if (!showWarning) return null;
 
@@ -55,7 +60,7 @@ export default function SessionManager({ onLogout }) {
         <i className='bx bx-time-five' style={{ fontSize: '3rem', color: 'var(--accent-yellow)', marginBottom: '15px' }}></i>
         <h2 style={{ margin: '0 0 10px 0', color: 'var(--text-main)' }}>Session Expiring</h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '20px' }}>
-          You have been idle for 15 minutes. For your security, your session will automatically log out in:
+          You&apos;ve been inactive. For your security, your session will automatically log out in:
         </p>
         <h1 style={{ color: 'var(--accent-coral)', fontSize: '2.5rem', margin: '0 0 25px 0' }}>
           {mins}:{secs < 10 ? '0' : ''}{secs}
