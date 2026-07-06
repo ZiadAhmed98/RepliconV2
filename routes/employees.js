@@ -19,6 +19,7 @@ const employeeSchema = z.object({
   supervisorId: z.string().nullable().optional(),
   department:     z.string().nullable().optional(),
   officeLocation: z.string().nullable().optional(),
+  jobTitle:       z.string().nullable().optional(),
   startDate:    z.string().optional(),
   endDate:      z.string().nullable().optional(),
   status:       z.enum(['active', 'inactive']).default('active'),
@@ -58,11 +59,11 @@ router.post('/api/v1/employees', requireAuth, (req, res) => {
   const id  = crypto.randomUUID();
   try {
     db.prepare(`
-      INSERT INTO employees (id, firstName, lastName, displayName, email, employeeId, role, skills, supervisorId, department, officeLocation, startDate, endDate, status, createdAt, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO employees (id, firstName, lastName, displayName, email, employeeId, role, skills, supervisorId, department, officeLocation, jobTitle, startDate, endDate, status, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(id, d.firstName, d.lastName, d.displayName || `${d.firstName} ${d.lastName}`,
            d.email || null, d.employeeId || null, d.role, JSON.stringify(d.skills),
-           d.supervisorId || null, d.department || null, d.officeLocation || null,
+           d.supervisorId || null, d.department || null, d.officeLocation || null, d.jobTitle || null,
            d.startDate || null, d.endDate || null, d.status, now, now);
     auditLog(req.user.id, 'EMPLOYEE_CREATE', { id, name: `${d.firstName} ${d.lastName}` });
     const row = db.prepare('SELECT * FROM employees WHERE id = ?').get(id);
@@ -84,11 +85,11 @@ router.put('/api/v1/employees/:id', requireAuth, (req, res) => {
   try {
     db.prepare(`
       UPDATE employees SET firstName=?, lastName=?, displayName=?, email=?, employeeId=?,
-        role=?, skills=?, supervisorId=?, department=?, officeLocation=?, startDate=?, endDate=?, status=?, updatedAt=?
+        role=?, skills=?, supervisorId=?, department=?, officeLocation=?, jobTitle=?, startDate=?, endDate=?, status=?, updatedAt=?
       WHERE id=?
     `).run(d.firstName, d.lastName, d.displayName || `${d.firstName} ${d.lastName}`,
            d.email || null, d.employeeId || null, d.role, JSON.stringify(d.skills),
-           d.supervisorId || null, d.department || null, d.officeLocation || null,
+           d.supervisorId || null, d.department || null, d.officeLocation || null, d.jobTitle || null,
            d.startDate || null, d.endDate || null, d.status, now, req.params.id);
     auditLog(req.user.id, 'EMPLOYEE_UPDATE', { id: req.params.id });
     const row = db.prepare('SELECT * FROM employees WHERE id = ?').get(req.params.id);

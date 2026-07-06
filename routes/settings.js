@@ -126,6 +126,7 @@ crudRoutes('workflow_rules',     'rule',         ['name', 'entity', 'fromStatus'
 crudRoutes('alert_rules',        'rule',         ['name', 'trigger', 'threshold', 'channels', 'active']);
 crudRoutes('departments',        'department',   ['name', 'code', 'description']);
 crudRoutes('locations',          'location',     ['name', 'code', 'description']);
+crudRoutes('employee_types',     'employeeType', ['name', 'code', 'description']);
 
 // ── Email templates ───────────────────────────────────────────────────────────
 router.get('/api/v1/admin/email-templates', requireAdmin, (req, res) => {
