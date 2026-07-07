@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Chart    from 'react-apexcharts';
 import ApexCharts from 'apexcharts';
 import jsPDF    from 'jspdf';
@@ -77,6 +78,7 @@ const getOpts = (id, custom = {}) => baseChartOptions({
 
 export default function Dashboard({ dataMatrix }) {
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   // ── State ────────────────────────────────────────────────────────────────
   const [compView,        setCompView]        = useState('daily');
@@ -671,7 +673,10 @@ export default function Dashboard({ dataMatrix }) {
                   <li key={i} className={styles.insightItem}>
                     <div className={styles.insightInfo}>
                       <div className={styles.insightRank}>{i+1}</div>
-                      <span className={styles.insightName}>{e.name}</span>
+                      <span className={styles.insightName} style={{ cursor: 'pointer' }}
+                        onClick={() => navigate(`/employee?name=${encodeURIComponent(e.name)}`)}
+                        onMouseEnter={ev => ev.currentTarget.style.textDecoration = 'underline'}
+                        onMouseLeave={ev => ev.currentTarget.style.textDecoration = 'none'}>{e.name}</span>
                     </div>
                     <span className={styles.insightVal}>{fmtInt(e.val)} hrs</span>
                   </li>

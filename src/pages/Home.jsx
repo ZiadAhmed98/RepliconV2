@@ -525,7 +525,15 @@ function AdminHome({ summary, sessionUser, nav, onRefresh }) {
                 <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'6px' }}>
                   <div style={{ minWidth:0, flex:1 }}>
                     <div style={{ fontSize:'0.78rem', fontWeight:600, color:'var(--text-main)' }}>{r.employeeName}</div>
-                    <div style={{ fontSize:'0.68rem', color:'rgba(255,255,255,0.3)', marginTop:'1px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>→ {r.projectName}</div>
+                    <div style={{ fontSize:'0.68rem', color:'rgba(255,255,255,0.3)', marginTop:'1px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                      → {r.projectId ? (
+                        <span onClick={() => nav(`/projects-admin/${r.projectId}`, { state: { from: '/home', fromLabel: 'Home' } })}
+                          style={{ cursor:'pointer', color:'#60a5fa' }}
+                          onMouseEnter={ev => ev.currentTarget.style.textDecoration = 'underline'} onMouseLeave={ev => ev.currentTarget.style.textDecoration = 'none'}>
+                          {r.projectName}
+                        </span>
+                      ) : r.projectName}
+                    </div>
                   </div>
                 </div>
                 <div style={{ display:'flex', gap:'6px' }}>
@@ -562,7 +570,12 @@ function AdminHome({ summary, sessionUser, nav, onRefresh }) {
                   {(e.firstName?.[0]||'?')}
                 </div>
                 <div>
-                  <div style={{ fontSize:'0.78rem', fontWeight:600, color:'var(--text-main)' }}>{e.displayName || `${e.firstName} ${e.lastName}`}</div>
+                  <div onClick={() => nav(`/employees/${e.id}`, { state: { from: '/home', fromLabel: 'Home' } })}
+                    style={{ fontSize:'0.78rem', fontWeight:600, color:'var(--text-main)', cursor:'pointer', width:'fit-content' }}
+                    onMouseEnter={ev => { ev.currentTarget.style.color = '#a78bfa'; ev.currentTarget.style.textDecoration = 'underline'; }}
+                    onMouseLeave={ev => { ev.currentTarget.style.color = 'var(--text-main)'; ev.currentTarget.style.textDecoration = 'none'; }}>
+                    {e.displayName || `${e.firstName} ${e.lastName}`}
+                  </div>
                   {e.employeeId && <div style={{ fontSize:'0.64rem', color:'rgba(255,255,255,0.28)' }}>ID: {e.employeeId}</div>}
                 </div>
               </div>

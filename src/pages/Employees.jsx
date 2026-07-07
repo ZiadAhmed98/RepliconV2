@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 import { useAppSettings } from '../context/SettingsContext';
 import { applyNameFormula, DEFAULT_LOGIN_FORMULA, DEFAULT_EMAIL_FORMULA } from '../utils/formula';
@@ -334,6 +335,7 @@ function EmployeeModal({ employee, allEmployees, roles = ROLES, onSave, onClose 
 
 export default function Employees({ sessionUser }) {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const isAdmin = sessionUser?.isAdmin;
 
   const [employees, setEmployees] = useState([]);
@@ -492,7 +494,12 @@ export default function Employees({ sessionUser }) {
                     {emp.firstName[0]}{emp.lastName[0]}
                   </div>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-main)' }}>{emp.displayName || `${emp.firstName} ${emp.lastName}`}</div>
+                    <div onClick={() => navigate(`/employees/${emp.id}`, { state: { from: '/employees', fromLabel: 'Employees' } })}
+                      style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-main)', cursor: 'pointer', width: 'fit-content' }}
+                      onMouseEnter={e => { e.currentTarget.style.color = '#a78bfa'; e.currentTarget.style.textDecoration = 'underline'; }}
+                      onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.textDecoration = 'none'; }}>
+                      {emp.displayName || `${emp.firstName} ${emp.lastName}`}
+                    </div>
                     {emp.employeeId && <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{emp.employeeId}</div>}
                   </div>
                 </div>
@@ -509,7 +516,16 @@ export default function Employees({ sessionUser }) {
               <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{emp.email || '—'}</div>
 
               {/* Supervisor */}
-              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{emp.supervisorId ? supervisorName(emp.supervisorId) : '—'}</div>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                {emp.supervisorId ? (
+                  <span onClick={() => navigate(`/employees/${emp.supervisorId}`, { state: { from: '/employees', fromLabel: 'Employees' } })}
+                    style={{ cursor: 'pointer' }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#a78bfa'; e.currentTarget.style.textDecoration = 'underline'; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.textDecoration = 'none'; }}>
+                    {supervisorName(emp.supervisorId)}
+                  </span>
+                ) : '—'}
+              </div>
 
               {/* Skills */}
               <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>

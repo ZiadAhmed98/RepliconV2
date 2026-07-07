@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 import { useAppSettings } from '../context/SettingsContext';
 
@@ -14,12 +15,16 @@ const STATUS_STYLE = {
 };
 
 // ── Shared row helper ──────────────────────────────────────────────────────────
-function Row({ icon, label, value, color }) {
+function Row({ icon, label, value, color, onClick }) {
+  const clickable = !!onClick && !!value;
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.82rem' }}>
       <i className={`bx ${icon}`} style={{ color: 'rgba(255,255,255,0.25)', fontSize: '13px', marginTop: '1px', flexShrink: 0, width: '14px' }} />
       <span style={{ color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{label}:</span>
-      <span style={{ color: color || 'var(--text-sub)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+      <span onClick={clickable ? onClick : undefined}
+        style={{ color: color || 'var(--text-sub)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, cursor: clickable ? 'pointer' : 'default' }}
+        onMouseEnter={clickable ? (e => { e.currentTarget.style.textDecoration = 'underline'; }) : undefined}
+        onMouseLeave={clickable ? (e => { e.currentTarget.style.textDecoration = 'none'; }) : undefined}>
         {value || '—'}
       </span>
     </div>
@@ -181,7 +186,7 @@ function ClientModal({ client, accountManagers, onSave, onClose }) {
 
 // ── Client Card — uniform height, dash for missing data ────────────────────────
 
-function ClientCard({ client, isAdmin, onEdit, onToggle }) {
+function ClientCard({ client, isAdmin, onEdit, onToggle, onOpen, onOpenAM }) {
   const st = STATUS_STYLE[client.status] || STATUS_STYLE.inactive;
   return (
     <div style={{
@@ -205,7 +210,10 @@ function ClientCard({ client, isAdmin, onEdit, onToggle }) {
             </span>
           </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-main)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div onClick={onOpen} title="View client"
+              style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-main)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#818cf8'; e.currentTarget.style.textDecoration = 'underline'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.textDecoration = 'none'; }}>
               {client.name}
             </div>
             <span style={{ fontSize: '0.7rem', background: 'rgba(99,102,241,0.12)', color: '#818cf8', borderRadius: '4px', padding: '1px 6px', marginTop: '3px', display: 'inline-block' }}>
@@ -226,7 +234,7 @@ function ClientCard({ client, isAdmin, onEdit, onToggle }) {
       {/* Fixed info grid — always same rows → uniform card height */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, marginBottom: '14px' }}>
         <Row icon="bx-building"     label="Industry" value={client.industry} />
-        <Row icon="bx-user-badge"   label="AM"       value={client.accountManagerName} color="#34d399" />
+        <Row icon="bx-user-badge"   label="AM"       value={client.accountManagerName} color="#34d399" onClick={client.managerId ? onOpenAM : null} />
         <Row icon="bx-envelope"     label="AM email" value={client.amEmail} />
         <Row icon="bx-phone"        label="AM phone" value={client.amPhone} />
         <Row icon="bx-id-card"      label="Contact"  value={client.contactName} />
@@ -264,6 +272,7 @@ function ClientCard({ client, isAdmin, onEdit, onToggle }) {
 
 export default function Clients({ sessionUser }) {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const isAdmin = sessionUser?.isAdmin;
 
   const [clients,        setClients]        = useState([]);
@@ -391,6 +400,8 @@ export default function Clients({ sessionUser }) {
               isAdmin={isAdmin}
               onEdit={c => setModal(c)}
               onToggle={toggleStatus}
+              onOpen={() => navigate(`/clients/${client.id}`, { state: { from: '/clients', fromLabel: 'Clients' } })}
+              onOpenAM={() => navigate(`/account-managers/${client.managerId}`, { state: { from: '/clients', fromLabel: 'Clients' } })}
             />
           ))}
         </div>

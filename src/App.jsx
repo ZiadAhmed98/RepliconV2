@@ -30,6 +30,8 @@ import Profile         from './pages/Profile';
 import ProjectsAdmin      from './pages/ProjectsAdmin';
 import ProjectDetail      from './pages/ProjectDetail';
 import MyProjects         from './pages/MyProjects';
+import EmployeeDetail      from './pages/EmployeeDetail';
+import ClientDetail        from './pages/ClientDetail';
 import TimesheetApproval  from './pages/TimesheetApproval';
 import Administration    from './pages/Administration';
 import AuditLog         from './pages/AuditLog';
@@ -242,7 +244,9 @@ function AppContent() {
                 <Route path="/my-timesheet"   element={<GuardedRoute page="myTimesheet"><MyTimesheet    dataMatrix={dataMatrix} sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/my-projects"    element={<MyProjects sessionUser={sessionUser} />} />
                 <Route path="/employees"           element={<GuardedRoute page="employees" ><Employees       sessionUser={sessionUser} /></GuardedRoute>} />
+                <Route path="/employees/:id"       element={<EmployeeDetail sessionUser={sessionUser} />} />
                 <Route path="/clients"             element={<GuardedRoute page="clients"  ><Clients         sessionUser={sessionUser} /></GuardedRoute>} />
+                <Route path="/clients/:id"         element={<ClientDetail sessionUser={sessionUser} />} />
                 <Route path="/programs"            element={<GuardedRoute page="programs"><Programs /></GuardedRoute>} />
                 <Route path="/account-managers"       element={<GuardedRoute page="accountManagers"><AccountManagers sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/account-managers/:id"  element={<GuardedRoute page="accountManagers"><AccountManagerDetail /></GuardedRoute>} />

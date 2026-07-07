@@ -566,10 +566,18 @@ export default function ProjectDetail({ sessionUser }) {
             </div>
             <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', fontSize: '0.83rem', color: 'var(--text-muted)' }}>
               {project.clientName && (
-                <span><i className='bx bx-briefcase' style={{ marginRight: '5px', fontSize: '0.9rem' }} />Client: <strong style={{ color: 'var(--text-main)' }}>{project.clientName}</strong></span>
+                <span><i className='bx bx-briefcase' style={{ marginRight: '5px', fontSize: '0.9rem' }} />Client: {project.clientId ? (
+                  <strong onClick={() => navigate(`/clients/${project.clientId}`, { state: { from: `/projects-admin/${id}`, fromLabel: project.name } })}
+                    style={{ color: '#818cf8', cursor: 'pointer' }}
+                    onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'} onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}>{project.clientName}</strong>
+                ) : <strong style={{ color: 'var(--text-main)' }}>{project.clientName}</strong>}</span>
               )}
               {project.projectManagerName && (
-                <span><i className='bx bx-user' style={{ marginRight: '5px', fontSize: '0.9rem' }} />PM: <strong style={{ color: 'var(--text-main)' }}>{project.projectManagerName}</strong></span>
+                <span><i className='bx bx-user' style={{ marginRight: '5px', fontSize: '0.9rem' }} />PM: {project.projectManagerId ? (
+                  <strong onClick={() => navigate(`/employees/${project.projectManagerId}`, { state: { from: `/projects-admin/${id}`, fromLabel: project.name } })}
+                    style={{ color: '#a78bfa', cursor: 'pointer' }}
+                    onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'} onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}>{project.projectManagerName}</strong>
+                ) : <strong style={{ color: 'var(--text-main)' }}>{project.projectManagerName}</strong>}</span>
               )}
               {(project.startDate || project.endDate) && (
                 <span><i className='bx bx-calendar' style={{ marginRight: '5px', fontSize: '0.9rem' }} />
@@ -778,7 +786,12 @@ export default function ProjectDetail({ sessionUser }) {
                     {m.firstName?.[0]}{m.lastName?.[0]}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)' }}>{m.displayName || `${m.firstName} ${m.lastName}`}</div>
+                    <div onClick={() => navigate(`/employees/${m.id}`, { state: { from: `/projects-admin/${id}`, fromLabel: project.name } })}
+                      style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer', width: 'fit-content' }}
+                      onMouseEnter={e => { e.currentTarget.style.color = '#a78bfa'; e.currentTarget.style.textDecoration = 'underline'; }}
+                      onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.textDecoration = 'none'; }}>
+                      {m.displayName || `${m.firstName} ${m.lastName}`}
+                    </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '1px' }}>{m.email || m.employeeId || ''}</div>
                   </div>
                   <span style={{ fontSize: '0.72rem', background: `${ROLE_C[m.role] || '#64748b'}20`, color: ROLE_C[m.role] || '#64748b', borderRadius: '5px', padding: '2px 8px', fontWeight: 600 }}>

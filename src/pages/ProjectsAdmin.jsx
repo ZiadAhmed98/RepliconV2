@@ -402,8 +402,26 @@ export default function ProjectsAdmin({ sessionUser }) {
                       {p.code && <span style={{ fontFamily: 'monospace', fontSize: '0.78rem', background: 'rgba(255,255,255,0.06)', borderRadius: '5px', padding: '2px 6px', color: 'var(--text-muted)' }}>{p.code}</span>}
                     </td>
                     <td style={td}><StatusBadge status={p.status} /></td>
-                    <td style={{ ...td, color: 'var(--text-muted)' }}>{p.clientName || '—'}</td>
-                    <td style={{ ...td, color: 'var(--text-muted)' }}>{p.projectManagerName || '—'}</td>
+                    <td style={{ ...td, color: 'var(--text-muted)' }}>
+                      {p.clientId && p.clientName ? (
+                        <span onClick={e => { e.stopPropagation(); navigate(`/clients/${p.clientId}`, { state: { from: '/projects-admin', fromLabel: 'Projects' } }); }}
+                          style={{ cursor: 'pointer' }}
+                          onMouseEnter={e => { e.currentTarget.style.color = '#818cf8'; e.currentTarget.style.textDecoration = 'underline'; }}
+                          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.textDecoration = 'none'; }}>
+                          {p.clientName}
+                        </span>
+                      ) : '—'}
+                    </td>
+                    <td style={{ ...td, color: 'var(--text-muted)' }}>
+                      {p.projectManagerId && p.projectManagerName ? (
+                        <span onClick={e => { e.stopPropagation(); navigate(`/employees/${p.projectManagerId}`, { state: { from: '/projects-admin', fromLabel: 'Projects' } }); }}
+                          style={{ cursor: 'pointer' }}
+                          onMouseEnter={e => { e.currentTarget.style.color = '#a78bfa'; e.currentTarget.style.textDecoration = 'underline'; }}
+                          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.textDecoration = 'none'; }}>
+                          {p.projectManagerName}
+                        </span>
+                      ) : '—'}
+                    </td>
                     <td style={{ ...td, color: 'var(--text-muted)', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                       {p.startDate ? p.startDate : '—'}
                       {p.endDate ? ` → ${p.endDate}` : ''}
