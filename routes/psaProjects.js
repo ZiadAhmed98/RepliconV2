@@ -46,6 +46,7 @@ const psaProjectSchema = z.object({
   startDate:         z.string().nullable().optional(),
   endDate:           z.string().nullable().optional(),
   budgetHours:       z.number().min(0).default(0),
+  costCenterId:      z.string().nullable().optional(),
   billingType:       z.enum(['time_material','fixed_bid','non_billable','adoption_tm','sla_retainer','staff_aug']).default('time_material'),
   quotedHours:       z.number().min(0).default(0),
   ticketAllocation:  z.number().min(0).default(0),
@@ -74,11 +75,12 @@ router.get('/api/v1/psa/projects', requireAuth, (req, res) => {
   const total = paged ? db.prepare('SELECT COUNT(*) AS n FROM projects p' + where).get(...params).n : null;
   let q = `
     SELECT p.*, c.name AS clientName, e.firstName || ' ' || e.lastName AS projectManagerName,
-           pr.name AS programName
+           pr.name AS programName, cc.name AS costCenterName
     FROM projects p
     LEFT JOIN clients   c  ON c.id  = p.clientId
     LEFT JOIN employees e  ON e.id  = p.projectManagerId
-    LEFT JOIN programs  pr ON pr.id = p.programId` + where + ' ORDER BY p.createdAt DESC';
+    LEFT JOIN programs  pr ON pr.id = p.programId
+    LEFT JOIN cost_centers cc ON cc.id = p.costCenterId` + where + ' ORDER BY p.createdAt DESC';
   if (paged) q += ' LIMIT ? OFFSET ?';
   const rows = db.prepare(q).all(...(paged ? [...params, limit, offset] : params));
   res.json({ projects: rows, total: total ?? rows.length });
@@ -87,11 +89,12 @@ router.get('/api/v1/psa/projects', requireAuth, (req, res) => {
 router.get('/api/v1/psa/projects/:id', requireAuth, (req, res) => {
   const row = db.prepare(`
     SELECT p.*, c.name AS clientName, e.firstName || ' ' || e.lastName AS projectManagerName,
-           pr.name AS programName
+           pr.name AS programName, cc.name AS costCenterName
     FROM projects p
     LEFT JOIN clients   c  ON c.id  = p.clientId
     LEFT JOIN employees e  ON e.id  = p.projectManagerId
     LEFT JOIN programs  pr ON pr.id = p.programId
+    LEFT JOIN cost_centers cc ON cc.id = p.costCenterId
     WHERE p.id = ?
   `).get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Project not found' });
@@ -156,12 +159,12 @@ router.post('/api/v1/psa/projects', requireAuth, (req, res) => {
              : (ps.autoGenerateCode ? nextProjectCode(ps) : null);
   try {
     db.prepare(`
-      INSERT INTO projects (id,clientId,programId,name,code,status,projectManagerId,startDate,endDate,budgetHours,billingType,quotedHours,ticketAllocation,monthlyAllocation,notes,createdAt,updatedAt)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      INSERT INTO projects (id,clientId,programId,name,code,status,projectManagerId,startDate,endDate,budgetHours,billingType,quotedHours,ticketAllocation,monthlyAllocation,notes,costCenterId,createdAt,updatedAt)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     `).run(id, d.clientId||null, d.programId||null, d.name, code, d.status, d.projectManagerId||null,
            d.startDate||null, d.endDate||null, d.budgetHours, d.billingType,
            d.quotedHours||0, d.ticketAllocation||0, d.monthlyAllocation||0,
-           d.notes||null, now, now);
+           d.notes||null, d.costCenterId||null, now, now);
   } catch (e) {
     if (e.message?.includes('UNIQUE')) return res.status(409).json({ error: 'Project code already exists' });
     throw e;
@@ -188,12 +191,12 @@ router.put('/api/v1/psa/projects/:id', requireAuth, (req, res) => {
   try {
     db.prepare(`
       UPDATE projects SET clientId=?,programId=?,name=?,code=?,status=?,projectManagerId=?,
-        startDate=?,endDate=?,budgetHours=?,billingType=?,quotedHours=?,ticketAllocation=?,monthlyAllocation=?,notes=?,updatedAt=?
+        startDate=?,endDate=?,budgetHours=?,billingType=?,quotedHours=?,ticketAllocation=?,monthlyAllocation=?,notes=?,costCenterId=?,updatedAt=?
       WHERE id=?
     `).run(d.clientId||null, d.programId||null, d.name, code, d.status, d.projectManagerId||null,
            d.startDate||null, d.endDate||null, d.budgetHours, d.billingType,
            d.quotedHours||0, d.ticketAllocation||0, d.monthlyAllocation||0,
-           d.notes||null, now, req.params.id);
+           d.notes||null, d.costCenterId||null, now, req.params.id);
   } catch (e) {
     if (e.message?.includes('UNIQUE')) return res.status(409).json({ error: 'Project code already exists' });
     throw e;
