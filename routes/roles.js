@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import crypto     from 'crypto';
-import { requireAuth, requireAdmin } from '../lib/auth.js';
-import { auditLog }                  from '../lib/helpers.js';
-import db                            from '../lib/db.js';
+import { requireAuth, requireAdmin }  from '../lib/auth.js';
+import { auditLog }                   from '../lib/helpers.js';
+import { defaultPermissionsForRole }  from '../lib/rbac.js';
+import db                             from '../lib/db.js';
 
 const router = Router();
 
@@ -22,6 +23,14 @@ router.get('/api/v1/roles', requireAuth, (req, res) => {
   const cmap   = Object.fromEntries(counts.map(c => [c.role, c.n]));
   roles.forEach(r => { r.memberCount = cmap[r.id] || 0; });
   res.json({ roles });
+});
+
+// The effective default page-access a role grants — used by the employee
+// editor to pre-fill / reset access when a role is assigned.
+router.get('/api/v1/roles/:id/effective-permissions', requireAdmin, (req, res) => {
+  const role = db.prepare('SELECT id FROM roles WHERE id=?').get(req.params.id);
+  if (!role) return res.status(404).json({ error: 'Role not found' });
+  res.json({ permissions: defaultPermissionsForRole(req.params.id) });
 });
 
 // Create a custom role

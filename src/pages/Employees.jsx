@@ -483,7 +483,8 @@ export default function Employees({ sessionUser }) {
           </div>
 
           {employees.map((emp, i) => (
-            <div key={emp.id} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 2fr 2fr 1fr 80px', gap: '0', padding: '14px 20px', borderBottom: i < employees.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none', alignItems: 'center', opacity: emp.status === 'inactive' ? 0.5 : 1, transition: 'background 0.15s' }}
+            <div key={emp.id} onClick={() => navigate(`/employees/${emp.id}`, { state: { from: '/employees', fromLabel: 'Employees' } })}
+              style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 2fr 2fr 1fr 80px', gap: '0', padding: '14px 20px', borderBottom: i < employees.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none', alignItems: 'center', opacity: emp.status === 'inactive' ? 0.5 : 1, transition: 'background 0.15s', cursor: 'pointer' }}
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.025)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
             >
@@ -537,10 +538,10 @@ export default function Employees({ sessionUser }) {
               <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                 {isAdmin && (
                   <>
-                    <button onClick={() => setModal(emp)} title="Edit" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '7px', padding: '5px 9px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '13px' }}>
+                    <button onClick={e => { e.stopPropagation(); navigate(`/employees/${emp.id}/edit`, { state: { from: '/employees', fromLabel: 'Employees' } }); }} title="Edit" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '7px', padding: '5px 9px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '13px' }}>
                       <i className='bx bx-pencil' />
                     </button>
-                    <button onClick={() => toggleStatus(emp)} title={emp.status === 'active' ? 'Deactivate' : 'Reactivate'}
+                    <button onClick={e => { e.stopPropagation(); toggleStatus(emp); }} title={emp.status === 'active' ? 'Deactivate' : 'Reactivate'}
                       style={{ background: emp.status === 'active' ? 'rgba(255,59,48,0.08)' : 'rgba(48,209,88,0.08)', border: `1px solid ${emp.status === 'active' ? 'rgba(255,59,48,0.2)' : 'rgba(48,209,88,0.2)'}`, borderRadius: '7px', padding: '5px 9px', cursor: 'pointer', color: emp.status === 'active' ? '#ff3b30' : '#30d158', fontSize: '13px' }}>
                       <i className={`bx ${emp.status === 'active' ? 'bx-user-x' : 'bx-user-check'}`} />
                     </button>

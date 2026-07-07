@@ -76,7 +76,7 @@ export default function EmployeeDetail({ sessionUser }) {
           </div>
         </div>
         {sessionUser?.isAdmin && (
-          <button onClick={() => navigate('/employees')} style={{ ...backBtn, marginLeft: 'auto' }}><i className='bx bx-pencil' /> Manage</button>
+          <button onClick={() => navigate(`/employees/${id}/edit`, { state: { from: `/employees/${id}`, fromLabel: fullName } })} style={{ ...backBtn, marginLeft: 'auto' }}><i className='bx bx-pencil' /> Manage</button>
         )}
       </div>
 

@@ -31,6 +31,7 @@ import ProjectsAdmin      from './pages/ProjectsAdmin';
 import ProjectDetail      from './pages/ProjectDetail';
 import MyProjects         from './pages/MyProjects';
 import EmployeeDetail      from './pages/EmployeeDetail';
+import EmployeeEdit        from './pages/EmployeeEdit';
 import ClientDetail        from './pages/ClientDetail';
 import TimesheetApproval  from './pages/TimesheetApproval';
 import Administration    from './pages/Administration';
@@ -244,6 +245,7 @@ function AppContent() {
                 <Route path="/my-timesheet"   element={<GuardedRoute page="myTimesheet"><MyTimesheet    dataMatrix={dataMatrix} sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/my-projects"    element={<MyProjects sessionUser={sessionUser} />} />
                 <Route path="/employees"           element={<GuardedRoute page="employees" ><Employees       sessionUser={sessionUser} /></GuardedRoute>} />
+                <Route path="/employees/:id/edit"  element={<GuardedRoute page="administration"><EmployeeEdit sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/employees/:id"       element={<EmployeeDetail sessionUser={sessionUser} />} />
                 <Route path="/clients"             element={<GuardedRoute page="clients"  ><Clients         sessionUser={sessionUser} /></GuardedRoute>} />
                 <Route path="/clients/:id"         element={<ClientDetail sessionUser={sessionUser} />} />
